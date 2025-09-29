@@ -1,0 +1,43 @@
+{
+  "name": "ultimate-frisbee-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot for Ultimate Frisbee training notifications with seasonal scheduling",
+  "main": "dist/app.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node dist/app.js",
+    "dev": "ts-node-dev --respawn --transpile-only --esm src/app.ts",
+    "test": "npm run build && node dist/test.js",
+    "lint": "eslint src/**/*.ts",
+    "type-check": "tsc --noEmit",
+    "check": "npm run type-check && npm run lint",
+    "clean": "rimraf dist"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "ultimate-frisbee",
+    "scheduling",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "node-cron": "^3.0.3",
+    "node-telegram-bot-api": "^0.66.0",
+    "openai": "^4.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/node-telegram-bot-api": "^0.64.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.57.1",
+    "rimraf": "^5.0.5",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.9.2"
+  }
+}
