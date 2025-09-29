@@ -1,0 +1,19 @@
+{
+  "name": "dot",
+  "version": "1.0.0",
+  "description": "Seasonal Telegram bot for dog care reminders",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
+    "test": "node test.js"
+  },
+  "keywords": ["telegram", "bot", "dog", "seasonal", "reminders"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.2.2",
+    "grammy": "^1.38.2",
+    "node-cron": "^4.2.1"
+  }
+}
