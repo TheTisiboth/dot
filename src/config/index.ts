@@ -42,8 +42,10 @@ export const config: BotConfig = {
     ...(process.env.CHAT_ID && { chatId: process.env.CHAT_ID }),
   },
 
-  openai: {
-    ...(process.env.OPENAI_API_KEY && { apiKey: process.env.OPENAI_API_KEY }),
+  ollama: {
+    enabled: process.env.OLLAMA_ENABLED === 'true',
+    ...(process.env.OLLAMA_HOST && { host: process.env.OLLAMA_HOST }),
+    ...(process.env.OLLAMA_MODEL && { model: process.env.OLLAMA_MODEL }),
   },
 
   seasons: {

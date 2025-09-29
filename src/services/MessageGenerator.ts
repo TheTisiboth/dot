@@ -1,14 +1,14 @@
-import OpenAI from 'openai';
+import { Ollama } from 'ollama';
 import { config } from '../config/index.js';
 import { SeasonConfig, MessageGenerationOptions, PracticeDay } from '../types/index.js';
-import { EMOJIS, MESSAGES } from '../utils/constants.js';
+import { EMOJIS } from '../utils/constants.js';
 
 export class MessageGenerator {
-  private readonly openai: OpenAI | null;
+  private readonly ollama: Ollama | null;
 
   constructor() {
-    this.openai = config.openai.apiKey ? new OpenAI({
-      apiKey: config.openai.apiKey
+    this.ollama = config.ollama.enabled ? new Ollama({
+      host: config.ollama.host || 'http://localhost:11434'
     }) : null;
   }
 
@@ -30,42 +30,53 @@ The more the merrier! ${EMOJIS.FRISBEE}`;
     options: MessageGenerationOptions = {},
     practiceDay?: PracticeDay
   ): Promise<string> {
-    if (!this.openai) {
-      console.log(MESSAGES.OPENAI_NOT_CONFIGURED);
+    if (this.ollama) {
+      return await this.generateOllamaMessage(seasonConfig, options, practiceDay);
+    } else {
+      console.log('No LLM configured, using template');
       return this.generateTemplateMessage(seasonConfig, practiceDay);
     }
+  }
 
+  private async generateOllamaMessage(
+    seasonConfig: SeasonConfig,
+    options: MessageGenerationOptions = {},
+    practiceDay?: PracticeDay
+  ): Promise<string> {
     const location = practiceDay?.location || seasonConfig.location;
     const time = practiceDay?.time || seasonConfig.practices[0]?.time || '20:00';
     const { season } = seasonConfig;
     const { temperature = 0.7, maxTokens = 200 } = options;
 
     const prompt = this.createLLMPrompt(location, time, season);
+    const model = config.ollama.model || 'mistral:7b';
 
     try {
-      const response = await this.openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
+      const response = await this.ollama!.chat({
+        model,
         messages: [
           {
-            role: "user",
+            role: 'user',
             content: prompt
           }
         ],
-        max_tokens: maxTokens,
-        temperature
+        options: {
+          temperature,
+          num_predict: maxTokens
+        }
       });
 
-      const generatedMessage = response.choices[0]?.message?.content?.trim();
+      const generatedMessage = response.message.content?.trim();
 
       if (!generatedMessage) {
-        throw new Error('Empty response from OpenAI');
+        throw new Error('Empty response from Ollama');
       }
 
       return generatedMessage;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Error generating LLM message:', errorMessage);
-      console.log(MESSAGES.FALLBACK_TO_TEMPLATE);
+      console.error('Error generating Ollama message:', errorMessage);
+      console.log('Fallback to template message');
       return this.generateTemplateMessage(seasonConfig, practiceDay);
     }
   }
@@ -85,29 +96,25 @@ The more the merrier! ${EMOJIS.FRISBEE}`;
   }
 
   private createLLMPrompt(location: string, time: string, season: string): string {
-    return `You are helping generate a message for an Ultimate Frisbee group to invite people to tomorrow's training session.
+    return `Write ONLY the message content for an Ultimate Frisbee training invitation. No explanations, no meta-text, no "Here's a message" - just the direct message.
 
-Context:
-- Sport: Ultimate Frisbee
-- Season: ${season}
-- Location: ${location}
-- Starting time: ${time}
-- Target: Team members who might want to join tomorrow's training
+Requirements:
+- Invite people to tomorrow's ${season} training at ${location} starting at ${time}
+- Ask for ${EMOJIS.THUMBS_UP} reaction to confirm attendance
+- Use 2-4 emojis maximum
+- Keep it friendly and motivating
+- End with a unique encouraging phrase (vary it each time - could be "The more the merrier!", "Let's make it epic!", "See you on the field!", "Bring your A-game!", etc.)
+- 2-4 lines total
 
-Instructions:
-- Generate a friendly, engaging message inviting people to tomorrow's training
-- Ask people to react with ${EMOJIS.THUMBS_UP} if they want to join
-- Include the location (${location}) and time (${time}) clearly
-- Use some emojis but not too many (2-4 total)
-- Keep it casual and motivating but not cringe or overly cheesy
-- Goal is to get as many participants as possible
-- Add a fun, encouraging closing line (like "The more the merrier!")
-- Keep the message concise (2-4 lines)
-
-Generate the message now:`;
+Message:`;
   }
 
   isLLMAvailable(): boolean {
-    return this.openai !== null;
+    return this.ollama !== null;
+  }
+
+  getLLMProvider(): string {
+    if (this.ollama) return `Ollama (${config.ollama.model || 'mistral:7b'})`;
+    return 'Template-only';
   }
 }

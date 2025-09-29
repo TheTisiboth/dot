@@ -19,7 +19,7 @@ export interface DateConfig {
 
 export interface BotConfig {
   telegram: TelegramConfig;
-  openai: OpenAIConfig;
+  ollama: OllamaConfig;
   seasons: SeasonsConfig;
   testing: TestingConfig;
 }
@@ -29,8 +29,10 @@ export interface TelegramConfig {
   chatId?: string;
 }
 
-export interface OpenAIConfig {
-  apiKey?: string;
+export interface OllamaConfig {
+  enabled?: boolean;
+  host?: string;
+  model?: string;
 }
 
 export interface SeasonsConfig {

@@ -66,7 +66,7 @@ class UltimateFrisbeeBot {
     console.log(`${EMOJIS.CALENDAR} Current season: ${currentSeason}`);
     console.log(`${EMOJIS.RUNNER} Training days: ${trainingDays}`);
     console.log(`${EMOJIS.LOCATION} Location: ${seasonConfig.location}`);
-    console.log(`${EMOJIS.ROBOT} LLM enabled: ${this.messageGenerator.isLLMAvailable() ? 'Yes' : 'No (using templates)'}`);
+    console.log(`${EMOJIS.ROBOT} LLM provider: ${this.messageGenerator.getLLMProvider()}`);
 
     if (!this.schedulerService.isConfigured()) {
       console.log(`${EMOJIS.WARNING} CHAT_ID not set - use ${/\/start/} command to get your chat ID for testing`);
