@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  telegram-bot:
+    build: .
+    container_name: dot-telegram-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./logs:/app/logs:rw
+    labels:
+      - "com.docker.compose.project=dot"
+      - "description=Seasonal Telegram Dog Care Bot"
