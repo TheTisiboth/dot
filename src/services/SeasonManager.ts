@@ -1,20 +1,17 @@
-import { config } from "../config"
-import { type SeasonConfig, type SeasonType, type TrainingInfo } from "../types"
+import { config } from '../config'
+import { type SeasonConfig, type SeasonType, type TrainingInfo } from '../types'
 import { DateHelpers } from '../utils/dateHelpers'
+import { Formatters } from '../utils/formatters'
 
 export class SeasonManager {
   private readonly seasons = config.seasons
 
   getCurrentSeason(date: Date = new Date()): SeasonType {
-    // If testing mode is enabled and override date is set
-    if (config.testing.enabled && config.testing.overrideDate) {
-      date = new Date(config.testing.overrideDate)
-    }
+    date = DateHelpers.getEffectiveDate(date)
 
     const winterStart = this.seasons.winter.startDate
     const summerStart = this.seasons.summer.startDate
 
-    // Create date objects for comparison (using the date's year)
     const currentYear = date.getFullYear()
     const winterStartDate = DateHelpers.createDateFromMonthDay(
       winterStart.month,
@@ -27,20 +24,14 @@ export class SeasonManager {
       currentYear
     )
 
-    // Handle year-wrap logic: winter runs from winter start to summer start (next year)
-    // Summer runs from summer start to winter start
-
-    // If date is after winter start of current year, it's winter
     if (date >= winterStartDate) {
       return 'winter'
     }
 
-    // If date is before summer start of current year, it's still winter (from previous year)
     if (date < summerStartDate) {
       return 'winter'
     }
 
-    // Otherwise it's summer
     return 'summer'
   }
 
@@ -53,34 +44,25 @@ export class SeasonManager {
   }
 
   shouldSendMessage(date: Date = new Date()): boolean {
-    // If testing mode is enabled and override date is set
-    if (config.testing.enabled && config.testing.overrideDate) {
-      date = new Date(config.testing.overrideDate)
-    }
+    date = DateHelpers.getEffectiveDate(date)
 
-    // Calculate tomorrow's date
     const tomorrow = new Date(date)
     tomorrow.setDate(date.getDate() + 1)
 
     const seasonConfig = this.getCurrentSeasonConfig(tomorrow)
-    const tomorrowDayOfWeek = tomorrow.getDay() // 0=Sunday, 1=Monday, etc.
+    const tomorrowDayOfWeek = tomorrow.getDay()
 
-    // Send message if tomorrow is a training day
     return seasonConfig.practices.some(practice => practice.day === tomorrowDayOfWeek)
   }
 
   getPracticeForDay(date: Date = new Date()) {
-    // If testing mode is enabled and override date is set
-    if (config.testing.enabled && config.testing.overrideDate) {
-      date = new Date(config.testing.overrideDate)
-    }
+    date = DateHelpers.getEffectiveDate(date)
 
-    // Calculate tomorrow's date (since we send reminders 24h before)
     const tomorrow = new Date(date)
     tomorrow.setDate(date.getDate() + 1)
 
     const seasonConfig = this.getCurrentSeasonConfig(tomorrow)
-    const tomorrowDayOfWeek = tomorrow.getDay() // 0=Sunday, 1=Monday, etc.
+    const tomorrowDayOfWeek = tomorrow.getDay()
 
     return seasonConfig.practices.find(practice => practice.day === tomorrowDayOfWeek)
   }
@@ -89,13 +71,11 @@ export class SeasonManager {
     const seasonConfig = this.getCurrentSeasonConfig(date)
     const currentDay = date.getDay()
 
-    // Find the next training day
     let daysUntilNext: number | null = null
 
     for (const practice of seasonConfig.practices) {
       const daysToAdd = (practice.day - currentDay + 7) % 7
       if (daysToAdd === 0) {
-        // Today is a training day, so next training is tomorrow
         daysUntilNext = 1
         break
       }
@@ -114,14 +94,11 @@ export class SeasonManager {
     const nextDate = this.getNextTrainingDate(date)
     const seasonConfig = this.getCurrentSeasonConfig(nextDate)
 
-    // Find the practice for the next training date
     const nextPractice = seasonConfig.practices.find(practice => practice.day === nextDate.getDay())
     const location = nextPractice?.location || seasonConfig.location
     const time = nextPractice?.time || seasonConfig.practices[0]?.time || '20:00'
 
-    const trainingInfo: TrainingInfo = {
-      ...DateHelpers.createTrainingInfo(nextDate, location, time, seasonConfig.season)
-    }
+    const trainingInfo = DateHelpers.createTrainingInfo(nextDate, location, time, seasonConfig.season)
 
     if (nextPractice) {
       trainingInfo.practiceDay = nextPractice
@@ -136,7 +113,7 @@ export class SeasonManager {
       this.getCurrentSeasonConfig()
 
     return seasonConfig.practices
-      .map(practice => `${DateHelpers.getDayName(practice.day)} at ${practice.time}`)
+      .map(practice => `${Formatters.getDayName(practice.day)} at ${practice.time}`)
       .join(', ')
   }
 }

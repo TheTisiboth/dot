@@ -2,15 +2,17 @@ import type TelegramBot from 'node-telegram-bot-api'
 import { type SeasonManager } from '../services/SeasonManager'
 import { type MessageGenerator } from '../services/MessageGenerator'
 import { type SchedulerService } from '../services/SchedulerService'
-import { config } from "../config"
-import { type TestResult, type PracticeDay } from "../types"
+import { TestService } from '../services/TestService'
+import { config } from '../config'
 import { EMOJIS, MESSAGES } from '../utils/constants'
 import { DateHelpers } from '../utils/dateHelpers'
+import { Formatters } from '../utils/formatters'
 
 export class BotController {
   private readonly bot: TelegramBot
   private readonly seasonManager: SeasonManager
   private readonly messageGenerator: MessageGenerator
+  private readonly testService: TestService
   private readonly adminChatId?: string
 
   constructor(
@@ -22,6 +24,7 @@ export class BotController {
     this.bot = bot
     this.seasonManager = seasonManager
     this.messageGenerator = messageGenerator
+    this.testService = new TestService(seasonManager, messageGenerator)
     this.adminChatId = config.telegram.adminChatId
 
     this.setupCommands()
@@ -116,10 +119,10 @@ ${summerInfo}`
     const testDate = match[1]
 
     try {
-      const date = DateHelpers.parseTestDate(testDate)
-      const testResult = this.createTestResult(testDate, date)
+      DateHelpers.parseTestDate(testDate)
+      const testResult = this.testService.runTest(testDate)
 
-      const resultText = this.formatTestResult(testResult)
+      const resultText = Formatters.formatTestResult(testResult)
       await this.bot.sendMessage(msg.chat.id, resultText, { parse_mode: 'Markdown' })
 
       if (testResult.shouldSendMessage && testResult.message) {
@@ -137,7 +140,7 @@ ${summerInfo}`
 
     const trainingText = `${EMOJIS.RUNNER} Next Training:
 
-${EMOJIS.CALENDAR} ${DateHelpers.formatDate(nextTraining.date)}
+${EMOJIS.CALENDAR} ${Formatters.formatDate(nextTraining.date)}
 ${EMOJIS.CLOCK} ${nextTraining.time}
 ${EMOJIS.LOCATION} ${nextTraining.location}`
 
@@ -164,87 +167,17 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
 
   private formatSeasonInfo(
     season: 'winter' | 'summer',
-    seasonConfig: { startDate: { month: number; day: number }; practices: PracticeDay[]; location: string },
+    seasonConfig: { startDate: { month: number; day: number }; practices: { day: number; time: string; location?: string }[]; location: string },
     nextSeasonStart: { month: number; day: number }
   ): string {
     const emoji = season === 'winter' ? EMOJIS.WINTER : EMOJIS.SUMMER
-    const name = season.charAt(0).toUpperCase() + season.slice(1)
-    const start = this.formatDateShort(seasonConfig.startDate)
-    const end = this.formatDateShort(this.getDateBefore(nextSeasonStart))
-    const practices = this.formatPracticeDays(seasonConfig.practices)
+    const name = Formatters.capitalize(season)
+    const start = Formatters.formatDateShort(seasonConfig.startDate)
+    const end = Formatters.formatDateShort(DateHelpers.getDateBefore(nextSeasonStart))
+    const practices = Formatters.formatPracticeDays(seasonConfig.practices)
 
     return `${emoji} ${name} (${start} - ${end}):
 ${practices}
    ${EMOJIS.LOCATION} ${seasonConfig.location}`
-  }
-
-  private formatDateShort(dateConfig: { month: number; day: number }): string {
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec']
-    return `${monthNames[dateConfig.month - 1]} ${dateConfig.day}`
-  }
-
-  private getDateBefore(dateConfig: { month: number; day: number }): { month: number; day: number } {
-    const date = new Date(2024, dateConfig.month - 1, dateConfig.day)
-    date.setDate(date.getDate() - 1)
-    return { month: date.getMonth() + 1, day: date.getDate() }
-  }
-
-  private formatPracticeDays(practices: PracticeDay[]): string {
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-    return practices
-      .map(p => `   • ${dayNames[p.day]}s at ${p.time}`)
-      .join('\n')
-  }
-
-  private createTestResult(testDate: string, date: Date): TestResult {
-    // Temporarily override the date
-    const originalOverride = config.testing.overrideDate
-    config.testing.enabled = true
-    config.testing.overrideDate = testDate
-
-    const seasonConfig = this.seasonManager.getCurrentSeasonConfig(date)
-    const shouldSend = this.seasonManager.shouldSendMessage(date)
-    const nextTraining = this.seasonManager.getNextTrainingInfo(date)
-
-    // Restore original config
-    if (originalOverride) {
-      config.testing.overrideDate = originalOverride
-    } else {
-      delete config.testing.overrideDate
-    }
-    if (!originalOverride) {
-      config.testing.enabled = false
-    }
-
-    const practiceDay = this.seasonManager.getPracticeForDay(date)
-
-    const result: TestResult = {
-      date: testDate,
-      season: seasonConfig.season,
-      location: seasonConfig.location,
-      time: practiceDay?.time || seasonConfig.practices[0]?.time || '20:00',
-      shouldSendMessage: shouldSend,
-      nextTraining
-    }
-
-    if (shouldSend) {
-      result.message = this.messageGenerator.generateTemplateMessage(seasonConfig, practiceDay)
-    }
-
-    return result
-  }
-
-  private formatTestResult(result: TestResult): string {
-    return `${EMOJIS.TEST_TUBE} Test Results for ${result.date}:
-
-${EMOJIS.CALENDAR} Season: ${this.capitalize(result.season)}
-${EMOJIS.LOCATION} Location: ${result.location}
-${EMOJIS.CLOCK} Time: ${result.time}
-${EMOJIS.MEMO} Should send message today: ${result.shouldSendMessage ? `${EMOJIS.CHECK_MARK} Yes` : `${EMOJIS.CROSS_MARK} No`}
-${EMOJIS.RUNNER} Next training: ${result.nextTraining.dayName}, ${DateHelpers.formatDate(result.nextTraining.date)}`
-  }
-
-  private capitalize(str: string): string {
-    return str.charAt(0).toUpperCase() + str.slice(1)
   }
 }

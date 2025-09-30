@@ -1,33 +1,17 @@
-import { DAY_NAMES } from './constants'
-import { type TrainingInfo, type SeasonType } from "../types"
+import { config } from '../config'
+import { Formatters } from './formatters'
+import { type TrainingInfo, type SeasonType, type DateConfig } from '../types'
 
 export class DateHelpers {
-  static getDayName(dayIndex: number): string {
-    return DAY_NAMES[dayIndex]
-  }
-
-  static formatDate(date: Date): string {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec']
-    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`
+  static getEffectiveDate(date: Date): Date {
+    if (config.testing.enabled && config.testing.overrideDate) {
+      return new Date(config.testing.overrideDate)
+    }
+    return date
   }
 
   static isValidDate(date: Date): boolean {
     return !isNaN(date.getTime())
-  }
-
-  static createTrainingInfo(
-    date: Date,
-    location: string,
-    time: string,
-    season: SeasonType
-  ): TrainingInfo {
-    return {
-      date,
-      dayName: this.getDayName(date.getDay()),
-      location,
-      time,
-      season
-    }
   }
 
   static parseTestDate(dateStr: string): Date {
@@ -38,12 +22,29 @@ export class DateHelpers {
     return date
   }
 
-  static getCurrentYear(): number {
-    return new Date().getFullYear()
+  static createDateFromMonthDay(month: number, day: number, year?: number): Date {
+    const currentYear = year || new Date().getFullYear()
+    return new Date(currentYear, month - 1, day)
   }
 
-  static createDateFromMonthDay(month: number, day: number, year?: number): Date {
-    const currentYear = year || this.getCurrentYear()
-    return new Date(currentYear, month - 1, day)
+  static getDateBefore(dateConfig: DateConfig): DateConfig {
+    const date = new Date(2024, dateConfig.month - 1, dateConfig.day)
+    date.setDate(date.getDate() - 1)
+    return { month: date.getMonth() + 1, day: date.getDate() }
+  }
+
+  static Glo(
+    date: Date,
+    location: string,
+    time: string,
+    season: SeasonType
+  ): TrainingInfo {
+    return {
+      date,
+      dayName: Formatters.getDayName(date.getDay()),
+      location,
+      time,
+      season
+    }
   }
 }

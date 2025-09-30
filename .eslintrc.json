@@ -12,7 +12,8 @@
   },
   "plugins": [
     "@typescript-eslint",
-    "import"
+    "import",
+    "sonarjs"
   ],
   "extends": [
     "eslint:recommended",
@@ -21,6 +22,10 @@
   "rules": {
     "semi": ["error", "never"],
     "@typescript-eslint/semi": ["error", "never"],
+    "quotes": ["error", "single", { "avoidEscape": true }],
+    "no-useless-escape": "error",
+    "no-throw-literal": "error",
+    "@typescript-eslint/no-throw-literal": "error",
     "no-unused-vars": "off",
     "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
     "@typescript-eslint/no-unused-expressions": "off",
@@ -34,7 +39,11 @@
     "import/extensions": ["error", "never"],
     "import/no-useless-path-segments": ["error", {
       "noUselessIndex": true
-    }]
+    }],
+    "sonarjs/cognitive-complexity": ["error", 15],
+    "sonarjs/no-duplicate-string": ["error", { "threshold": 3 }],
+    "sonarjs/no-identical-functions": "error",
+    "sonarjs/no-duplicated-branches": "error"
   },
   "ignorePatterns": ["dist/", "node_modules/", "*.js"]
 }

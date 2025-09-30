@@ -67,12 +67,6 @@ export interface TrainingInfo {
   practiceDay?: PracticeDay;
 }
 
-export interface BotCommand {
-  command: string;
-  description: string;
-  adminOnly?: boolean;
-}
-
 export interface TestResult {
   date: string;
   season: SeasonType;

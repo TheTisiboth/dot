@@ -1,40 +1,8 @@
 import dotenv from 'dotenv'
-import { type BotConfig, type PracticeDay } from "../types"
+import { type BotConfig } from '../types'
+import { ConfigParsers } from '../utils/configParsers'
 
 dotenv.config()
-
-// Helper function to parse practice days from environment variable
-// Format: "day:time,day:time" e.g., "2:20:30,6:21:00" for Tuesday 20:30 and Saturday 21:00
-function parsePracticeDays(envVar: string, defaultDays: PracticeDay[]): PracticeDay[] {
-  if (!envVar) return defaultDays
-
-  try {
-    return envVar.split(',').map(dayTime => {
-      const [day] = dayTime.trim().split(':')
-      const timeStr = dayTime.trim().substring(dayTime.indexOf(':') + 1) // Get everything after first ':'
-      return {
-        day: parseInt(day),
-        time: timeStr
-      }
-    })
-  } catch (error) {
-    console.warn(`Invalid practice days format: ${envVar}. Using defaults.`)
-    return defaultDays
-  }
-}
-
-// Helper function to parse date from environment variable "month:day"
-function parseDate(envVar: string, defaultMonth: number, defaultDay: number) {
-  if (!envVar) return { month: defaultMonth, day: defaultDay }
-
-  try {
-    const [month, day] = envVar.split(':').map(num => parseInt(num))
-    return { month, day }
-  } catch (error) {
-    console.warn(`Invalid date format: ${envVar}. Using defaults.`)
-    return { month: defaultMonth, day: defaultDay }
-  }
-}
 
 export const config: BotConfig = {
   telegram: {
@@ -51,24 +19,24 @@ export const config: BotConfig = {
 
   seasons: {
     winter: {
-      startDate: parseDate(process.env.WINTER_START_DATE || '', 9, 15), // Default: September 15
+      startDate: ConfigParsers.parseDate(process.env.WINTER_START_DATE || '', 9, 15),
       location: process.env.WINTER_LOCATION || 'Park Arena',
-      practices: parsePracticeDays(
+      practices: ConfigParsers.parsePracticeDays(
         process.env.WINTER_PRACTICE_DAYS || '',
         [
-          { day: 2, time: '20:30' }, // Tuesday 20:30
-          { day: 6, time: '20:30' }  // Saturday 20:30
+          { day: 2, time: '20:30' },
+          { day: 6, time: '20:30' }
         ]
       )
     },
     summer: {
-      startDate: parseDate(process.env.SUMMER_START_DATE || '', 5, 20), // Default: May 20
+      startDate: ConfigParsers.parseDate(process.env.SUMMER_START_DATE || '', 5, 20),
       location: process.env.SUMMER_LOCATION || 'Beach Courts',
-      practices: parsePracticeDays(
+      practices: ConfigParsers.parsePracticeDays(
         process.env.SUMMER_PRACTICE_DAYS || '',
         [
-          { day: 0, time: '19:00' }, // Sunday 19:00
-          { day: 3, time: '19:00' }  // Wednesday 19:00
+          { day: 0, time: '19:00' },
+          { day: 3, time: '19:00' }
         ]
       )
     }

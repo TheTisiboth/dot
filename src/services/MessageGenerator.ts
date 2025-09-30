@@ -1,6 +1,6 @@
 import { Ollama } from 'ollama'
-import { config } from "../config"
-import { type SeasonConfig, type MessageGenerationOptions, type PracticeDay } from "../types"
+import { config } from '../config'
+import { type SeasonConfig, type MessageGenerationOptions, type PracticeDay } from '../types'
 import { EMOJIS } from '../utils/constants'
 
 export class MessageGenerator {
@@ -13,7 +13,6 @@ export class MessageGenerator {
   }
 
   generateTemplateMessage(seasonConfig: SeasonConfig, practiceDay?: PracticeDay): string {
-    // Use specific practice day info if provided, otherwise use default
     const location = practiceDay?.location || seasonConfig.location
     const time = practiceDay?.time || seasonConfig.practices[0]?.time || '20:00'
 
@@ -67,25 +66,20 @@ The more the merrier! ${EMOJIS.FRISBEE}`
         }
       })
 
-      // Only trim leading/trailing whitespace, preserve internal blank lines
       let generatedMessage = response.message.content?.replace(/^\s+|\s+$/g, '')
 
       if (!generatedMessage) {
         throw new Error('Empty response from Ollama')
       }
 
-        // Post-process: If location contains Markdown link but LLMstripped it, restore it
-        // Extract location name from Markdown format [Name](url)
-        const markdownLinkMatch =
-            location.match(/\[([^\]]+)\]\(([^)]+)\)/)
-        if (markdownLinkMatch) {
-            const locationName = markdownLinkMatch[1]
-            // Replace plain location name with full Markdown link
-            generatedMessage = generatedMessage.replace(
-                new RegExp(`\\b${locationName}\\b`, 'g'),
-                location
-            )
-        }
+      const markdownLinkMatch = location.match(/\[([^\]]+)]\(([^)]+)\)/)
+      if (markdownLinkMatch) {
+        const locationName = markdownLinkMatch[1]
+        generatedMessage = generatedMessage.replace(
+          new RegExp(`\\b${locationName}\\b`, 'g'),
+          location
+        )
+      }
 
       return generatedMessage
     } catch (error) {

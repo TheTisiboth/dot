@@ -1,24 +1,3 @@
-export const DAY_NAMES = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday'
-] as const
-
-export const BOT_COMMANDS = {
-  START: '/start',
-  INFO: '/info',
-  HELP: '/help',
-  TRAINING: '/training',
-  TEST_TEMPLATE: '/test_template',
-  TEST_LLM: '/test_llm',
-  TEST_SEASON: '/test_season',
-  SEND_NOW: '/send_now'
-} as const
-
 export const EMOJIS = {
   FRISBEE: '🥏',
   ROCKET: '🚀',

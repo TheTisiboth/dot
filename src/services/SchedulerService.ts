@@ -1,7 +1,7 @@
 import * as cron from 'node-cron'
 import { type SeasonManager } from './SeasonManager'
 import { type MessageGenerator } from './MessageGenerator'
-import { config } from "../config"
+import { config } from '../config'
 import { MESSAGES } from '../utils/constants'
 import type TelegramBot from 'node-telegram-bot-api'
 
@@ -65,7 +65,6 @@ export class SchedulerService {
       const seasonConfig = this.seasonManager.getCurrentSeasonConfig()
       const practiceDay = this.seasonManager.getPracticeForDay()
 
-      // Use LLM if OpenAI is configured, otherwise use template
       const useLLM = this.messageGenerator.isLLMAvailable()
       const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM }, practiceDay)
 
