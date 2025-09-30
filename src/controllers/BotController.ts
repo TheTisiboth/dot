@@ -1,30 +1,25 @@
 import type TelegramBot from 'node-telegram-bot-api'
 import { type SeasonManager } from '../services/SeasonManager'
 import { type MessageGenerator } from '../services/MessageGenerator'
-import { type SchedulerService } from '../services/SchedulerService'
-import { TestService } from '../services/TestService'
 import { config } from '../config'
 import { EMOJIS, MESSAGES } from '../utils/constants'
-import { DateHelpers } from '../utils/dateHelpers'
-import { Formatters } from '../utils/formatters'
+import { getDateBefore } from '../utils/dateHelpers'
+import { capitalize, formatDateShort, formatDate, formatPracticeDays } from '../utils/formatters'
 
 export class BotController {
   private readonly bot: TelegramBot
   private readonly seasonManager: SeasonManager
   private readonly messageGenerator: MessageGenerator
-  private readonly testService: TestService
   private readonly adminChatId?: string
 
   constructor(
     bot: TelegramBot,
     seasonManager: SeasonManager,
-    messageGenerator: MessageGenerator,
-    _schedulerService: SchedulerService
+    messageGenerator: MessageGenerator
   ) {
     this.bot = bot
     this.seasonManager = seasonManager
     this.messageGenerator = messageGenerator
-    this.testService = new TestService(seasonManager, messageGenerator)
     this.adminChatId = config.telegram.adminChatId
 
     this.setupCommands()
@@ -41,21 +36,39 @@ export class BotController {
     // Admin-only commands
     this.bot.onText(/\/test_template/, (msg) => this.requireAdmin(msg, () => this.handleTestTemplate(msg)))
     this.bot.onText(/\/test_llm/, (msg) => this.requireAdmin(msg, () => this.handleTestLLM(msg)))
-    this.bot.onText(/\/test_season (.+)/, (msg, match) => this.requireAdmin(msg, () => this.handleTestSeason(msg, match)))
     this.bot.onText(/\/send_now/, (msg) => this.requireAdmin(msg, () => this.handleSendNow(msg)))
   }
 
-  private registerBotCommands(): void {
-    // Register commands with Telegram so they appear in the command menu
-    this.bot.setMyCommands([
-      { command: 'start', description: 'Start the bot' },
-      { command: 'help', description: 'Show available commands' },
-      { command: 'info', description: 'Show training schedule' },
-      { command: 'training', description: 'Show next training' }
-    ]).catch(err => {
-      console.error('Failed to register bot commands:', err)
-    })
-  }
+    private registerBotCommands() {
+        // Public commands for all users
+        const publicCommands = [
+            {command: 'start', description: 'Start the bot'},
+            {command: 'help', description: 'Show available commands'},
+            {command: 'info', description: 'Show training schedule'},
+            {command: 'training', description: 'Show next training'}
+        ]
+
+        // Admin-only commands
+        const adminCommands = [...publicCommands,
+            {command: 'test_template', description: 'Test template message'},
+            {command: 'test_llm', description: 'Test LLM message generation'},
+            {command: 'send_now', description: 'Send training reminder now'}
+        ]
+
+        try {
+            // Set public commands for all other chats
+            void this.bot.setMyCommands(publicCommands)
+
+            if (this.adminChatId) {
+                // Set admin commands for admin chat (public + admin)
+                void this.bot.setMyCommands(adminCommands, {
+                    scope: {type: 'chat', chat_id: parseInt(this.adminChatId)}
+                })
+            }
+        } catch (err) {
+            console.error('Failed to register bot commands:', err)
+        }
+    }
 
   private isAdmin(chatId: number): boolean {
     return this.adminChatId !== undefined && chatId.toString() === this.adminChatId
@@ -110,37 +123,13 @@ ${summerInfo}`
     await this.bot.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} LLM Generated Message:\n\n${message}`, { parse_mode: 'Markdown' })
   }
 
-  private async handleTestSeason(msg: TelegramBot.Message, match: RegExpExecArray | null): Promise<void> {
-    if (!match || !match[1]) {
-      await this.bot.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} Please provide a date in YYYY-MM-DD format`)
-      return
-    }
-
-    const testDate = match[1]
-
-    try {
-      DateHelpers.parseTestDate(testDate)
-      const testResult = this.testService.runTest(testDate)
-
-      const resultText = Formatters.formatTestResult(testResult)
-      await this.bot.sendMessage(msg.chat.id, resultText, { parse_mode: 'Markdown' })
-
-      if (testResult.shouldSendMessage && testResult.message) {
-        await this.bot.sendMessage(msg.chat.id, `${EMOJIS.ANNOUNCEMENT} Message that would be sent:\n\n${testResult.message}`, { parse_mode: 'Markdown' })
-      }
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : MESSAGES.INVALID_DATE_FORMAT
-      await this.bot.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} Error: ${errorMessage}\n${MESSAGES.DATE_FORMAT_HELP}`)
-    }
-  }
 
   private async handleTraining(msg: TelegramBot.Message): Promise<void> {
     const nextTraining = this.seasonManager.getNextTrainingInfo()
 
     const trainingText = `${EMOJIS.RUNNER} Next Training:
 
-${EMOJIS.CALENDAR} ${Formatters.formatDate(nextTraining.date)}
+${EMOJIS.CALENDAR} ${formatDate(nextTraining.date)}
 ${EMOJIS.CLOCK} ${nextTraining.time}
 ${EMOJIS.LOCATION} ${nextTraining.location}`
 
@@ -171,10 +160,10 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
     nextSeasonStart: { month: number; day: number }
   ): string {
     const emoji = season === 'winter' ? EMOJIS.WINTER : EMOJIS.SUMMER
-    const name = Formatters.capitalize(season)
-    const start = Formatters.formatDateShort(seasonConfig.startDate)
-    const end = Formatters.formatDateShort(DateHelpers.getDateBefore(nextSeasonStart))
-    const practices = Formatters.formatPracticeDays(seasonConfig.practices)
+    const name = capitalize(season)
+    const start = formatDateShort(seasonConfig.startDate)
+    const end = formatDateShort(getDateBefore(nextSeasonStart))
+    const practices = formatPracticeDays(seasonConfig.practices)
 
     return `${emoji} ${name} (${start} - ${end}):
 ${practices}

@@ -6,11 +6,8 @@ export const EMOJIS = {
   LOCATION: '📍',
   CLOCK: '⏰',
   SCHEDULE: '🗓️',
-  ANNOUNCEMENT: '📢',
   MEMO: '📝',
   ROBOT: '🤖',
-  TEST_TUBE: '🧪',
-  CHECK_MARK: '✅',
   CROSS_MARK: '❌',
   WARNING: '⚠️',
   WINTER: '🏔️',
@@ -29,7 +26,5 @@ export const MESSAGES = {
   CHAT_ID_NOT_CONFIGURED: 'CHAT_ID not configured. Message would be:',
   GENERATING_LLM_MESSAGE: 'Generating LLM message...',
   ADMIN_ONLY_COMMAND: 'This command can only be used by the configured admin.',
-  FALLBACK_TO_TEMPLATE: 'Falling back to template message',
-  INVALID_DATE_FORMAT: 'Invalid date format',
-  DATE_FORMAT_HELP: 'Use format: YYYY-MM-DD (e.g., 2024-01-15)'
+  FALLBACK_TO_TEMPLATE: 'Falling back to template message'
 } as const

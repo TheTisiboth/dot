@@ -1,24 +1,24 @@
 import { config } from '../config'
 import { type SeasonConfig, type SeasonType, type TrainingInfo } from '../types'
-import { DateHelpers } from '../utils/dateHelpers'
-import { Formatters } from '../utils/formatters'
+import { getEffectiveDate, createDateFromMonthDay } from '../utils/dateHelpers'
+import { getDayName } from '../utils/formatters'
 
 export class SeasonManager {
   private readonly seasons = config.seasons
 
   getCurrentSeason(date: Date = new Date()): SeasonType {
-    date = DateHelpers.getEffectiveDate(date)
+    date = getEffectiveDate(date)
 
     const winterStart = this.seasons.winter.startDate
     const summerStart = this.seasons.summer.startDate
 
     const currentYear = date.getFullYear()
-    const winterStartDate = DateHelpers.createDateFromMonthDay(
+    const winterStartDate = createDateFromMonthDay(
       winterStart.month,
       winterStart.day,
       currentYear
     )
-    const summerStartDate = DateHelpers.createDateFromMonthDay(
+    const summerStartDate = createDateFromMonthDay(
       summerStart.month,
       summerStart.day,
       currentYear
@@ -44,7 +44,7 @@ export class SeasonManager {
   }
 
   shouldSendMessage(date: Date = new Date()): boolean {
-    date = DateHelpers.getEffectiveDate(date)
+    date = getEffectiveDate(date)
 
     const tomorrow = new Date(date)
     tomorrow.setDate(date.getDate() + 1)
@@ -56,7 +56,7 @@ export class SeasonManager {
   }
 
   getPracticeForDay(date: Date = new Date()) {
-    date = DateHelpers.getEffectiveDate(date)
+    date = getEffectiveDate(date)
 
     const tomorrow = new Date(date)
     tomorrow.setDate(date.getDate() + 1)
@@ -98,7 +98,13 @@ export class SeasonManager {
     const location = nextPractice?.location || seasonConfig.location
     const time = nextPractice?.time || seasonConfig.practices[0]?.time || '20:00'
 
-    const trainingInfo = DateHelpers.createTrainingInfo(nextDate, location, time, seasonConfig.season)
+    const trainingInfo: TrainingInfo = {
+      date: nextDate,
+      dayName: getDayName(nextDate.getDay()),
+      location,
+      time,
+      season: seasonConfig.season
+    }
 
     if (nextPractice) {
       trainingInfo.practiceDay = nextPractice
@@ -113,7 +119,7 @@ export class SeasonManager {
       this.getCurrentSeasonConfig()
 
     return seasonConfig.practices
-      .map(practice => `${Formatters.getDayName(practice.day)} at ${practice.time}`)
+      .map(practice => `${getDayName(practice.day)} at ${practice.time}`)
       .join(', ')
   }
 }

@@ -1,6 +1,6 @@
 import dotenv from 'dotenv'
 import { type BotConfig } from '../types'
-import { ConfigParsers } from '../utils/configParsers'
+import { parseDate, parsePracticeDays } from '../utils/configParsers'
 
 dotenv.config()
 
@@ -19,9 +19,9 @@ export const config: BotConfig = {
 
   seasons: {
     winter: {
-      startDate: ConfigParsers.parseDate(process.env.WINTER_START_DATE || '', 9, 15),
-      location: process.env.WINTER_LOCATION || 'Park Arena',
-      practices: ConfigParsers.parsePracticeDays(
+      startDate: parseDate(process.env.WINTER_START_DATE || '', 9, 15),
+      location: (process.env.WINTER_LOCATION || 'Park Arena').trim(),
+      practices: parsePracticeDays(
         process.env.WINTER_PRACTICE_DAYS || '',
         [
           { day: 2, time: '20:30' },
@@ -30,9 +30,9 @@ export const config: BotConfig = {
       )
     },
     summer: {
-      startDate: ConfigParsers.parseDate(process.env.SUMMER_START_DATE || '', 5, 20),
-      location: process.env.SUMMER_LOCATION || 'Beach Courts',
-      practices: ConfigParsers.parsePracticeDays(
+      startDate: parseDate(process.env.SUMMER_START_DATE || '', 5, 20),
+      location: (process.env.SUMMER_LOCATION || 'Beach Courts').trim(),
+      practices: parsePracticeDays(
         process.env.SUMMER_PRACTICE_DAYS || '',
         [
           { day: 0, time: '19:00' },

@@ -26,8 +26,7 @@ class UltimateFrisbeeBot {
     new BotController(
       this.bot,
       this.seasonManager,
-      this.messageGenerator,
-      this.schedulerService
+      this.messageGenerator
     )
 
     this.setupErrorHandlers()

@@ -66,13 +66,3 @@ export interface TrainingInfo {
   season: SeasonType;
   practiceDay?: PracticeDay;
 }
-
-export interface TestResult {
-  date: string;
-  season: SeasonType;
-  location: string;
-  time: string;
-  shouldSendMessage: boolean;
-  nextTraining: TrainingInfo;
-  message?: string;
-}
