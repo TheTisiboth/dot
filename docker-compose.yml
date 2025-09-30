@@ -43,6 +43,9 @@ services:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - CHAT_ID=${CHAT_ID}
 
+      # Timezone configuration
+      - TZ=Europe/Brussels
+
       # Ollama Configuration
       - OLLAMA_ENABLED=true
       - OLLAMA_HOST=http://ollama:11434

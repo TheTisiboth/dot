@@ -23,8 +23,23 @@ export class SchedulerService {
   }
 
   setupScheduler(): void {
-    // Schedule for both winter and summer times at 20:00 (8 PM)
-    cron.schedule('0 20 * * *', async () => {
+    const seasonConfig = this.seasonManager.getCurrentSeasonConfig();
+    const practiceDay = seasonConfig.practices[0]; // Use first practice as reference
+
+    if (!practiceDay) {
+      console.error('❌ No practice days configured');
+      return;
+    }
+
+    // Parse the time from the practice (e.g., "20:30" -> hour: 20, minute: 30)
+    const [hour, minute] = practiceDay.time.split(':').map(Number);
+
+    // Schedule to run daily at the practice time (24h before the practice)
+    const cronExpression = `${minute} ${hour} * * *`;
+
+    cron.schedule(cronExpression, async () => {
+      const now = new Date();
+      console.log(`🕐 Cron triggered at: ${now.toLocaleString()}`);
       console.log(MESSAGES.CHECKING_MESSAGE_SEND);
 
       if (this.seasonManager.shouldSendMessage()) {
@@ -35,7 +50,9 @@ export class SchedulerService {
       }
     });
 
-    console.log(`✅ ${MESSAGES.SCHEDULER_INITIALIZED}`);
+    const now = new Date();
+    console.log(`🕐 Scheduler initialized at: ${now.toLocaleString()}`);
+    console.log(`✅ ${MESSAGES.SCHEDULER_INITIALIZED} (sending reminders at ${practiceDay.time})`);
   }
 
   async sendScheduledMessage(): Promise<void> {

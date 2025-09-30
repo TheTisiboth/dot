@@ -23,9 +23,74 @@ export class TestRunner {
     console.log(`${EMOJIS.TEST_TUBE} Running Ultimate Frisbee Bot Tests\n`);
 
     await this.runSeasonalLogicTests();
+    await this.runSchedulingLogicTests();
     await this.runMessageGenerationTests();
 
     console.log(`\n${EMOJIS.CHECK_MARK} All tests completed!`);
+  }
+
+  private async runSchedulingLogicTests(): Promise<void> {
+    console.log(`\n${EMOJIS.CLOCK} SCHEDULING LOGIC TESTS (24h Before)`);
+    console.log('==========================================');
+
+    interface ScheduleTestCase {
+      currentDate: string;
+      expectedShouldSend: boolean;
+      description: string;
+    }
+
+    const scheduleTests: ScheduleTestCase[] = [
+      // Winter practices: Tuesday 20:30, Saturday 21:00
+      {
+        currentDate: '2024-01-15T20:30:00', // Monday 20:30 -> Tomorrow is Tuesday (training day)
+        expectedShouldSend: true,
+        description: 'Monday 20:30 -> Tuesday training (should send)'
+      },
+      {
+        currentDate: '2024-01-15T20:29:00', // Monday 20:29 -> Not time yet
+        expectedShouldSend: true,
+        description: 'Monday 20:29 -> Tuesday training (should send)'
+      },
+      {
+        currentDate: '2024-01-16T20:30:00', // Tuesday 20:30 -> Tomorrow is Wednesday (no training)
+        expectedShouldSend: false,
+        description: 'Tuesday 20:30 -> Wednesday no training (should not send)'
+      },
+      {
+        currentDate: '2024-01-19T21:00:00', // Friday 21:00 -> Tomorrow is Saturday (training day)
+        expectedShouldSend: true,
+        description: 'Friday 21:00 -> Saturday training (should send)'
+      },
+      {
+        currentDate: '2024-01-20T21:00:00', // Saturday 21:00 -> Tomorrow is Sunday (no training)
+        expectedShouldSend: false,
+        description: 'Saturday 21:00 -> Sunday no training (should not send)'
+      },
+      // Summer practices: Sunday 19:00, Wednesday 19:30
+      {
+        currentDate: '2024-06-22T19:00:00', // Saturday 19:00 -> Tomorrow is Sunday (training day)
+        expectedShouldSend: true,
+        description: 'Saturday 19:00 -> Sunday training (should send)'
+      },
+      {
+        currentDate: '2024-06-25T19:30:00', // Tuesday 19:30 -> Tomorrow is Wednesday (training day)
+        expectedShouldSend: true,
+        description: 'Tuesday 19:30 -> Wednesday training (should send)'
+      },
+    ];
+
+    for (const testCase of scheduleTests) {
+      const date = new Date(testCase.currentDate);
+      const shouldSend = this.seasonManager.shouldSendMessage(date);
+      const match = shouldSend === testCase.expectedShouldSend;
+      const icon = match ? EMOJIS.CHECK_MARK : EMOJIS.CROSS_MARK;
+
+      console.log(`${icon} ${testCase.description}`);
+
+      if (!match) {
+        console.log(`  Expected: ${testCase.expectedShouldSend}, Got: ${shouldSend}`);
+      }
+    }
   }
 
   private async runSeasonalLogicTests(): Promise<void> {
@@ -118,24 +183,20 @@ export class TestRunner {
 
     const winterConfig = {
       season: 'winter' as const,
-      startDate: { month: 9, day: 15 },
       location: 'Park Arena',
       practices: [
         { day: 2, time: '20:30' }, // Tuesday
         { day: 6, time: '21:00' }  // Saturday
-      ],
-      scheduleTime: '20:00'
+      ]
     };
 
     const summerConfig = {
       season: 'summer' as const,
-      startDate: { month: 5, day: 20 },
       location: 'Beach Courts',
       practices: [
         { day: 0, time: '19:00' }, // Sunday
         { day: 3, time: '19:30' }  // Wednesday
-      ],
-      scheduleTime: '20:00'
+      ]
     };
 
     console.log(`${EMOJIS.WINTER} Winter Template Message:`);

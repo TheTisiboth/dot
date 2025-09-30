@@ -58,8 +58,7 @@ export const config: BotConfig = {
           { day: 2, time: '20:30' }, // Tuesday 20:30
           { day: 6, time: '20:30' }  // Saturday 20:30
         ]
-      ),
-      scheduleTime: process.env.WINTER_SCHEDULE_TIME || '20:00'
+      )
     },
     summer: {
       startDate: parseDate(process.env.SUMMER_START_DATE || '', 5, 20), // Default: May 20
@@ -70,8 +69,7 @@ export const config: BotConfig = {
           { day: 0, time: '19:00' }, // Sunday 19:00
           { day: 3, time: '19:00' }  // Wednesday 19:00
         ]
-      ),
-      scheduleTime: process.env.SUMMER_SCHEDULE_TIME || '20:00'
+      )
     }
   },
 

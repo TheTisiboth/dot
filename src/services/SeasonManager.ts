@@ -27,20 +27,20 @@ export class SeasonManager {
       currentYear
     );
 
-    // Handle year-wrap logic: winter runs from Sep 15 to May 19 (next year)
-    // Summer runs from May 20 to Sep 14
+    // Handle year-wrap logic: winter runs from winter start to summer start (next year)
+    // Summer runs from summer start to winter start
 
-    // If date is after Sep 15 of current year, it's winter
+    // If date is after winter start of current year, it's winter
     if (date >= winterStartDate) {
       return 'winter';
     }
 
-    // If date is before May 20 of current year, it's still winter (from previous year)
+    // If date is before summer start of current year, it's still winter (from previous year)
     if (date < summerStartDate) {
       return 'winter';
     }
 
-    // Otherwise it's summer (May 20 to Sep 14)
+    // Otherwise it's summer
     return 'summer';
   }
 
@@ -58,10 +58,15 @@ export class SeasonManager {
       date = new Date(config.testing.overrideDate);
     }
 
-    const seasonConfig = this.getCurrentSeasonConfig(date);
-    const dayOfWeek = date.getDay(); // 0=Sunday, 1=Monday, etc.
+    // Calculate tomorrow's date
+    const tomorrow = new Date(date);
+    tomorrow.setDate(date.getDate() + 1);
 
-    return seasonConfig.practices.some(practice => practice.day === dayOfWeek);
+    const seasonConfig = this.getCurrentSeasonConfig(tomorrow);
+    const tomorrowDayOfWeek = tomorrow.getDay(); // 0=Sunday, 1=Monday, etc.
+
+    // Send message if tomorrow is a training day
+    return seasonConfig.practices.some(practice => practice.day === tomorrowDayOfWeek);
   }
 
   getPracticeForDay(date: Date = new Date()) {
@@ -70,10 +75,14 @@ export class SeasonManager {
       date = new Date(config.testing.overrideDate);
     }
 
-    const seasonConfig = this.getCurrentSeasonConfig(date);
-    const dayOfWeek = date.getDay(); // 0=Sunday, 1=Monday, etc.
+    // Calculate tomorrow's date (since we send reminders 24h before)
+    const tomorrow = new Date(date);
+    tomorrow.setDate(date.getDate() + 1);
 
-    return seasonConfig.practices.find(practice => practice.day === dayOfWeek);
+    const seasonConfig = this.getCurrentSeasonConfig(tomorrow);
+    const tomorrowDayOfWeek = tomorrow.getDay(); // 0=Sunday, 1=Monday, etc.
+
+    return seasonConfig.practices.find(practice => practice.day === tomorrowDayOfWeek);
   }
 
   getNextTrainingDate(date: Date = new Date()): Date {

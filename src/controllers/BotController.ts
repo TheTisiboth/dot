@@ -61,7 +61,7 @@ ${BOT_COMMANDS.HELP} - Show this help message`;
     const infoText = `${EMOJIS.CALENDAR} Current Season: ${this.capitalize(seasonConfig.season)}
 ${EMOJIS.LOCATION} Location: ${seasonConfig.location}
 ${EMOJIS.SCHEDULE} Training Days: ${trainingDays}
-${EMOJIS.ANNOUNCEMENT} Messages sent at: ${seasonConfig.scheduleTime}`;
+${EMOJIS.ANNOUNCEMENT} Reminders sent 24h before practice`;
 
     await this.bot.sendMessage(msg.chat.id, infoText);
   }

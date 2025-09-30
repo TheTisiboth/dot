@@ -1,20 +1,13 @@
 export interface SeasonConfig {
   season: SeasonType;
-  startDate: DateConfig;
   location: string;
   practices: PracticeDay[];
-  scheduleTime: string;
 }
 
 export interface PracticeDay {
   day: number; // 0=Sunday, 1=Monday, etc.
   time: string; // e.g., "20:30"
   location?: string; // Optional override for specific day
-}
-
-export interface DateConfig {
-  month: number;
-  day: number;
 }
 
 export interface BotConfig {
@@ -44,7 +37,11 @@ export interface SeasonConfigBase {
   startDate: DateConfig;
   location: string;
   practices: PracticeDay[];
-  scheduleTime: string;
+}
+
+export interface DateConfig {
+  month: number;
+  day: number;
 }
 
 export interface TestingConfig {
