@@ -25,6 +25,7 @@ export class BotController {
     this.adminChatId = config.telegram.adminChatId;
 
     this.setupCommands();
+    this.registerBotCommands();
   }
 
   private setupCommands(): void {
@@ -39,6 +40,18 @@ export class BotController {
     this.bot.onText(/\/test_llm/, (msg) => this.requireAdmin(msg, () => this.handleTestLLM(msg)));
     this.bot.onText(/\/test_season (.+)/, (msg, match) => this.requireAdmin(msg, () => this.handleTestSeason(msg, match)));
     this.bot.onText(/\/send_now/, (msg) => this.requireAdmin(msg, () => this.handleSendNow(msg)));
+  }
+
+  private registerBotCommands(): void {
+    // Register commands with Telegram so they appear in the command menu
+    this.bot.setMyCommands([
+      { command: 'start', description: 'Start the bot' },
+      { command: 'help', description: 'Show available commands' },
+      { command: 'info', description: 'Show training schedule' },
+      { command: 'training', description: 'Show next training' }
+    ]).catch(err => {
+      console.error('Failed to register bot commands:', err);
+    });
   }
 
   private isAdmin(chatId: number): boolean {
@@ -144,8 +157,7 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`;
     const helpText = `${EMOJIS.FRISBEE} Available Commands
 
 /info - Show training schedule for all seasons
-/training - Show next training session
-/help - Show this help message`;
+/training - Show next training session`;
 
     await this.bot.sendMessage(msg.chat.id, helpText);
   }
