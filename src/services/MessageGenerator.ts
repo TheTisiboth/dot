@@ -113,9 +113,9 @@ Use this EXACT format with ONE blank line between each section:
 Rules:
 - Use EXACTLY ONE blank line between sections
 - If using sports emojis, they must be Ultimate Frisbee related (e.g. 🥏 is good, ⚽ would not make sense)
-- When asking for confirmation, ONLY mention the 👍 emoji (do NOT mention other emojis like 👊, 👉, etc.)
-- The confirmation line should clearly ask users to "react with 👍" or "drop a 👍"
-- Do NOT use pointing or fist emojis in the confirmation sentence
+- The confirmation line MUST NOT have any emoji except 👍
+- Start the confirmation line with text only, no emoji (e.g., "Please react with 👍", "Drop a 👍")
+- The 👍 emoji should only appear once in the confirmation line
 - Maximum 4 emojis total in the entire message
 - Vary the catch phrase each time
 - NO quotation marks in output

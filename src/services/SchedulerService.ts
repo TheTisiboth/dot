@@ -24,35 +24,40 @@ export class SchedulerService {
 
   setupScheduler(): void {
     const seasonConfig = this.seasonManager.getCurrentSeasonConfig();
-    const practiceDay = seasonConfig.practices[0]; // Use first practice as reference
 
-    if (!practiceDay) {
+    if (!seasonConfig.practices || seasonConfig.practices.length === 0) {
       console.error('❌ No practice days configured');
       return;
     }
 
-    // Parse the time from the practice (e.g., "20:30" -> hour: 20, minute: 30)
-    const [hour, minute] = practiceDay.time.split(':').map(Number);
-
-    // Schedule to run daily at the practice time (24h before the practice)
-    const cronExpression = `${minute} ${hour} * * *`;
-
-    cron.schedule(cronExpression, async () => {
-      const now = new Date();
-      console.log(`🕐 Cron triggered at: ${now.toLocaleString()}`);
-      console.log(MESSAGES.CHECKING_MESSAGE_SEND);
-
-      if (this.seasonManager.shouldSendMessage()) {
-        console.log(MESSAGES.SENDING_SCHEDULED_MESSAGE);
-        await this.sendScheduledMessage();
-      } else {
-        console.log(MESSAGES.NOT_TRAINING_DAY);
-      }
-    });
+    // Get unique practice times
+    const uniqueTimes = [...new Set(seasonConfig.practices.map(p => p.time))];
 
     const now = new Date();
     console.log(`🕐 Scheduler initialized at: ${now.toLocaleString()}`);
-    console.log(`✅ ${MESSAGES.SCHEDULER_INITIALIZED} (sending reminders at ${practiceDay.time})`);
+
+    // Create a cron job for each unique practice time
+    uniqueTimes.forEach(time => {
+      const [hour, minute] = time.split(':').map(Number);
+      const cronExpression = `${minute} ${hour} * * *`;
+
+      cron.schedule(cronExpression, async () => {
+        const now = new Date();
+        console.log(`🕐 Cron triggered at: ${now.toLocaleString()}`);
+        console.log(MESSAGES.CHECKING_MESSAGE_SEND);
+
+        if (this.seasonManager.shouldSendMessage()) {
+          console.log(MESSAGES.SENDING_SCHEDULED_MESSAGE);
+          await this.sendScheduledMessage();
+        } else {
+          console.log(MESSAGES.NOT_TRAINING_DAY);
+        }
+      });
+
+      console.log(`✅ Scheduled reminder at ${time} (24h before practice)`);
+    });
+
+    console.log(`✅ ${MESSAGES.SCHEDULER_INITIALIZED}`);
   }
 
   async sendScheduledMessage(): Promise<void> {

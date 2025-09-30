@@ -128,7 +128,6 @@ ${EMOJIS.CLOCK} Time: ${nextTraining.time}`;
     }
 
     await this.schedulerService.sendScheduledMessage();
-    await this.bot.sendMessage(msg.chat.id, `${EMOJIS.CHECK_MARK} Message sent!`);
   }
 
   private async handleHelp(msg: TelegramBot.Message): Promise<void> {
