@@ -23,7 +23,7 @@ export class BotController {
     this.adminChatId = config.telegram.adminChatId
 
     this.setupCommands()
-    this.registerBotCommands()
+    void this.registerBotCommands()
   }
 
   private setupCommands(): void {
@@ -39,7 +39,7 @@ export class BotController {
     this.bot.onText(/\/send_now/, (msg) => this.requireAdmin(msg, () => this.handleSendNow(msg)))
   }
 
-    private registerBotCommands() {
+    private async registerBotCommands() {
         // Public commands for all users
         const publicCommands = [
             {command: 'start', description: 'Start the bot'},
@@ -57,11 +57,11 @@ export class BotController {
 
         try {
             // Set public commands for all other chats
-            void this.bot.setMyCommands(publicCommands)
+            await this.bot.setMyCommands(publicCommands)
 
             if (this.adminChatId) {
                 // Set admin commands for admin chat (public + admin)
-                void this.bot.setMyCommands(adminCommands, {
+                await this.bot.setMyCommands(adminCommands, {
                     scope: {type: 'chat', chat_id: parseInt(this.adminChatId)}
                 })
             }
