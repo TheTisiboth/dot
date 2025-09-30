@@ -42,6 +42,7 @@ services:
       # Telegram Configuration
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - CHAT_ID=${CHAT_ID}
+      - ADMIN_CHAT_ID=${ADMIN_CHAT_ID}
 
       # Timezone configuration
       - TZ=Europe/Brussels

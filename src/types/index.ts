@@ -20,6 +20,7 @@ export interface BotConfig {
 export interface TelegramConfig {
   token: string;
   chatId?: string;
+  adminChatId?: string;
 }
 
 export interface OllamaConfig {

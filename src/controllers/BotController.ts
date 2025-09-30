@@ -12,7 +12,7 @@ export class BotController {
   private readonly seasonManager: SeasonManager;
   private readonly messageGenerator: MessageGenerator;
   private readonly schedulerService: SchedulerService;
-  private readonly chatId?: string | undefined;
+  private readonly adminChatId?: string;
 
   constructor(
     bot: TelegramBot,
@@ -24,20 +24,35 @@ export class BotController {
     this.seasonManager = seasonManager;
     this.messageGenerator = messageGenerator;
     this.schedulerService = schedulerService;
-    this.chatId = config.telegram.chatId || undefined;
+    this.adminChatId = config.telegram.adminChatId;
 
     this.setupCommands();
   }
 
   private setupCommands(): void {
+    // Public commands
     this.bot.onText(/\/start/, (msg) => this.handleStart(msg));
     this.bot.onText(/\/info/, (msg) => this.handleInfo(msg));
-    this.bot.onText(/\/test_template/, (msg) => this.handleTestTemplate(msg));
-    this.bot.onText(/\/test_llm/, (msg) => this.handleTestLLM(msg));
-    this.bot.onText(/\/test_season (.+)/, (msg, match) => this.handleTestSeason(msg, match));
     this.bot.onText(/\/schedule/, (msg) => this.handleSchedule(msg));
-    this.bot.onText(/\/send_now/, (msg) => this.handleSendNow(msg));
     this.bot.onText(/\/help/, (msg) => this.handleHelp(msg));
+
+    // Admin-only commands
+    this.bot.onText(/\/test_template/, (msg) => this.requireAdmin(msg, () => this.handleTestTemplate(msg)));
+    this.bot.onText(/\/test_llm/, (msg) => this.requireAdmin(msg, () => this.handleTestLLM(msg)));
+    this.bot.onText(/\/test_season (.+)/, (msg, match) => this.requireAdmin(msg, () => this.handleTestSeason(msg, match)));
+    this.bot.onText(/\/send_now/, (msg) => this.requireAdmin(msg, () => this.handleSendNow(msg)));
+  }
+
+  private isAdmin(chatId: number): boolean {
+    return this.adminChatId !== undefined && chatId.toString() === this.adminChatId;
+  }
+
+  private async requireAdmin(msg: TelegramBot.Message, handler: () => Promise<void>): Promise<void> {
+    if (!this.isAdmin(msg.chat.id)) {
+      await this.bot.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} ${MESSAGES.ADMIN_ONLY_COMMAND}`);
+      return;
+    }
+    await handler();
   }
 
   private async handleStart(msg: TelegramBot.Message): Promise<void> {
@@ -122,12 +137,9 @@ ${EMOJIS.CLOCK} Time: ${nextTraining.time}`;
   }
 
   private async handleSendNow(msg: TelegramBot.Message): Promise<void> {
-    if (msg.chat.id.toString() !== this.chatId) {
-      await this.bot.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} ${MESSAGES.ADMIN_ONLY_COMMAND}`);
-      return;
-    }
-
     await this.schedulerService.sendScheduledMessage();
+    // Send confirmation to admin who triggered the command
+    await this.bot.sendMessage(msg.chat.id, `${EMOJIS.CHECK_MARK} Message sent to the group!`);
   }
 
   private async handleHelp(msg: TelegramBot.Message): Promise<void> {

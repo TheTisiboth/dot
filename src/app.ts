@@ -54,7 +54,7 @@ class UltimateFrisbeeBot {
     // Handle polling errors
     this.bot.on('polling_error', (_error) => {
       // Transient network errors are normal during long polling - bot auto-recovers
-        console.log('⚠️  Transient polling error (bot will auto-recover)');
+        console.error('Polling error:', _error);
     });
   }
 
