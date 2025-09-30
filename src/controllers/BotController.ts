@@ -11,19 +11,17 @@ export class BotController {
   private readonly bot: TelegramBot;
   private readonly seasonManager: SeasonManager;
   private readonly messageGenerator: MessageGenerator;
-  private readonly schedulerService: SchedulerService;
   private readonly adminChatId?: string;
 
   constructor(
     bot: TelegramBot,
     seasonManager: SeasonManager,
     messageGenerator: MessageGenerator,
-    schedulerService: SchedulerService
+    _schedulerService: SchedulerService
   ) {
     this.bot = bot;
     this.seasonManager = seasonManager;
     this.messageGenerator = messageGenerator;
-    this.schedulerService = schedulerService;
     this.adminChatId = config.telegram.adminChatId;
 
     this.setupCommands();
@@ -58,13 +56,14 @@ export class BotController {
   private async handleStart(msg: TelegramBot.Message): Promise<void> {
     const helpText = `${EMOJIS.FRISBEE} Ultimate Frisbee Training Bot is running!
 
-Available commands:
+I send training reminders to the team group 24h before each practice.
+
+${EMOJIS.MEMO} Available commands:
 ${BOT_COMMANDS.INFO} - Show current season and schedule
-${BOT_COMMANDS.TEST_TEMPLATE} - Send test message with template
-${BOT_COMMANDS.TEST_LLM} - Send test message with LLM
-${BOT_COMMANDS.TEST_SEASON} [date] - Test with specific date (YYYY-MM-DD)
 ${BOT_COMMANDS.SCHEDULE} - Show next training date
-${BOT_COMMANDS.HELP} - Show this help message`;
+${BOT_COMMANDS.HELP} - Show detailed help
+
+Type /help for more information!`;
 
     await this.bot.sendMessage(msg.chat.id, helpText);
   }
@@ -137,16 +136,19 @@ ${EMOJIS.CLOCK} Time: ${nextTraining.time}`;
   }
 
   private async handleSendNow(msg: TelegramBot.Message): Promise<void> {
-    await this.schedulerService.sendScheduledMessage();
-    // Send confirmation to admin who triggered the command
-    await this.bot.sendMessage(msg.chat.id, `${EMOJIS.CHECK_MARK} Message sent to the group!`);
+    const seasonConfig = this.seasonManager.getCurrentSeasonConfig();
+    const practiceDay = this.seasonManager.getPracticeForDay();
+    const useLLM = this.messageGenerator.isLLMAvailable();
+    const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM }, practiceDay);
+
+    await this.bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
   }
 
   private async handleHelp(msg: TelegramBot.Message): Promise<void> {
     const winterInfo = this.formatSeasonInfo('winter', config.seasons.winter, config.seasons.summer.startDate);
     const summerInfo = this.formatSeasonInfo('summer', config.seasons.summer, config.seasons.winter.startDate);
 
-    const helpText = `${EMOJIS.FRISBEE} Ultimate Frisbee Training Bot Help
+    const helpText = `${EMOJIS.FRISBEE} Ultimate Frisbee Training Dog boT Help
 
 ${EMOJIS.ROBOT} This bot sends training reminders 24h before each practice:
 
