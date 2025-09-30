@@ -3,7 +3,7 @@ import { SeasonManager } from '../services/SeasonManager.js';
 import { MessageGenerator } from '../services/MessageGenerator.js';
 import { SchedulerService } from '../services/SchedulerService.js';
 import { config } from '../config/index.js';
-import { TestResult } from '../types/index.js';
+import { TestResult, PracticeDay } from '../types/index.js';
 import { BOT_COMMANDS, EMOJIS, MESSAGES } from '../utils/constants.js';
 import { DateHelpers } from '../utils/dateHelpers.js';
 
@@ -143,25 +143,55 @@ ${EMOJIS.CLOCK} Time: ${nextTraining.time}`;
   }
 
   private async handleHelp(msg: TelegramBot.Message): Promise<void> {
+    const winterInfo = this.formatSeasonInfo('winter', config.seasons.winter, config.seasons.summer.startDate);
+    const summerInfo = this.formatSeasonInfo('summer', config.seasons.summer, config.seasons.winter.startDate);
+
     const helpText = `${EMOJIS.FRISBEE} Ultimate Frisbee Training Bot Help
 
-${EMOJIS.ROBOT} This bot sends training reminders twice a week based on seasons:
+${EMOJIS.ROBOT} This bot sends training reminders 24h before each practice:
 
-${EMOJIS.WINTER} Winter (Sept 15 - May 19):
-   • Tuesdays & Saturdays at 8 PM
+${winterInfo}
 
-${EMOJIS.SUMMER} Summer (May 20 - Sept 14):
-   • Sundays & Wednesdays at 8 PM
+${summerInfo}
 
 ${EMOJIS.MEMO} Commands:
 ${BOT_COMMANDS.INFO} - Show current season info
-${BOT_COMMANDS.TEST_TEMPLATE} - Test template message
-${BOT_COMMANDS.TEST_LLM} - Test AI-generated message
-${BOT_COMMANDS.TEST_SEASON} [date] - Test with specific date
 ${BOT_COMMANDS.SCHEDULE} - Show next training
 ${BOT_COMMANDS.HELP} - Show this help`;
 
     await this.bot.sendMessage(msg.chat.id, helpText);
+  }
+
+  private formatSeasonInfo(
+    season: 'winter' | 'summer',
+    seasonConfig: { startDate: { month: number; day: number }; practices: PracticeDay[] },
+    nextSeasonStart: { month: number; day: number }
+  ): string {
+    const emoji = season === 'winter' ? EMOJIS.WINTER : EMOJIS.SUMMER;
+    const name = season.charAt(0).toUpperCase() + season.slice(1);
+    const start = this.formatDateShort(seasonConfig.startDate);
+    const end = this.formatDateShort(this.getDateBefore(nextSeasonStart));
+    const practices = this.formatPracticeDays(seasonConfig.practices);
+
+    return `${emoji} ${name} (${start} - ${end}):\n${practices}`;
+  }
+
+  private formatDateShort(dateConfig: { month: number; day: number }): string {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
+    return `${monthNames[dateConfig.month - 1]} ${dateConfig.day}`;
+  }
+
+  private getDateBefore(dateConfig: { month: number; day: number }): { month: number; day: number } {
+    const date = new Date(2024, dateConfig.month - 1, dateConfig.day);
+    date.setDate(date.getDate() - 1);
+    return { month: date.getMonth() + 1, day: date.getDate() };
+  }
+
+  private formatPracticeDays(practices: PracticeDay[]): string {
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return practices
+      .map(p => `   • ${dayNames[p.day]}s at ${p.time}`)
+      .join('\n');
   }
 
   private createTestResult(testDate: string, date: Date): TestResult {
