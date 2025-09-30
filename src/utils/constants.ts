@@ -6,7 +6,7 @@ export const DAY_NAMES = [
   'Thursday',
   'Friday',
   'Saturday'
-] as const;
+] as const
 
 export const BOT_COMMANDS = {
   START: '/start',
@@ -17,7 +17,7 @@ export const BOT_COMMANDS = {
   TEST_LLM: '/test_llm',
   TEST_SEASON: '/test_season',
   SEND_NOW: '/send_now'
-} as const;
+} as const
 
 export const EMOJIS = {
   FRISBEE: '🥏',
@@ -38,7 +38,7 @@ export const EMOJIS = {
   SUMMER: '🏖️',
   RUNNER: '🏃',
   THUMBS_UP: '👍'
-} as const;
+} as const
 
 export const MESSAGES = {
   BOT_STARTED: 'Ultimate Frisbee Training Bot started!',
@@ -53,4 +53,4 @@ export const MESSAGES = {
   FALLBACK_TO_TEMPLATE: 'Falling back to template message',
   INVALID_DATE_FORMAT: 'Invalid date format',
   DATE_FORMAT_HELP: 'Use format: YYYY-MM-DD (e.g., 2024-01-15)'
-} as const;
+} as const

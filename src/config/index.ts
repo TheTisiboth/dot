@@ -1,38 +1,38 @@
-import dotenv from 'dotenv';
-import { BotConfig, PracticeDay } from '../types/index.js';
+import dotenv from 'dotenv'
+import { type BotConfig, type PracticeDay } from "../types"
 
-dotenv.config();
+dotenv.config()
 
 // Helper function to parse practice days from environment variable
 // Format: "day:time,day:time" e.g., "2:20:30,6:21:00" for Tuesday 20:30 and Saturday 21:00
 function parsePracticeDays(envVar: string, defaultDays: PracticeDay[]): PracticeDay[] {
-  if (!envVar) return defaultDays;
+  if (!envVar) return defaultDays
 
   try {
     return envVar.split(',').map(dayTime => {
-      const [day] = dayTime.trim().split(':');
-      const timeStr = dayTime.trim().substring(dayTime.indexOf(':') + 1); // Get everything after first ':'
+      const [day] = dayTime.trim().split(':')
+      const timeStr = dayTime.trim().substring(dayTime.indexOf(':') + 1) // Get everything after first ':'
       return {
         day: parseInt(day),
         time: timeStr
-      };
-    });
+      }
+    })
   } catch (error) {
-    console.warn(`Invalid practice days format: ${envVar}. Using defaults.`);
-    return defaultDays;
+    console.warn(`Invalid practice days format: ${envVar}. Using defaults.`)
+    return defaultDays
   }
 }
 
 // Helper function to parse date from environment variable "month:day"
 function parseDate(envVar: string, defaultMonth: number, defaultDay: number) {
-  if (!envVar) return { month: defaultMonth, day: defaultDay };
+  if (!envVar) return { month: defaultMonth, day: defaultDay }
 
   try {
-    const [month, day] = envVar.split(':').map(num => parseInt(num));
-    return { month, day };
+    const [month, day] = envVar.split(':').map(num => parseInt(num))
+    return { month, day }
   } catch (error) {
-    console.warn(`Invalid date format: ${envVar}. Using defaults.`);
-    return { month: defaultMonth, day: defaultDay };
+    console.warn(`Invalid date format: ${envVar}. Using defaults.`)
+    return { month: defaultMonth, day: defaultDay }
   }
 }
 
@@ -78,14 +78,14 @@ export const config: BotConfig = {
     enabled: process.env.TEST_MODE === 'true',
     ...(process.env.OVERRIDE_DATE && { overrideDate: process.env.OVERRIDE_DATE }),
   }
-};
+}
 
 export const validateConfig = (): void => {
   if (!config.telegram.token) {
-    throw new Error('TELEGRAM_BOT_TOKEN is required');
+    throw new Error('TELEGRAM_BOT_TOKEN is required')
   }
 
   if (!config.telegram.chatId && !config.testing.enabled) {
-    console.warn('⚠️  CHAT_ID not set - bot will work for testing but won\'t send scheduled messages');
+    console.warn('⚠️  CHAT_ID not set - bot will work for testing but won\'t send scheduled messages')
   }
-};
+}

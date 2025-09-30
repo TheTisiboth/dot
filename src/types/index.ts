@@ -50,7 +50,7 @@ export interface TestingConfig {
   overrideDate?: string;
 }
 
-export type SeasonType = 'winter' | 'summer';
+export type SeasonType = 'winter' | 'summer'
 
 export interface MessageGenerationOptions {
   useLLM?: boolean;

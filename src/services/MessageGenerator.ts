@@ -1,21 +1,21 @@
-import { Ollama } from 'ollama';
-import { config } from '../config/index.js';
-import { SeasonConfig, MessageGenerationOptions, PracticeDay } from '../types/index.js';
-import { EMOJIS } from '../utils/constants.js';
+import { Ollama } from 'ollama'
+import { config } from "../config"
+import { type SeasonConfig, type MessageGenerationOptions, type PracticeDay } from "../types"
+import { EMOJIS } from '../utils/constants'
 
 export class MessageGenerator {
-  private readonly ollama: Ollama | null;
+  private readonly ollama: Ollama | null
 
   constructor() {
     this.ollama = config.ollama.enabled ? new Ollama({
       host: config.ollama.host
-    }) : null;
+    }) : null
   }
 
   generateTemplateMessage(seasonConfig: SeasonConfig, practiceDay?: PracticeDay): string {
     // Use specific practice day info if provided, otherwise use default
-    const location = practiceDay?.location || seasonConfig.location;
-    const time = practiceDay?.time || seasonConfig.practices[0]?.time || '20:00';
+    const location = practiceDay?.location || seasonConfig.location
+    const time = practiceDay?.time || seasonConfig.practices[0]?.time || '20:00'
 
     return `${EMOJIS.ROCKET} Hey team!
 
@@ -23,7 +23,7 @@ Tomorrow we're planning an Ultimate Frisbee training at ${location} starting at 
 
 ${EMOJIS.BULB} If you're in, just drop a ${EMOJIS.THUMBS_UP} on this message so we know how many are coming.
 
-The more the merrier! ${EMOJIS.FRISBEE}`;
+The more the merrier! ${EMOJIS.FRISBEE}`
   }
 
   async generateLLMMessage(
@@ -32,10 +32,10 @@ The more the merrier! ${EMOJIS.FRISBEE}`;
     practiceDay?: PracticeDay
   ): Promise<string> {
     if (this.ollama) {
-      return await this.generateOllamaMessage(seasonConfig, options, practiceDay);
+      return await this.generateOllamaMessage(seasonConfig, options, practiceDay)
     } else {
-      console.log('No LLM configured, using template');
-      return this.generateTemplateMessage(seasonConfig, practiceDay);
+      console.log('No LLM configured, using template')
+      return this.generateTemplateMessage(seasonConfig, practiceDay)
     }
   }
 
@@ -44,14 +44,14 @@ The more the merrier! ${EMOJIS.FRISBEE}`;
     options: MessageGenerationOptions = {},
     practiceDay?: PracticeDay
   ): Promise<string> {
-    const location = practiceDay?.location || seasonConfig.location;
-    const time = practiceDay?.time || seasonConfig.practices[0]?.time || '20:00';
-    const { season } = seasonConfig;
-    const { temperature = 0.7, maxTokens = 200 } = options;
+    const location = practiceDay?.location || seasonConfig.location
+    const time = practiceDay?.time || seasonConfig.practices[0]?.time || '20:00'
+    const { season } = seasonConfig
+    const { temperature = 0.7, maxTokens = 200 } = options
 
-    const prompt = this.createLLMPrompt(location, time, season);
-    const model = config.ollama.model;
-    console.log(`🔄 Generating message with Ollama (${model}) for ${season} training at ${location}, ${time}`);
+    const prompt = this.createLLMPrompt(location, time, season)
+    const model = config.ollama.model
+    console.log(`🔄 Generating message with Ollama (${model}) for ${season} training at ${location}, ${time}`)
     try {
       const response = await this.ollama!.chat({
         model,
@@ -65,34 +65,34 @@ The more the merrier! ${EMOJIS.FRISBEE}`;
           temperature,
           num_predict: maxTokens
         }
-      });
+      })
 
       // Only trim leading/trailing whitespace, preserve internal blank lines
-      let generatedMessage = response.message.content?.replace(/^\s+|\s+$/g, '');
+      let generatedMessage = response.message.content?.replace(/^\s+|\s+$/g, '')
 
       if (!generatedMessage) {
-        throw new Error('Empty response from Ollama');
+        throw new Error('Empty response from Ollama')
       }
 
         // Post-process: If location contains Markdown link but LLMstripped it, restore it
         // Extract location name from Markdown format [Name](url)
         const markdownLinkMatch =
-            location.match(/\[([^\]]+)\]\(([^)]+)\)/);
+            location.match(/\[([^\]]+)\]\(([^)]+)\)/)
         if (markdownLinkMatch) {
-            const locationName = markdownLinkMatch[1];
+            const locationName = markdownLinkMatch[1]
             // Replace plain location name with full Markdown link
             generatedMessage = generatedMessage.replace(
                 new RegExp(`\\b${locationName}\\b`, 'g'),
                 location
-            );
+            )
         }
 
-      return generatedMessage;
+      return generatedMessage
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Error generating Ollama message:', errorMessage);
-      console.log('Fallback to template message');
-      return this.generateTemplateMessage(seasonConfig, practiceDay);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('Error generating Ollama message:', errorMessage)
+      console.log('Fallback to template message')
+      return this.generateTemplateMessage(seasonConfig, practiceDay)
     }
   }
 
@@ -101,12 +101,12 @@ The more the merrier! ${EMOJIS.FRISBEE}`;
     options: MessageGenerationOptions = {},
     practiceDay?: PracticeDay
   ): Promise<string> {
-    const { useLLM = false } = options;
+    const { useLLM = false } = options
 
     if (useLLM) {
-      return await this.generateLLMMessage(seasonConfig, options, practiceDay);
+      return await this.generateLLMMessage(seasonConfig, options, practiceDay)
     } else {
-      return this.generateTemplateMessage(seasonConfig, practiceDay);
+      return this.generateTemplateMessage(seasonConfig, practiceDay)
     }
   }
 
@@ -135,15 +135,15 @@ Rules:
 - NO multiple consecutive blank lines
 - IMPORTANT: Use the location "${location}" EXACTLY as provided without any modifications (it may contain special formatting)
 
-Generate the message now:`;
+Generate the message now:`
   }
 
   isLLMAvailable(): boolean {
-    return this.ollama !== null;
+    return this.ollama !== null
   }
 
   getLLMProvider(): string {
-    if (this.ollama) return `Ollama (${config.ollama.model})`;
-    return 'Template-only';
+    if (this.ollama) return `Ollama (${config.ollama.model})`
+    return 'Template-only'
   }
 }

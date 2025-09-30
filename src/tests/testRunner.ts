@@ -1,7 +1,7 @@
-import { SeasonManager } from '../services/SeasonManager.js';
-import { MessageGenerator } from '../services/MessageGenerator.js';
-import { EMOJIS } from '../utils/constants.js';
-import { DateHelpers } from '../utils/dateHelpers.js';
+import { SeasonManager } from '../services/SeasonManager'
+import { MessageGenerator } from '../services/MessageGenerator'
+import { EMOJIS } from '../utils/constants'
+import { DateHelpers } from '../utils/dateHelpers'
 
 interface TestCase {
   date: string;
@@ -11,27 +11,27 @@ interface TestCase {
 }
 
 export class TestRunner {
-  private readonly seasonManager: SeasonManager;
-  private readonly messageGenerator: MessageGenerator;
+  private readonly seasonManager: SeasonManager
+  private readonly messageGenerator: MessageGenerator
 
   constructor() {
-    this.seasonManager = new SeasonManager();
-    this.messageGenerator = new MessageGenerator();
+    this.seasonManager = new SeasonManager()
+    this.messageGenerator = new MessageGenerator()
   }
 
   async runAllTests(): Promise<void> {
-    console.log(`${EMOJIS.TEST_TUBE} Running Ultimate Frisbee Bot Tests\n`);
+    console.log(`${EMOJIS.TEST_TUBE} Running Ultimate Frisbee Bot Tests\n`)
 
-    await this.runSeasonalLogicTests();
-    await this.runSchedulingLogicTests();
-    await this.runMessageGenerationTests();
+    await this.runSeasonalLogicTests()
+    await this.runSchedulingLogicTests()
+    await this.runMessageGenerationTests()
 
-    console.log(`\n${EMOJIS.CHECK_MARK} All tests completed!`);
+    console.log(`\n${EMOJIS.CHECK_MARK} All tests completed!`)
   }
 
   private async runSchedulingLogicTests(): Promise<void> {
-    console.log(`\n${EMOJIS.CLOCK} SCHEDULING LOGIC TESTS (24h Before)`);
-    console.log('==========================================');
+    console.log(`\n${EMOJIS.CLOCK} SCHEDULING LOGIC TESTS (24h Before)`)
+    console.log('==========================================')
 
     interface ScheduleTestCase {
       currentDate: string;
@@ -77,25 +77,25 @@ export class TestRunner {
         expectedShouldSend: true,
         description: 'Tuesday 19:30 -> Wednesday training (should send)'
       },
-    ];
+    ]
 
     for (const testCase of scheduleTests) {
-      const date = new Date(testCase.currentDate);
-      const shouldSend = this.seasonManager.shouldSendMessage(date);
-      const match = shouldSend === testCase.expectedShouldSend;
-      const icon = match ? EMOJIS.CHECK_MARK : EMOJIS.CROSS_MARK;
+      const date = new Date(testCase.currentDate)
+      const shouldSend = this.seasonManager.shouldSendMessage(date)
+      const match = shouldSend === testCase.expectedShouldSend
+      const icon = match ? EMOJIS.CHECK_MARK : EMOJIS.CROSS_MARK
 
-      console.log(`${icon} ${testCase.description}`);
+      console.log(`${icon} ${testCase.description}`)
 
       if (!match) {
-        console.log(`  Expected: ${testCase.expectedShouldSend}, Got: ${shouldSend}`);
+        console.log(`  Expected: ${testCase.expectedShouldSend}, Got: ${shouldSend}`)
       }
     }
   }
 
   private async runSeasonalLogicTests(): Promise<void> {
-    console.log(`${EMOJIS.CALENDAR} SEASONAL LOGIC TESTS`);
-    console.log('========================');
+    console.log(`${EMOJIS.CALENDAR} SEASONAL LOGIC TESTS`)
+    console.log('========================')
 
     const testCases: TestCase[] = [
       {
@@ -152,34 +152,34 @@ export class TestRunner {
         expectedShouldSend: false, // Monday, start of summer
         description: 'Start of summer season'
       },
-    ];
+    ]
 
     for (const testCase of testCases) {
-      const date = new Date(testCase.date);
-      const season = this.seasonManager.getCurrentSeason(date);
-      const shouldSend = this.seasonManager.shouldSendMessage(date);
+      const date = new Date(testCase.date)
+      const season = this.seasonManager.getCurrentSeason(date)
+      const shouldSend = this.seasonManager.shouldSendMessage(date)
 
-      const seasonMatch = season === testCase.expectedSeason;
-      const shouldSendMatch = shouldSend === testCase.expectedShouldSend;
-      const dayName = DateHelpers.getDayName(date.getDay());
+      const seasonMatch = season === testCase.expectedSeason
+      const shouldSendMatch = shouldSend === testCase.expectedShouldSend
+      const dayName = DateHelpers.getDayName(date.getDay())
 
-      const seasonIcon = seasonMatch ? EMOJIS.CHECK_MARK : EMOJIS.CROSS_MARK;
-      const messageIcon = shouldSendMatch ? EMOJIS.CHECK_MARK : EMOJIS.CROSS_MARK;
+      const seasonIcon = seasonMatch ? EMOJIS.CHECK_MARK : EMOJIS.CROSS_MARK
+      const messageIcon = shouldSendMatch ? EMOJIS.CHECK_MARK : EMOJIS.CROSS_MARK
 
-      console.log(`${testCase.date} (${dayName}): ${season} season ${seasonIcon} - Send message: ${shouldSend ? EMOJIS.CHECK_MARK : EMOJIS.CROSS_MARK} ${messageIcon}`);
+      console.log(`${testCase.date} (${dayName}): ${season} season ${seasonIcon} - Send message: ${shouldSend ? EMOJIS.CHECK_MARK : EMOJIS.CROSS_MARK} ${messageIcon}`)
 
       if (!seasonMatch) {
-        console.log(`  Expected season: ${testCase.expectedSeason}, got: ${season}`);
+        console.log(`  Expected season: ${testCase.expectedSeason}, got: ${season}`)
       }
       if (!shouldSendMatch) {
-        console.log(`  Expected shouldSend: ${testCase.expectedShouldSend}, got: ${shouldSend}`);
+        console.log(`  Expected shouldSend: ${testCase.expectedShouldSend}, got: ${shouldSend}`)
       }
     }
   }
 
   private async runMessageGenerationTests(): Promise<void> {
-    console.log(`\n${EMOJIS.MEMO} MESSAGE GENERATION TESTS`);
-    console.log('============================');
+    console.log(`\n${EMOJIS.MEMO} MESSAGE GENERATION TESTS`)
+    console.log('============================')
 
     const winterConfig = {
       season: 'winter' as const,
@@ -188,7 +188,7 @@ export class TestRunner {
         { day: 2, time: '20:30' }, // Tuesday
         { day: 6, time: '21:00' }  // Saturday
       ]
-    };
+    }
 
     const summerConfig = {
       season: 'summer' as const,
@@ -197,40 +197,40 @@ export class TestRunner {
         { day: 0, time: '19:00' }, // Sunday
         { day: 3, time: '19:30' }  // Wednesday
       ]
-    };
+    }
 
-    console.log(`${EMOJIS.WINTER} Winter Template Message:`);
-    console.log('----------------------------');
-    const winterMessage = await this.messageGenerator.generateMessage(winterConfig, { useLLM: false });
-    console.log(winterMessage);
+    console.log(`${EMOJIS.WINTER} Winter Template Message:`)
+    console.log('----------------------------')
+    const winterMessage = await this.messageGenerator.generateMessage(winterConfig, { useLLM: false })
+    console.log(winterMessage)
 
-    console.log(`\n${EMOJIS.SUMMER} Summer Template Message:`);
-    console.log('----------------------------');
-    const summerMessage = await this.messageGenerator.generateMessage(summerConfig, { useLLM: false });
-    console.log(summerMessage);
+    console.log(`\n${EMOJIS.SUMMER} Summer Template Message:`)
+    console.log('----------------------------')
+    const summerMessage = await this.messageGenerator.generateMessage(summerConfig, { useLLM: false })
+    console.log(summerMessage)
 
     // Test LLM if available
     if (this.messageGenerator.isLLMAvailable()) {
-      console.log(`\n${EMOJIS.ROBOT} LLM Generated Messages:`);
-      console.log('==========================');
+      console.log(`\n${EMOJIS.ROBOT} LLM Generated Messages:`)
+      console.log('==========================')
 
-      console.log(`${EMOJIS.WINTER} Winter LLM Message:`);
-      console.log('----------------------');
-      const winterLLMMessage = await this.messageGenerator.generateMessage(winterConfig, { useLLM: true });
-      console.log(winterLLMMessage);
+      console.log(`${EMOJIS.WINTER} Winter LLM Message:`)
+      console.log('----------------------')
+      const winterLLMMessage = await this.messageGenerator.generateMessage(winterConfig, { useLLM: true })
+      console.log(winterLLMMessage)
 
-      console.log(`\n${EMOJIS.SUMMER} Summer LLM Message:`);
-      console.log('----------------------');
-      const summerLLMMessage = await this.messageGenerator.generateMessage(summerConfig, { useLLM: true });
-      console.log(summerLLMMessage);
+      console.log(`\n${EMOJIS.SUMMER} Summer LLM Message:`)
+      console.log('----------------------')
+      const summerLLMMessage = await this.messageGenerator.generateMessage(summerConfig, { useLLM: true })
+      console.log(summerLLMMessage)
     } else {
-      console.log(`\n${EMOJIS.WARNING} OpenAI API key not set - skipping LLM tests`);
+      console.log(`\n${EMOJIS.WARNING} OpenAI API key not set - skipping LLM tests`)
     }
   }
 }
 
 // Run tests if this file is executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const testRunner = new TestRunner();
-  testRunner.runAllTests().catch(console.error);
+  const testRunner = new TestRunner()
+  testRunner.runAllTests().catch(console.error)
 }
