@@ -1,0 +1,90 @@
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: frisbee-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_MAX_LOADED_MODELS=1
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_FLASH_ATTENTION=false
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+        reservations:
+          memory: 4G
+    shm_size: 2g
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frisbee-bot:
+    build: .
+    container_name: frisbee-bot
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      # Telegram Configuration
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - CHAT_ID=${CHAT_ID}
+
+      # Ollama Configuration
+      - OLLAMA_ENABLED=true
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=llama3.2:3b
+
+      # Season Configuration
+      - WINTER_START_DATE=${WINTER_START_DATE:-9:15}
+      - WINTER_LOCATION=${WINTER_LOCATION:-Park Arena}
+      - WINTER_PRACTICE_DAYS=${WINTER_PRACTICE_DAYS:-2:20:30,6:20:30}
+      - WINTER_SCHEDULE_TIME=${WINTER_SCHEDULE_TIME:-20:00}
+
+      - SUMMER_START_DATE=${SUMMER_START_DATE:-5:20}
+      - SUMMER_LOCATION=${SUMMER_LOCATION:-Beach Courts}
+      - SUMMER_PRACTICE_DAYS=${SUMMER_PRACTICE_DAYS:-0:19:00,3:19:00}
+      - SUMMER_SCHEDULE_TIME=${SUMMER_SCHEDULE_TIME:-20:00}
+
+      # Testing
+      - TEST_MODE=${TEST_MODE:-false}
+      - OVERRIDE_DATE=${OVERRIDE_DATE:-}
+
+    # Optional: Add volume for logs or persistent data
+    # volumes:
+    #   - ./logs:/app/logs
+
+    # Health check for the bot
+    healthcheck:
+      test: ["CMD", "node", "-e", "console.log('Bot health check')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Optional: Ollama model downloader (runs once to pull the model)
+  ollama-setup:
+    image: ollama/ollama:latest
+    container_name: frisbee-ollama-setup
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    command: ["pull", "llama3.2:3b"]
+    restart: "no"
+
+volumes:
+  ollama_data:
+    driver: local

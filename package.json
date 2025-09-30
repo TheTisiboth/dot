@@ -12,7 +12,15 @@
     "lint": "eslint src/**/*.ts",
     "type-check": "tsc --noEmit",
     "check": "npm run type-check && npm run lint",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f frisbee-bot",
+    "docker:logs:ollama": "docker-compose logs -f ollama",
+    "docker:restart": "docker-compose restart frisbee-bot",
+    "docker:setup": "docker-compose up ollama-setup",
+    "docker:dev": "docker-compose up --build"
   },
   "keywords": [
     "telegram",

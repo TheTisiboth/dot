@@ -50,7 +50,7 @@ The more the merrier! ${EMOJIS.FRISBEE}`;
 
     const prompt = this.createLLMPrompt(location, time, season);
     const model = config.ollama.model || 'mistral:7b';
-
+console.log("Test")
     try {
       const response = await this.ollama!.chat({
         model,
@@ -66,7 +66,8 @@ The more the merrier! ${EMOJIS.FRISBEE}`;
         }
       });
 
-      const generatedMessage = response.message.content?.trim();
+      // Only trim leading/trailing whitespace, preserve internal blank lines
+      const generatedMessage = response.message.content?.replace(/^\s+|\s+$/g, '');
 
       if (!generatedMessage) {
         throw new Error('Empty response from Ollama');
@@ -96,17 +97,28 @@ The more the merrier! ${EMOJIS.FRISBEE}`;
   }
 
   private createLLMPrompt(location: string, time: string, season: string): string {
-    return `Write ONLY the message content for an Ultimate Frisbee training invitation. No explanations, no meta-text, no "Here's a message" - just the direct message.
+    return `Generate an Ultimate Frisbee training invitation message. Output ONLY the message content with NO quotes, NO explanations, NO "Here's a message".
 
-Requirements:
-- Invite people to tomorrow's ${season} training at ${location} starting at ${time}
-- Ask for ${EMOJIS.THUMBS_UP} reaction to confirm attendance
-- Use 2-4 emojis maximum
-- Keep it friendly and motivating
-- End with a unique encouraging phrase (vary it each time - could be "The more the merrier!", "Let's make it epic!", "See you on the field!", "Bring your A-game!", etc.)
-- 2-4 lines total
+Use this EXACT format with blank lines between each section:
 
-Message:`;
+[emoji] [greeting sentence]
+
+[sentence about tomorrow's ${season} training at ${location} starting at ${time}]
+
+[emoji] [sentence asking for 👍 reaction to confirm attendance]
+
+[unique catch phrase]! [emoji]
+
+Rules:
+- Use blank lines to separate each section (like the template)
+- Use ONLY these emojis: 🥏 🚀 💡 👍 🏃 ✨ ⚡ 🔥 🎯
+- MUST include the 👍 emoji when asking for reactions
+- NO sports emojis from other sports
+- Maximum 4 emojis total
+- Vary the catch phrase each time
+- NO quotation marks in output
+
+Generate the message now:`;
   }
 
   isLLMAvailable(): boolean {
@@ -114,7 +126,7 @@ Message:`;
   }
 
   getLLMProvider(): string {
-    if (this.ollama) return `Ollama (${config.ollama.model || 'mistral:7b'})`;
+    if (this.ollama) return `Ollama (${config.ollama.model || 'llama3.2:3b'})`;
     return 'Template-only';
   }
 }
