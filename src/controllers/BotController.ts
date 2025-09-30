@@ -4,7 +4,7 @@ import { MessageGenerator } from '../services/MessageGenerator.js';
 import { SchedulerService } from '../services/SchedulerService.js';
 import { config } from '../config/index.js';
 import { TestResult, PracticeDay } from '../types/index.js';
-import { BOT_COMMANDS, EMOJIS, MESSAGES } from '../utils/constants.js';
+import { EMOJIS, MESSAGES } from '../utils/constants.js';
 import { DateHelpers } from '../utils/dateHelpers.js';
 
 export class BotController {
@@ -30,9 +30,9 @@ export class BotController {
   private setupCommands(): void {
     // Public commands
     this.bot.onText(/\/start/, (msg) => this.handleStart(msg));
-    this.bot.onText(/\/info/, (msg) => this.handleInfo(msg));
-    this.bot.onText(/\/schedule/, (msg) => this.handleSchedule(msg));
     this.bot.onText(/\/help/, (msg) => this.handleHelp(msg));
+    this.bot.onText(/\/info/, (msg) => this.handleInfo(msg));
+    this.bot.onText(/\/training/, (msg) => this.handleTraining(msg));
 
     // Admin-only commands
     this.bot.onText(/\/test_template/, (msg) => this.requireAdmin(msg, () => this.handleTestTemplate(msg)));
@@ -54,28 +54,24 @@ export class BotController {
   }
 
   private async handleStart(msg: TelegramBot.Message): Promise<void> {
-    const helpText = `${EMOJIS.FRISBEE} Ultimate Frisbee Training Bot is running!
+    const helpText = `${EMOJIS.FRISBEE} Welcome to Ultimate Frisbee Training Bot!
 
 I send training reminders to the team group 24h before each practice.
 
-${EMOJIS.MEMO} Available commands:
-${BOT_COMMANDS.INFO} - Show current season and schedule
-${BOT_COMMANDS.SCHEDULE} - Show next training date
-${BOT_COMMANDS.HELP} - Show detailed help
-
-Type /help for more information!`;
+Type /help to see available commands.`;
 
     await this.bot.sendMessage(msg.chat.id, helpText);
   }
 
   private async handleInfo(msg: TelegramBot.Message): Promise<void> {
-    const seasonConfig = this.seasonManager.getCurrentSeasonConfig();
-    const trainingDays = this.seasonManager.getTrainingDaysString();
+    const winterInfo = this.formatSeasonInfo('winter', config.seasons.winter, config.seasons.summer.startDate);
+    const summerInfo = this.formatSeasonInfo('summer', config.seasons.summer, config.seasons.winter.startDate);
 
-    const infoText = `${EMOJIS.CALENDAR} Current Season: ${this.capitalize(seasonConfig.season)}
-${EMOJIS.LOCATION} Location: ${seasonConfig.location}
-${EMOJIS.SCHEDULE} Training Days: ${trainingDays}
-${EMOJIS.ANNOUNCEMENT} Reminders sent 24h before practice`;
+    const infoText = `${EMOJIS.CALENDAR} Training Schedule
+
+${winterInfo}
+
+${summerInfo}`;
 
     await this.bot.sendMessage(msg.chat.id, infoText, { parse_mode: 'Markdown' });
   }
@@ -123,16 +119,16 @@ ${EMOJIS.ANNOUNCEMENT} Reminders sent 24h before practice`;
     }
   }
 
-  private async handleSchedule(msg: TelegramBot.Message): Promise<void> {
+  private async handleTraining(msg: TelegramBot.Message): Promise<void> {
     const nextTraining = this.seasonManager.getNextTrainingInfo();
 
-    const scheduleText = `${EMOJIS.RUNNER} Next Training:
+    const trainingText = `${EMOJIS.RUNNER} Next Training:
 
-${EMOJIS.CALENDAR} Date: ${nextTraining.dayName}, ${DateHelpers.formatDate(nextTraining.date)}
-${EMOJIS.LOCATION} Location: ${nextTraining.location}
-${EMOJIS.CLOCK} Time: ${nextTraining.time}`;
+${EMOJIS.CALENDAR} ${DateHelpers.formatDate(nextTraining.date)}
+${EMOJIS.CLOCK} ${nextTraining.time}
+${EMOJIS.LOCATION} ${nextTraining.location}`;
 
-    await this.bot.sendMessage(msg.chat.id, scheduleText);
+    await this.bot.sendMessage(msg.chat.id, trainingText, { parse_mode: 'Markdown' });
   }
 
   private async handleSendNow(msg: TelegramBot.Message): Promise<void> {
@@ -145,28 +141,18 @@ ${EMOJIS.CLOCK} Time: ${nextTraining.time}`;
   }
 
   private async handleHelp(msg: TelegramBot.Message): Promise<void> {
-    const winterInfo = this.formatSeasonInfo('winter', config.seasons.winter, config.seasons.summer.startDate);
-    const summerInfo = this.formatSeasonInfo('summer', config.seasons.summer, config.seasons.winter.startDate);
+    const helpText = `${EMOJIS.FRISBEE} Available Commands
 
-    const helpText = `${EMOJIS.FRISBEE} Ultimate Frisbee Training Dog boT Help
-
-${EMOJIS.ROBOT} This bot sends training reminders 24h before each practice:
-
-${winterInfo}
-
-${summerInfo}
-
-${EMOJIS.MEMO} Commands:
-${BOT_COMMANDS.INFO} - Show current season info
-${BOT_COMMANDS.SCHEDULE} - Show next training
-${BOT_COMMANDS.HELP} - Show this help`;
+/info - Show training schedule for all seasons
+/training - Show next training session
+/help - Show this help message`;
 
     await this.bot.sendMessage(msg.chat.id, helpText);
   }
 
   private formatSeasonInfo(
     season: 'winter' | 'summer',
-    seasonConfig: { startDate: { month: number; day: number }; practices: PracticeDay[] },
+    seasonConfig: { startDate: { month: number; day: number }; practices: PracticeDay[]; location: string },
     nextSeasonStart: { month: number; day: number }
   ): string {
     const emoji = season === 'winter' ? EMOJIS.WINTER : EMOJIS.SUMMER;
@@ -175,7 +161,9 @@ ${BOT_COMMANDS.HELP} - Show this help`;
     const end = this.formatDateShort(this.getDateBefore(nextSeasonStart));
     const practices = this.formatPracticeDays(seasonConfig.practices);
 
-    return `${emoji} ${name} (${start} - ${end}):\n${practices}`;
+    return `${emoji} ${name} (${start} - ${end}):
+${practices}
+   ${EMOJIS.LOCATION} ${seasonConfig.location}`;
   }
 
   private formatDateShort(dateConfig: { month: number; day: number }): string {

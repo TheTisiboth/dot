@@ -12,7 +12,7 @@ export const BOT_COMMANDS = {
   START: '/start',
   INFO: '/info',
   HELP: '/help',
-  SCHEDULE: '/schedule',
+  TRAINING: '/training',
   TEST_TEMPLATE: '/test_template',
   TEST_LLM: '/test_llm',
   TEST_SEASON: '/test_season',

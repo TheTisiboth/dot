@@ -7,7 +7,8 @@ export class DateHelpers {
   }
 
   static formatDate(date: Date): string {
-    return date.toDateString();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
+    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   }
 
   static isValidDate(date: Date): boolean {
