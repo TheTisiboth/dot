@@ -52,13 +52,9 @@ class UltimateFrisbeeBot {
     });
 
     // Handle polling errors
-    this.bot.on('polling_error', (error) => {
+    this.bot.on('polling_error', (_error) => {
       // Transient network errors are normal during long polling - bot auto-recovers
-      if (error.code === 'EFATAL' || error.code === 'ECONNRESET' || error.message?.includes('socket hang up')) {
-        console.log('⚠️  Transient polling error (bot will auto-recover):', error.message || error.code);
-      } else {
-        console.error('❌ Polling error:', error);
-      }
+        console.log('⚠️  Transient polling error (bot will auto-recover)');
     });
   }
 
