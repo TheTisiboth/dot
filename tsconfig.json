@@ -23,8 +23,16 @@
     "noPropertyAccessFromIndexSignature": false,
     "allowUnusedLabels": false,
     "allowUnreachableCode": false,
-    "moduleResolution": "node"
+    "moduleResolution": "bundler"
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts"],
+  "tsc-alias": {
+    "resolveFullPaths": true,
+    "replacers": {
+      "default": {
+        "enabled": true
+      }
+    }
+  }
 }
