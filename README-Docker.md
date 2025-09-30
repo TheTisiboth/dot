@@ -48,23 +48,41 @@ npm run docker:setup
 
 # Development mode (rebuild + start)
 npm run docker:dev
+
+# Deploy all services (stops and rebuilds everything)
+npm run docker:deploy
+
+# Deploy only bot (keeps Ollama running, updates bot only)
+npm run docker:deploy:bot
 ```
 
 ## 🏗️ Architecture
 
 - **frisbee-bot**: Your TypeScript bot
-- **ollama**: Local LLM server with qwen2:0.5b
+- **ollama**: Local LLM server with llama3.2:3b (configurable)
 - **ollama-setup**: One-time model downloader
 
 ## 🔧 Configuration
 
 The bot automatically connects to Ollama at `http://ollama:11434` inside the container network.
 
+### Environment Variables
+
+You can customize the Ollama configuration:
+
+```env
+OLLAMA_MODEL=llama3.2:3b              # Default model
+OLLAMA_MEMORY_LIMIT=5G                 # Maximum memory allocation
+OLLAMA_MEMORY_RESERVATION=4G           # Reserved memory
+```
+
 ## 📊 Monitoring
 
 - Bot status: `docker-compose ps`
 - Bot logs: `npm run docker:logs`
 - Ollama health: `curl http://localhost:11434/api/tags`
+- Check Ollama memory: `docker inspect frisbee-ollama --format '{{.HostConfig.Memory}}'`
+- List downloaded models: `docker exec frisbee-ollama ollama list`
 
 ## 💾 Data Persistence
 
@@ -82,5 +100,16 @@ For production servers:
 ## ⚠️ Requirements
 
 - Docker & Docker Compose
-- ~1GB RAM for qwen2:0.5b
-- ~500MB disk space for model
+- ~5GB RAM for llama3.2:3b (configurable)
+- ~2GB disk space for model
+
+## 🔄 Updating the Bot
+
+When you make changes to your bot code, use `npm run docker:deploy:bot` to update only the bot container without affecting Ollama. This preserves the downloaded model and keeps Ollama running.
+
+```bash
+# Make your code changes
+npm run docker:deploy:bot
+```
+
+**Important**: Don't use `npm run docker:deploy` for routine updates, as it will stop and remove all containers including Ollama, requiring you to re-download the model.

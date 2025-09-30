@@ -1,4 +1,7 @@
 
+x-ollama-memory-limit: &ollama-memory-limit ${OLLAMA_MEMORY_LIMIT:-5G}
+x-ollama-memory-reservation: &ollama-memory-reservation ${OLLAMA_MEMORY_RESERVATION:-4G}
+
 services:
   ollama:
     image: ollama/ollama:latest
@@ -17,9 +20,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 6G
+          memory: *ollama-memory-limit
         reservations:
-          memory: 4G
+          memory: *ollama-memory-reservation
     shm_size: 2g
     healthcheck:
       test: ["CMD", "ollama", "list"]
@@ -43,7 +46,7 @@ services:
       # Ollama Configuration
       - OLLAMA_ENABLED=true
       - OLLAMA_HOST=http://ollama:11434
-      - OLLAMA_MODEL=llama3.2:3b
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
 
       # Season Configuration
       - WINTER_START_DATE=${WINTER_START_DATE:-9:15}
@@ -82,7 +85,8 @@ services:
       - ollama_data:/root/.ollama
     environment:
       - OLLAMA_HOST=http://ollama:11434
-    command: ["pull", "llama3.2:3b"]
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
+    command: sh -c "ollama pull $${OLLAMA_MODEL:-llama3.2:3b}"
     restart: "no"
 
 volumes:

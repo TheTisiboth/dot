@@ -58,8 +58,12 @@ Edit `.env` file:
 TELEGRAM_BOT_TOKEN=your_bot_token_here
 CHAT_ID=your_chat_id_here
 
-# Optional (for AI-generated messages)
-OPENAI_API_KEY=your_openai_api_key_here
+# Optional: Ollama Configuration (for local LLM-generated messages)
+OLLAMA_ENABLED=true
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=llama3.2:3b
+OLLAMA_MEMORY_LIMIT=5G                     # Maximum memory for Ollama container
+OLLAMA_MEMORY_RESERVATION=4G               # Reserved memory for Ollama container
 
 # Winter Season Configuration
 WINTER_START_DATE=9:15                    # Format: month:day (September 15)
@@ -144,7 +148,7 @@ The more the merrier! 🥏
 ```
 
 ### AI-Generated Messages
-When OpenAI API key is provided, the bot will generate varied, engaging messages using GPT-3.5-turbo while maintaining the same core information and call-to-action.
+When Ollama is enabled, the bot will generate varied, engaging messages using a local LLM (default: llama3.2:3b) while maintaining the same core information and call-to-action.
 
 ## Testing
 
@@ -266,9 +270,10 @@ pm2 save
 - Look at console logs for scheduling confirmations
 
 ### AI messages not working
-- Verify OPENAI_API_KEY is set correctly
-- Check OpenAI API usage limits
-- Bot will fall back to template messages if AI fails
+- Verify OLLAMA_ENABLED is set to true
+- Check Ollama is running at the configured host
+- Verify the model is downloaded (use `docker exec frisbee-ollama ollama list`)
+- Bot will fall back to template messages if Ollama fails
 
 ## Project Structure
 

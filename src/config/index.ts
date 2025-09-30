@@ -44,8 +44,8 @@ export const config: BotConfig = {
 
   ollama: {
     enabled: process.env.OLLAMA_ENABLED === 'true',
-    ...(process.env.OLLAMA_HOST && { host: process.env.OLLAMA_HOST }),
-    ...(process.env.OLLAMA_MODEL && { model: process.env.OLLAMA_MODEL }),
+    host: process.env.OLLAMA_HOST || 'http://localhost:11434',
+    model: process.env.OLLAMA_MODEL || 'llama3.2:3b',
   },
 
   seasons: {

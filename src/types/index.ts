@@ -30,9 +30,9 @@ export interface TelegramConfig {
 }
 
 export interface OllamaConfig {
-  enabled?: boolean;
-  host?: string;
-  model?: string;
+  enabled: boolean;
+  host: string;
+  model: string;
 }
 
 export interface SeasonsConfig {

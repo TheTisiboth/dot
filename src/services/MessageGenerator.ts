@@ -8,7 +8,7 @@ export class MessageGenerator {
 
   constructor() {
     this.ollama = config.ollama.enabled ? new Ollama({
-      host: config.ollama.host || 'http://localhost:11434'
+      host: config.ollama.host
     }) : null;
   }
 
@@ -22,6 +22,7 @@ export class MessageGenerator {
 Tomorrow we're planning an Ultimate Frisbee training at ${location} starting at ${time}.
 
 ${EMOJIS.BULB} If you're in, just drop a ${EMOJIS.THUMBS_UP} on this message so we know how many are coming.
+
 The more the merrier! ${EMOJIS.FRISBEE}`;
   }
 
@@ -49,8 +50,8 @@ The more the merrier! ${EMOJIS.FRISBEE}`;
     const { temperature = 0.7, maxTokens = 200 } = options;
 
     const prompt = this.createLLMPrompt(location, time, season);
-    const model = config.ollama.model || 'mistral:7b';
-console.log("Test")
+    const model = config.ollama.model;
+    console.log(`🔄 Generating message with Ollama (${model}) for ${season} training at ${location}, ${time}`);
     try {
       const response = await this.ollama!.chat({
         model,
@@ -99,24 +100,26 @@ console.log("Test")
   private createLLMPrompt(location: string, time: string, season: string): string {
     return `Generate an Ultimate Frisbee training invitation message. Output ONLY the message content with NO quotes, NO explanations, NO "Here's a message".
 
-Use this EXACT format with blank lines between each section:
+Use this EXACT format with ONE blank line between each section:
 
 [emoji] [greeting sentence]
-
+(blank line)
 [sentence about tomorrow's ${season} training at ${location} starting at ${time}]
-
-[emoji] [sentence asking for 👍 reaction to confirm attendance]
-
+(blank line)
+[emoji] [sentence asking to react with 👍 to confirm attendance]
+(blank line)
 [unique catch phrase]! [emoji]
 
 Rules:
-- Use blank lines to separate each section (like the template)
-- Use ONLY these emojis: 🥏 🚀 💡 👍 🏃 ✨ ⚡ 🔥 🎯
-- MUST include the 👍 emoji when asking for reactions
-- NO sports emojis from other sports
-- Maximum 4 emojis total
+- Use EXACTLY ONE blank line between sections
+- If using sports emojis, they must be Ultimate Frisbee related (e.g. 🥏 is good, ⚽ would not make sense)
+- When asking for confirmation, ONLY mention the 👍 emoji (do NOT mention other emojis like 👊, 👉, etc.)
+- The confirmation line should clearly ask users to "react with 👍" or "drop a 👍"
+- Do NOT use pointing or fist emojis in the confirmation sentence
+- Maximum 4 emojis total in the entire message
 - Vary the catch phrase each time
 - NO quotation marks in output
+- NO multiple consecutive blank lines
 
 Generate the message now:`;
   }
@@ -126,7 +129,7 @@ Generate the message now:`;
   }
 
   getLLMProvider(): string {
-    if (this.ollama) return `Ollama (${config.ollama.model || 'llama3.2:3b'})`;
+    if (this.ollama) return `Ollama (${config.ollama.model})`;
     return 'Template-only';
   }
 }

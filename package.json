@@ -13,14 +13,13 @@
     "type-check": "tsc --noEmit",
     "check": "npm run type-check && npm run lint",
     "clean": "rimraf dist",
-    "docker:build": "docker-compose build",
-    "docker:up": "docker-compose up -d",
-    "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f frisbee-bot",
     "docker:logs:ollama": "docker-compose logs -f ollama",
     "docker:restart": "docker-compose restart frisbee-bot",
-    "docker:setup": "docker-compose up ollama-setup",
-    "docker:dev": "docker-compose up --build"
+    "docker:ollama:pull": "docker-compose up ollama-setup",
+    "docker:dev": "docker-compose up --build",
+    "docker:deploy": "npm run build && docker-compose down && docker-compose up --build -d",
+    "docker:deploy:bot": "npm run build && docker-compose up --build -d frisbee-bot"
   },
   "keywords": [
     "telegram",
