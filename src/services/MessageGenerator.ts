@@ -68,11 +68,24 @@ The more the merrier! ${EMOJIS.FRISBEE}`;
       });
 
       // Only trim leading/trailing whitespace, preserve internal blank lines
-      const generatedMessage = response.message.content?.replace(/^\s+|\s+$/g, '');
+      let generatedMessage = response.message.content?.replace(/^\s+|\s+$/g, '');
 
       if (!generatedMessage) {
         throw new Error('Empty response from Ollama');
       }
+
+        // Post-process: If location contains Markdown link but LLMstripped it, restore it
+        // Extract location name from Markdown format [Name](url)
+        const markdownLinkMatch =
+            location.match(/\[([^\]]+)\]\(([^)]+)\)/);
+        if (markdownLinkMatch) {
+            const locationName = markdownLinkMatch[1];
+            // Replace plain location name with full Markdown link
+            generatedMessage = generatedMessage.replace(
+                new RegExp(`\\b${locationName}\\b`, 'g'),
+                location
+            );
+        }
 
       return generatedMessage;
     } catch (error) {
@@ -120,6 +133,7 @@ Rules:
 - Vary the catch phrase each time
 - NO quotation marks in output
 - NO multiple consecutive blank lines
+- IMPORTANT: Use the location "${location}" EXACTLY as provided without any modifications (it may contain special formatting)
 
 Generate the message now:`;
   }

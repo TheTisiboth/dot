@@ -74,7 +74,7 @@ export class SchedulerService {
         return;
       }
 
-      await this.bot.sendMessage(this.chatId, message);
+      await this.bot.sendMessage(this.chatId, message, { parse_mode: 'Markdown' });
       console.log(`✅ ${MESSAGES.MESSAGE_SENT_SUCCESS}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

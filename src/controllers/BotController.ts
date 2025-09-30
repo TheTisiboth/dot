@@ -63,7 +63,7 @@ ${EMOJIS.LOCATION} Location: ${seasonConfig.location}
 ${EMOJIS.SCHEDULE} Training Days: ${trainingDays}
 ${EMOJIS.ANNOUNCEMENT} Reminders sent 24h before practice`;
 
-    await this.bot.sendMessage(msg.chat.id, infoText);
+    await this.bot.sendMessage(msg.chat.id, infoText, { parse_mode: 'Markdown' });
   }
 
   private async handleTestTemplate(msg: TelegramBot.Message): Promise<void> {
@@ -71,7 +71,7 @@ ${EMOJIS.ANNOUNCEMENT} Reminders sent 24h before practice`;
     const practiceDay = this.seasonManager.getPracticeForDay();
     const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM: false }, practiceDay);
 
-    await this.bot.sendMessage(msg.chat.id, `${EMOJIS.MEMO} Template Message:\n\n${message}`);
+    await this.bot.sendMessage(msg.chat.id, `${EMOJIS.MEMO} Template Message:\n\n${message}`, { parse_mode: 'Markdown' });
   }
 
   private async handleTestLLM(msg: TelegramBot.Message): Promise<void> {
@@ -81,7 +81,7 @@ ${EMOJIS.ANNOUNCEMENT} Reminders sent 24h before practice`;
     const practiceDay = this.seasonManager.getPracticeForDay();
     const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM: true }, practiceDay);
 
-    await this.bot.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} LLM Generated Message:\n\n${message}`);
+    await this.bot.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} LLM Generated Message:\n\n${message}`, { parse_mode: 'Markdown' });
   }
 
   private async handleTestSeason(msg: TelegramBot.Message, match: RegExpExecArray | null): Promise<void> {
@@ -97,10 +97,10 @@ ${EMOJIS.ANNOUNCEMENT} Reminders sent 24h before practice`;
       const testResult = this.createTestResult(testDate, date);
 
       const resultText = this.formatTestResult(testResult);
-      await this.bot.sendMessage(msg.chat.id, resultText);
+      await this.bot.sendMessage(msg.chat.id, resultText, { parse_mode: 'Markdown' });
 
       if (testResult.shouldSendMessage && testResult.message) {
-        await this.bot.sendMessage(msg.chat.id, `${EMOJIS.ANNOUNCEMENT} Message that would be sent:\n\n${testResult.message}`);
+        await this.bot.sendMessage(msg.chat.id, `${EMOJIS.ANNOUNCEMENT} Message that would be sent:\n\n${testResult.message}`, { parse_mode: 'Markdown' });
       }
 
     } catch (error) {
