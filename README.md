@@ -228,7 +228,47 @@ Edit the prompt in the `generateLLMMessage` function in `src/services/MessageGen
 
 ## Deployment
 
-### Local Deployment
+### Docker Deployment (Recommended)
+
+**One-command deployment** that builds and starts everything including Ollama:
+
+```bash
+# Deploy bot with Ollama (includes automatic model pull)
+npm run docker:deploy
+```
+
+This will:
+1. Build the TypeScript code
+2. Stop any running containers
+3. Start Ollama container
+4. Start the bot container
+5. Automatically pull the LLM model (llama3.2:3b)
+
+**Other Docker commands:**
+
+```bash
+# View bot logs
+npm run docker:logs
+
+# View Ollama logs
+npm run docker:logs:ollama
+
+# Restart just the bot
+npm run docker:restart
+
+# Pull/update the Ollama model manually
+npm run docker:ollama:pull
+
+# Development mode (with logs)
+npm run docker:dev
+```
+
+**Requirements:**
+- Docker and Docker Compose installed
+- At least 4GB RAM available for Ollama
+
+### Local Deployment (Without Docker)
+
 ```bash
 # Install dependencies
 npm install
@@ -237,13 +277,31 @@ npm install
 cp .env.example .env
 # Edit .env with your settings
 
+# If using Ollama, install and start it separately
+# See: https://ollama.ai
+
 # Build and start bot
 npm run build
 npm start
 ```
 
-### Production Deployment
-Consider using PM2 for process management:
+### Production Deployment (VPS/Server)
+
+**Option 1: Docker (Recommended)**
+```bash
+# Clone repository
+git clone git@github.com:YourUsername/dot.git
+cd dot
+
+# Configure environment
+cp .env.example .env
+nano .env  # Edit with your settings
+
+# Deploy
+npm run docker:deploy
+```
+
+**Option 2: PM2 Process Manager**
 ```bash
 npm install -g pm2
 npm run build

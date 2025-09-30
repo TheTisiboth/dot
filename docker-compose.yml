@@ -84,13 +84,13 @@ services:
     depends_on:
       ollama:
         condition: service_healthy
-    volumes:
-      - ollama_data:/root/.ollama
     environment:
       - OLLAMA_HOST=http://ollama:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
-    command: sh -c "ollama pull $${OLLAMA_MODEL:-llama3.2:3b}"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull $${OLLAMA_MODEL:-llama3.2:3b}"]
     restart: "no"
+    network_mode: "service:ollama"
 
 volumes:
   ollama_data:
