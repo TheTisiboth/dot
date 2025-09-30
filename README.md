@@ -58,6 +58,9 @@ Edit `.env` file:
 TELEGRAM_BOT_TOKEN=your_bot_token_here
 CHAT_ID=your_chat_id_here
 
+# Optional: Admin Configuration (for admin-only commands)
+ADMIN_CHAT_ID=your_admin_chat_id_here
+
 # Optional: Ollama Configuration (for local LLM-generated messages)
 OLLAMA_ENABLED=true
 OLLAMA_HOST=http://localhost:11434
@@ -123,17 +126,14 @@ npm run check       # Both type checking and linting
 
 ### Available to Everyone:
 - `/start` - Initialize bot and show help
-- `/info` - Show current season and schedule information
 - `/help` - Display help message
-- `/schedule` - Show next training date
+- `/info` - Show current season and schedule information
+- `/training` - Show next training date
 
-### Testing Commands:
+### Admin Only (requires ADMIN_CHAT_ID):
 - `/test_template` - Send a test message using the template
 - `/test_llm` - Send a test message using AI generation
-- `/test_season [date]` - Test bot behavior for a specific date (YYYY-MM-DD)
-
-### Admin Only:
-- `/send_now` - Manually trigger message sending (requires matching CHAT_ID)
+- `/send_now` - Manually trigger message sending
 
 ## Message Types
 
