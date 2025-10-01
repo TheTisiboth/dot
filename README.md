@@ -1,5 +1,7 @@
 # Ultimate Frisbee Training Bot 🥏
 
+Dog boT => DoT
+
 A modern TypeScript Telegram bot that automatically sends training reminders twice a week based on seasonal schedules. Perfect for Ultimate Frisbee teams with different winter and summer training routines.
 
 ## Features
