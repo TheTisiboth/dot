@@ -65,12 +65,22 @@ The more the merrier! ${EMOJIS.FRISBEE}`
           num_predict: maxTokens
         }
       })
-
+      // trim whitespace from the start and end
       let generatedMessage = response.message.content?.replace(/^\s+|\s+$/g, '')
 
       if (!generatedMessage) {
         throw new Error('Empty response from Ollama')
       }
+
+      // Normalize whitespace: don't trust LLM formatting at all
+      // Remove all empty lines and trailing/leading whitespace from each line
+      const lines = generatedMessage
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+
+      // Rejoin with exactly one empty line between each line (which is 2 newlines)
+      generatedMessage = lines.join('\n\n')
 
       const markdownLinkMatch = location.match(/\[([^\]]+)]\(([^)]+)\)/)
       if (markdownLinkMatch) {
@@ -105,22 +115,22 @@ The more the merrier! ${EMOJIS.FRISBEE}`
   }
 
   private createLLMPrompt(location: string, time: string, season: string): string {
-    return `Generate an Ultimate Frisbee training invitation message. Output ONLY the message content with NO quotes, NO explanations, NO "Here's a message".
+    return `Generate an Ultimate Frisbee training invitation message. Output ONLY the actual message that will be sent - NO meta text, NO quotes, NO explanations, NO "Here's a message", NO instructions like "Empty line between sections".
 
-Use this EXACT format with ONE empty line between each section:
-
-[emoji] [greeting sentence about tomorrow's ${season} training at ${location} starting at ${time}]
-(empty line)
-[sentence asking to react with 👍 or 👎 to confirm attendance]
-(empty line)
-[motivational catch phrase]! [emoji]
+The message must have this structure:
+- First line: [emoji] [greeting about tomorrow's ${season} training at ${location} starting at ${time}]
+- Blank line
+- Middle line: [sentence asking to react with 👍 or 👎 to confirm attendance]
+- Blank line
+- Last line: [motivational catch phrase]! [emoji]
 
 Rules:
-- Use EXACTLY ONE empty line between sections (this means pressing Enter twice, creating one empty line)
-- NEVER use more than one consecutive empty line anywhere in the message
+- Output ONLY the actual message text - do NOT include any instructions or meta-commentary
+- Do NOT write things like "Empty line between sections:" or "(empty line)" or any other instructions
+- Use EXACTLY ONE empty line between sections
 - ALL emojis must be Ultimate Frisbee related or generic (🥏 ⚡ 🌟 🔥 etc.)
 - NEVER use emojis from other sports (❌ NO: ⚽ 🏀 🏈 ⚾ 🎾 🏐 ⛷️ 🏊)
-- The confirmation line MUST be a simple request to react with 👍 or 👎 to confirm participation (e.g., "react with 👍 or 👎 to confirm your attendance")
+- The confirmation line MUST be a simple request to react with 👍 or 👎 to confirm participation (e.g., "React with 👍 or 👎 to confirm your attendance")
 - The confirmation line is ONLY about confirming attendance/participation - nothing else
 - The confirmation line MUST NOT have any emoji except 👍 and 👎
 - The confirmation line MUST be a single sentence only - no additional explanations or follow-up sentences
