@@ -107,27 +107,29 @@ The more the merrier! ${EMOJIS.FRISBEE}`
   private createLLMPrompt(location: string, time: string, season: string): string {
     return `Generate an Ultimate Frisbee training invitation message. Output ONLY the message content with NO quotes, NO explanations, NO "Here's a message".
 
-Use this EXACT format with ONE blank line between each section:
+Use this EXACT format with ONE empty line between each section:
 
-[emoji] [greeting sentence]
-(blank line)
-[sentence about tomorrow's ${season} training at ${location} starting at ${time}]
-(blank line)
-[emoji] [sentence asking to react with 👍 to confirm attendance]
-(blank line)
-[unique catch phrase]! [emoji]
+[emoji] [greeting sentence about tomorrow's ${season} training at ${location} starting at ${time}]
+(empty line)
+[sentence asking to react with 👍 or 👎 to confirm attendance]
+(empty line)
+[motivational catch phrase]! [emoji]
 
 Rules:
-- Use EXACTLY ONE blank line between sections
-- If using sports emojis, they must be Ultimate Frisbee related (e.g. 🥏 is good, ⚽ would not make sense)
-- The confirmation line MUST NOT have any emoji except 👍
-- Start the confirmation line with text only, no emoji (e.g., "Please react with 👍", "Drop a 👍")
-- The 👍 emoji should only appear once in the confirmation line
+- Use EXACTLY ONE empty line between sections (this means pressing Enter twice, creating one empty line)
+- NEVER use more than one consecutive empty line anywhere in the message
+- ALL emojis must be Ultimate Frisbee related or generic (🥏 ⚡ 🌟 🔥 etc.)
+- NEVER use emojis from other sports (❌ NO: ⚽ 🏀 🏈 ⚾ 🎾 🏐 ⛷️ 🏊)
+- The confirmation line MUST be a simple request to react with 👍 or 👎 to confirm participation (e.g., "react with 👍 or 👎 to confirm your attendance")
+- The confirmation line is ONLY about confirming attendance/participation - nothing else
+- The confirmation line MUST NOT have any emoji except 👍 and 👎
+- The confirmation line MUST be a single sentence only - no additional explanations or follow-up sentences
+- Start the confirmation line with text only, no emoji at the beginning
 - Maximum 4 emojis total in the entire message
-- Vary the catch phrase each time
+- Write a creative and motivational catch phrase (DO NOT write the word "Catchphrase:" - just write the actual catch phrase)
 - NO quotation marks in output
-- NO multiple consecutive blank lines
 - IMPORTANT: Use the location "${location}" EXACTLY as provided without any modifications (it may contain special formatting)
+- Start sentences with a capital letter
 
 Generate the message now:`
   }
