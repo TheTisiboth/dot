@@ -67,7 +67,7 @@ export class BotController {
                 })
             }
         } catch (err) {
-            console.error('Failed to register bot commands:', err)
+            log.error('Registering bot commands', err)
         }
     }
 

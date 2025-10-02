@@ -5,6 +5,7 @@ import { MessageGenerator } from './services/MessageGenerator'
 import { SchedulerService } from './services/SchedulerService'
 import { BotController } from './controllers/BotController'
 import { MESSAGES, EMOJIS } from './utils/constants'
+import { log } from './utils/logger'
 
 class UltimateFrisbeeBot {
   private readonly bot: TelegramBot
@@ -34,17 +35,17 @@ class UltimateFrisbeeBot {
   }
 
   private setupErrorHandlers(): void {
-    process.on('unhandledRejection', (reason, promise) => {
-      console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+    process.on('unhandledRejection', (reason, _promise) => {
+      log.error('Unhandled Rejection', new Error(String(reason)))
     })
 
     process.on('uncaughtException', (error) => {
-      console.error('Uncaught Exception:', error)
+      log.error('Uncaught Exception', error)
       process.exit(1)
     })
 
     this.bot.on('error', (error) => {
-      console.error('Bot error:', error)
+      log.error('Bot error', error)
     })
   }
 
@@ -53,14 +54,14 @@ class UltimateFrisbeeBot {
     const trainingDays = this.seasonManager.getTrainingDaysString()
     const seasonConfig = this.seasonManager.getCurrentSeasonConfig()
 
-    console.log(`${EMOJIS.FRISBEE} ${MESSAGES.BOT_STARTED}`)
-    console.log(`${EMOJIS.CALENDAR} Current season: ${currentSeason}`)
-    console.log(`${EMOJIS.RUNNER} Training days: ${trainingDays}`)
-    console.log(`${EMOJIS.LOCATION} Location: ${seasonConfig.location}`)
-    console.log(`${EMOJIS.ROBOT} LLM provider: ${this.messageGenerator.getLLMProvider()}`)
+    log.bot(`${EMOJIS.FRISBEE} ${MESSAGES.BOT_STARTED}`)
+    log.bot(`${EMOJIS.CALENDAR} Current season: ${currentSeason}`)
+    log.bot(`${EMOJIS.RUNNER} Training days: ${trainingDays}`)
+    log.bot(`${EMOJIS.LOCATION} Location: ${seasonConfig.location}`)
+    log.bot(`${EMOJIS.ROBOT} LLM provider: ${this.messageGenerator.getLLMProvider()}`)
 
     if (!this.schedulerService.isConfigured()) {
-      console.log(`${EMOJIS.WARNING} CHAT_ID not set - use ${/\/start/} command to get your chat ID for testing`)
+      log.bot(`${EMOJIS.WARNING} CHAT_ID not set - use /start command to get your chat ID for testing`)
     }
   }
 }

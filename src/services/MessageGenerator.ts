@@ -35,7 +35,7 @@ The more the merrier! ${EMOJIS.FRISBEE}`
     if (this.ollama) {
       return await this.generateOllamaMessage(seasonConfig, options, practiceDay)
     } else {
-      console.log('[MessageGen] No LLM configured, using template')
+      log.messageGen('No LLM configured, using template')
       return this.generateTemplateMessage(seasonConfig, practiceDay)
     }
   }
@@ -96,7 +96,7 @@ The more the merrier! ${EMOJIS.FRISBEE}`
       return generatedMessage
     } catch (error) {
       log.error('Generating Ollama message', error)
-      console.log('[MessageGen] Falling back to template message')
+      log.messageGen('Falling back to template message')
       return this.generateTemplateMessage(seasonConfig, practiceDay)
     }
   }

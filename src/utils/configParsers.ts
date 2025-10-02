@@ -1,4 +1,5 @@
 import { type PracticeDay, type DateConfig } from '../types'
+import { log } from './logger'
 
 export function parsePracticeDays(envVar: string, defaultDays: PracticeDay[]): PracticeDay[] {
   if (!envVar) return defaultDays
@@ -13,7 +14,7 @@ export function parsePracticeDays(envVar: string, defaultDays: PracticeDay[]): P
       }
     })
   } catch (error) {
-    console.warn(`Invalid practice days format: ${envVar}. Using defaults.`)
+    log.warn('Config parsing', `Invalid practice days format: ${envVar}. Using defaults.`)
     return defaultDays
   }
 }
@@ -25,7 +26,7 @@ export function parseDate(envVar: string, defaultMonth: number, defaultDay: numb
     const [month, day] = envVar.split(':').map(num => parseInt(num))
     return { month, day }
   } catch (error) {
-    console.warn(`Invalid date format: ${envVar}. Using defaults.`)
+    log.warn('Config parsing', `Invalid date format: ${envVar}. Using defaults.`)
     return { month: defaultMonth, day: defaultDay }
   }
 }

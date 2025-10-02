@@ -1,6 +1,7 @@
 import dotenv from 'dotenv'
 import { type BotConfig } from '../types'
 import { parseDate, parsePracticeDays } from '../utils/configParsers'
+import { log } from '../utils/logger'
 
 dotenv.config()
 
@@ -54,6 +55,6 @@ export const validateConfig = (): void => {
   }
 
   if (!config.telegram.chatId && !config.testing.enabled) {
-    console.warn('⚠️  CHAT_ID not set - bot will work for testing but won\'t send scheduled messages')
+    log.warn('Config validation', 'CHAT_ID not set - bot will work for testing but won\'t send scheduled messages')
   }
 }
