@@ -34,17 +34,6 @@ export class BotController {
   }
 
   private setupCommands(): void {
-    // Log all incoming messages with chat ID and thread ID
-    this.bot.on('message', (msg) => {
-      log.bot(`Message received in chatt ${msg.chat.id}`, {
-        chatId: msg.chat.id,
-        messageThreadId: msg.message_thread_id,
-        chatType: msg.chat.type,
-        userId: msg.from?.id,
-        username: msg.from?.username
-      })
-    })
-
     // Public commands
     this.bot.onText(/\/start/, (msg) => this.handleStart(msg))
     this.bot.onText(/\/help/, (msg) => this.handleHelp(msg))
