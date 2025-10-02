@@ -14,7 +14,8 @@ export const EMOJIS = {
   SUMMER: '🏖️',
   RUNNER: '🏃',
   THUMBS_UP: '👍',
-  CHECK_MARK: '✅'
+  CHECK_MARK: '✅',
+  COACH: '👨‍🏫'
 } as const
 
 export const MESSAGES = {

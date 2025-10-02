@@ -4,12 +4,16 @@ import { type MessageGenerator } from './MessageGenerator'
 import { config } from '../config'
 import type TelegramBot from 'node-telegram-bot-api'
 import { log } from '../utils/logger'
+import { type SeasonConfig, type PracticeDay } from '../types'
 
 export class SchedulerService {
   private readonly seasonManager: SeasonManager
   private readonly messageGenerator: MessageGenerator
   private readonly bot: TelegramBot
   private readonly chatId?: string | undefined
+  private readonly chatThreadId?: string | undefined
+  private readonly trainerChatId?: string | undefined
+  private readonly trainerChatThreadId?: string | undefined
 
   constructor(
     seasonManager: SeasonManager,
@@ -20,6 +24,9 @@ export class SchedulerService {
     this.messageGenerator = messageGenerator
     this.bot = bot
     this.chatId = config.telegram.chatId || undefined
+    this.chatThreadId = config.telegram.chatThreadId || undefined
+    this.trainerChatId = config.telegram.trainerChatId || undefined
+    this.trainerChatThreadId = config.telegram.trainerChatThreadId || undefined
   }
 
   setupScheduler(): void {
@@ -78,6 +85,8 @@ export class SchedulerService {
       const practiceDay = this.seasonManager.getPracticeForDay()
 
       const useLLM = this.messageGenerator.isLLMAvailable()
+
+      // Send team message
       const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM }, practiceDay)
 
       if (!this.chatId) {
@@ -85,16 +94,59 @@ export class SchedulerService {
         return
       }
 
-      await this.bot.sendMessage(this.chatId, message, { parse_mode: 'Markdown' })
-      log.scheduler('Scheduled message sent', {
+      log.bot(`Sending message to chat ${this.chatId}`)
+      await this.bot.sendMessage(this.chatId, message, {
+        parse_mode: 'Markdown',
+        ...(this.chatThreadId && { message_thread_id: parseInt(this.chatThreadId) })
+      })
+      log.scheduler('Scheduled message sent to team', {
         chatId: this.chatId,
+        messageThreadId: this.chatThreadId,
+        season: seasonConfig.season,
+        useLLM,
+        time: practiceDay?.time,
+        location: practiceDay?.location || seasonConfig.location
+      })
+
+      // Send trainer check message
+      await this.sendTrainerCheckMessage(seasonConfig, practiceDay, useLLM)
+    } catch (error) {
+      log.error('Sending scheduled message', error)
+    }
+  }
+
+  private async sendTrainerCheckMessage(
+    seasonConfig: SeasonConfig,
+    practiceDay: PracticeDay | undefined,
+    useLLM: boolean
+  ): Promise<void> {
+    if (!this.trainerChatId) {
+      log.scheduler('Trainer chat ID not configured, skipping trainer check')
+      return
+    }
+
+    try {
+      const trainerMessage = await this.messageGenerator.generateTrainerMessage(
+        seasonConfig,
+        { useLLM },
+        practiceDay
+      )
+
+      log.bot(`Sending message to chat ${this.trainerChatId}`)
+      await this.bot.sendMessage(this.trainerChatId, trainerMessage, {
+        parse_mode: 'Markdown',
+        ...(this.trainerChatThreadId && { message_thread_id: parseInt(this.trainerChatThreadId) })
+      })
+      log.scheduler('Trainer check message sent to trainers', {
+        chatId: this.trainerChatId,
+        messageThreadId: this.trainerChatThreadId,
         season: seasonConfig.season,
         useLLM,
         time: practiceDay?.time,
         location: practiceDay?.location || seasonConfig.location
       })
     } catch (error) {
-      log.error('Sending scheduled message', error)
+      log.error('Sending trainer check message', error)
     }
   }
 

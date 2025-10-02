@@ -24,11 +24,12 @@ class UltimateFrisbeeBot {
       this.messageGenerator,
       this.bot
     )
-    new BotController(
+    const botController = new BotController(
       this.bot,
       this.seasonManager,
       this.messageGenerator
     )
+    botController.setSchedulerService(this.schedulerService)
 
     this.setupErrorHandlers()
     this.schedulerService.setupScheduler()
