@@ -1,63 +1,58 @@
 import dotenv from 'dotenv'
-import { type BotConfig } from '../types'
-import { parseDate, parsePracticeDays } from '../utils/configParsers'
-import { log } from '../utils/logger'
+import {type BotConfig} from '../types'
+import {botConfigSchema} from './schema'
+import {ZodError} from 'zod'
+import {parseDate, parsePracticeDays} from '../utils/configParsers'
 
 dotenv.config()
 
-export const config: BotConfig = {
-  telegram: {
-    token: process.env.TELEGRAM_BOT_TOKEN || '',
-    ...(process.env.CHAT_ID && { chatId: process.env.CHAT_ID }),
-    ...(process.env.CHAT_THREAD_ID && { chatThreadId: process.env.CHAT_THREAD_ID }),
-    ...(process.env.ADMIN_CHAT_ID && { adminChatId: process.env.ADMIN_CHAT_ID }),
-    ...(process.env.TRAINER_CHAT_ID && { trainerChatId: process.env.TRAINER_CHAT_ID }),
-    ...(process.env.TRAINER_CHAT_THREAD_ID && { trainerChatThreadId: process.env.TRAINER_CHAT_THREAD_ID }),
-  },
+function loadAndValidateConfig(): BotConfig {
+    const rawConfig = {
+        telegram: {
+            token: process.env.TELEGRAM_BOT_TOKEN,
+            chatId: process.env.CHAT_ID,
+            chatThreadId: process.env.CHAT_THREAD_ID,
+            adminChatId: process.env.ADMIN_CHAT_ID,
+            trainerChatId: process.env.TRAINER_CHAT_ID,
+            trainerChatThreadId: process.env.TRAINER_CHAT_THREAD_ID,
+        },
 
-  ollama: {
-    enabled: process.env.OLLAMA_ENABLED === 'true',
-    host: process.env.OLLAMA_HOST || 'http://localhost:11434',
-    model: process.env.OLLAMA_MODEL || 'llama3.2:3b',
-  },
+        ollama: {
+            enabled: process.env.OLLAMA_ENABLED === 'true',
+            host: process.env.OLLAMA_HOST || 'http://localhost:11434',
+            model: process.env.OLLAMA_MODEL || 'llama3.2:3b',
+        },
 
-  seasons: {
-    winter: {
-      startDate: parseDate(process.env.WINTER_START_DATE || '', 9, 15),
-      location: (process.env.WINTER_LOCATION || 'Park Arena').trim(),
-      practices: parsePracticeDays(
-        process.env.WINTER_PRACTICE_DAYS || '',
-        [
-          { day: 2, time: '20:30' },
-          { day: 6, time: '20:30' }
-        ]
-      )
-    },
-    summer: {
-      startDate: parseDate(process.env.SUMMER_START_DATE || '', 5, 20),
-      location: (process.env.SUMMER_LOCATION || 'Beach Courts').trim(),
-      practices: parsePracticeDays(
-        process.env.SUMMER_PRACTICE_DAYS || '',
-        [
-          { day: 0, time: '19:00' },
-          { day: 3, time: '19:00' }
-        ]
-      )
+        seasons: {
+            winter: {
+                startDate: parseDate(process.env.WINTER_START_DATE),
+                location: process.env.WINTER_LOCATION,
+                practices: parsePracticeDays(process.env.WINTER_PRACTICE_DAYS)
+            },
+            summer: {
+                startDate: parseDate(process.env.SUMMER_START_DATE),
+                location: process.env.SUMMER_LOCATION,
+                practices: parsePracticeDays(process.env.SUMMER_PRACTICE_DAYS)
+            }
+        },
+
+        testing: {
+            enabled: process.env.TEST_MODE === 'true',
+            overrideDate: process.env.OVERRIDE_DATE,
+        }
     }
-  },
 
-  testing: {
-    enabled: process.env.TEST_MODE === 'true',
-    ...(process.env.OVERRIDE_DATE && { overrideDate: process.env.OVERRIDE_DATE }),
-  }
+    try {
+        return botConfigSchema.parse(rawConfig)
+    } catch (error) {
+        if (error instanceof ZodError) {
+            console.error('❌ Configuration validation failed:\n')
+            console.log(error.issues)
+            console.error('\nPlease check your .env file and ensure all required fields are properly set.')
+            process.exit(1)
+        }
+        throw error
+    }
 }
 
-export const validateConfig = (): void => {
-  if (!config.telegram.token) {
-    throw new Error('TELEGRAM_BOT_TOKEN is required')
-  }
-
-  if (!config.telegram.chatId && !config.testing.enabled) {
-    log.warn('Config validation', 'CHAT_ID not set - bot will work for testing but won\'t send scheduled messages')
-  }
-}
+export const config: BotConfig = loadAndValidateConfig()
