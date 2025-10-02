@@ -13,14 +13,14 @@ export class MessageGenerator {
     }) : null
   }
 
-  private getLocationAndTime(seasonConfig: SeasonConfig, practiceDay?: PracticeDay): { location: string; time: string } {
+  private getLocationAndTime(seasonConfig: SeasonConfig, practiceDay: PracticeDay): { location: string; time: string } {
     return {
-      location: practiceDay?.location || seasonConfig.location,
-      time: practiceDay?.time || seasonConfig.practices[0]?.time || '20:00'
+      location: seasonConfig.location,
+      time: practiceDay.time
     }
   }
 
-  generateTemplateMessage(seasonConfig: SeasonConfig, practiceDay?: PracticeDay): string {
+  generateTemplateMessage(seasonConfig: SeasonConfig, practiceDay: PracticeDay): string {
     const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
 
     log.messageGen('Template message generated', { season: seasonConfig.season, time, location })
@@ -33,7 +33,7 @@ ${EMOJIS.BULB} If you're in, just drop a ${EMOJIS.THUMBS_UP} on this message so 
 The more the merrier! ${EMOJIS.FRISBEE}`
   }
 
-  generateTrainerTemplateMessage(seasonConfig: SeasonConfig, practiceDay?: PracticeDay): string {
+  generateTrainerTemplateMessage(seasonConfig: SeasonConfig, practiceDay: PracticeDay): string {
     const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
 
     log.messageGen('Trainer template message generated', { season: seasonConfig.season, time, location })
@@ -47,7 +47,7 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
   async generateLLMMessage(
     seasonConfig: SeasonConfig,
     options: MessageGenerationOptions = {},
-    practiceDay?: PracticeDay
+    practiceDay: PracticeDay
   ): Promise<string> {
     if (this.ollama) {
       return await this.generateOllamaMessage(seasonConfig, options, practiceDay, false)
@@ -82,7 +82,7 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
   private async generateOllamaMessage(
     seasonConfig: SeasonConfig,
     options: MessageGenerationOptions = {},
-    practiceDay?: PracticeDay,
+    practiceDay: PracticeDay,
     isTrainerMessage = false
   ): Promise<string> {
     const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
@@ -126,7 +126,7 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
   async generateMessage(
     seasonConfig: SeasonConfig,
     options: MessageGenerationOptions = {},
-    practiceDay?: PracticeDay
+    practiceDay: PracticeDay
   ): Promise<string> {
     const { useLLM = false } = options
 
@@ -140,7 +140,7 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
   async generateTrainerMessage(
     seasonConfig: SeasonConfig,
     options: MessageGenerationOptions = {},
-    practiceDay?: PracticeDay
+    practiceDay: PracticeDay
   ): Promise<string> {
     const { useLLM = false } = options
 

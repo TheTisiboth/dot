@@ -36,7 +36,8 @@
     "dotenv": "^16.3.1",
     "node-cron": "^3.0.3",
     "node-telegram-bot-api": "^0.66.0",
-    "ollama": "^0.6.0"
+    "ollama": "^0.6.0",
+    "zod": "^4.1.11"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

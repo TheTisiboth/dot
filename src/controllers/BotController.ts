@@ -2,6 +2,7 @@ import type TelegramBot from 'node-telegram-bot-api'
 import { type SeasonManager } from '../services/SeasonManager'
 import { type MessageGenerator } from '../services/MessageGenerator'
 import { type SchedulerService } from '../services/SchedulerService'
+import { type SeasonConfigBase, type DateConfig } from '../types'
 import { config } from '../config'
 import { EMOJIS, MESSAGES } from '../utils/constants'
 import { getDateBefore } from '../utils/dateHelpers'
@@ -12,7 +13,7 @@ export class BotController {
   private readonly bot: TelegramBot
   private readonly seasonManager: SeasonManager
   private readonly messageGenerator: MessageGenerator
-  private readonly adminChatId?: string
+  private readonly adminChatId: string
   private schedulerService?: SchedulerService
 
   constructor(
@@ -70,19 +71,17 @@ export class BotController {
             // Set public commands for all other chats
             await this.bot.setMyCommands(publicCommands)
 
-            if (this.adminChatId) {
-                // Set admin commands for admin chat (public + admin)
-                await this.bot.setMyCommands(adminCommands, {
-                    scope: {type: 'chat', chat_id: parseInt(this.adminChatId)}
-                })
-            }
+            // Set admin commands for admin chat (public + admin)
+            await this.bot.setMyCommands(adminCommands, {
+                scope: {type: 'chat', chat_id: parseInt(this.adminChatId)}
+            })
         } catch (err) {
             log.error('Registering bot commands', err)
         }
     }
 
   private isAdmin(chatId: number): boolean {
-    return this.adminChatId !== undefined && chatId.toString() === this.adminChatId
+    return chatId.toString() === this.adminChatId
   }
 
   private async requireAdmin(msg: TelegramBot.Message, handler: () => Promise<void>): Promise<void> {
@@ -210,8 +209,8 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
 
   private formatSeasonInfo(
     season: 'winter' | 'summer',
-    seasonConfig: { startDate: { month: number; day: number }; practices: { day: number; time: string; location?: string }[]; location: string },
-    nextSeasonStart: { month: number; day: number }
+    seasonConfig: SeasonConfigBase,
+    nextSeasonStart: DateConfig
   ): string {
     const emoji = season === 'winter' ? EMOJIS.WINTER : EMOJIS.SUMMER
     const name = capitalize(season)

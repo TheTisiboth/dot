@@ -1,5 +1,5 @@
 import { config } from '../config'
-import { type SeasonConfig, type SeasonType, type TrainingInfo } from '../types'
+import { type SeasonConfig, type SeasonType, type TrainingInfo, type PracticeDay } from '../types'
 import { getEffectiveDate, createDateFromMonthDay } from '../utils/dateHelpers'
 import { getDayName } from '../utils/formatters'
 
@@ -55,7 +55,7 @@ export class SeasonManager {
     return seasonConfig.practices.some(practice => practice.day === tomorrowDayOfWeek)
   }
 
-  getPracticeForDay(date: Date = new Date()) {
+  getPracticeForDay(date: Date = new Date()): PracticeDay {
     date = getEffectiveDate(date)
 
     const tomorrow = new Date(date)
@@ -64,7 +64,13 @@ export class SeasonManager {
     const seasonConfig = this.getCurrentSeasonConfig(tomorrow)
     const tomorrowDayOfWeek = tomorrow.getDay()
 
-    return seasonConfig.practices.find(practice => practice.day === tomorrowDayOfWeek)
+    const practiceDay = seasonConfig.practices.find(practice => practice.day === tomorrowDayOfWeek)
+
+      if (!practiceDay) {
+          throw new Error(`No practice day found for day ${tomorrowDayOfWeek}`)
+      }
+
+    return practiceDay
   }
 
   getNextTrainingDate(date: Date = new Date()): Date {
@@ -95,22 +101,19 @@ export class SeasonManager {
     const seasonConfig = this.getCurrentSeasonConfig(nextDate)
 
     const nextPractice = seasonConfig.practices.find(practice => practice.day === nextDate.getDay())
-    const location = nextPractice?.location || seasonConfig.location
-    const time = nextPractice?.time || seasonConfig.practices[0]?.time || '20:00'
 
-    const trainingInfo: TrainingInfo = {
+    if (!nextPractice) {
+      throw new Error(`No practice day found for day ${nextDate.getDay()}`)
+    }
+
+    return {
       date: nextDate,
       dayName: getDayName(nextDate.getDay()),
-      location,
-      time,
-      season: seasonConfig.season
+      location: seasonConfig.location,
+      time: nextPractice.time,
+      season: seasonConfig.season,
+      practiceDay: nextPractice
     }
-
-    if (nextPractice) {
-      trainingInfo.practiceDay = nextPractice
-    }
-
-    return trainingInfo
   }
 
   getTrainingDaysString(season?: SeasonType): string {
