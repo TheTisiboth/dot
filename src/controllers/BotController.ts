@@ -5,6 +5,7 @@ import { config } from '../config'
 import { EMOJIS, MESSAGES } from '../utils/constants'
 import { getDateBefore } from '../utils/dateHelpers'
 import { capitalize, formatDateShort, formatDate, formatPracticeDays } from '../utils/formatters'
+import { log } from '../utils/logger'
 
 export class BotController {
   private readonly bot: TelegramBot
@@ -66,7 +67,7 @@ export class BotController {
                 })
             }
         } catch (err) {
-            console.error('Failed to register bot commands:', err)
+            log.error('Registering bot commands', err)
         }
     }
 
@@ -76,6 +77,7 @@ export class BotController {
 
   private async requireAdmin(msg: TelegramBot.Message, handler: () => Promise<void>): Promise<void> {
     if (!this.isAdmin(msg.chat.id)) {
+      log.auth('Non-admin attempted admin command', msg.from?.username || msg.from?.id, msg.chat.id)
       await this.bot.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} ${MESSAGES.ADMIN_ONLY_COMMAND}`)
       return
     }
@@ -83,6 +85,7 @@ export class BotController {
   }
 
   private async handleStart(msg: TelegramBot.Message): Promise<void> {
+    log.command('/start', msg.chat.id, msg.from?.username || msg.from?.id)
     const helpText = `${EMOJIS.FRISBEE} Welcome to Ultimate Frisbee Training Bot!
 
 I send training reminders to the team group 24h before each practice.
@@ -93,6 +96,7 @@ Type /help to see available commands.`
   }
 
   private async handleInfo(msg: TelegramBot.Message): Promise<void> {
+    log.command('/info', msg.chat.id, msg.from?.username || msg.from?.id)
     const winterInfo = this.formatSeasonInfo('winter', config.seasons.winter, config.seasons.summer.startDate)
     const summerInfo = this.formatSeasonInfo('summer', config.seasons.summer, config.seasons.winter.startDate)
 
@@ -106,6 +110,7 @@ ${summerInfo}`
   }
 
   private async handleTestTemplate(msg: TelegramBot.Message): Promise<void> {
+    log.command('/test_template', msg.chat.id, msg.from?.username || msg.from?.id)
     const seasonConfig = this.seasonManager.getCurrentSeasonConfig()
     const practiceDay = this.seasonManager.getPracticeForDay()
     const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM: false }, practiceDay)
@@ -114,6 +119,7 @@ ${summerInfo}`
   }
 
   private async handleTestLLM(msg: TelegramBot.Message): Promise<void> {
+    log.command('/test_llm', msg.chat.id, msg.from?.username || msg.from?.id)
     await this.bot.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
 
     const seasonConfig = this.seasonManager.getCurrentSeasonConfig()
@@ -125,6 +131,7 @@ ${summerInfo}`
 
 
   private async handleTraining(msg: TelegramBot.Message): Promise<void> {
+    log.command('/training', msg.chat.id, msg.from?.username || msg.from?.id)
     const nextTraining = this.seasonManager.getNextTrainingInfo()
 
     const trainingText = `${EMOJIS.RUNNER} Next Training:
@@ -137,6 +144,7 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
   }
 
   private async handleSendNow(msg: TelegramBot.Message): Promise<void> {
+    log.command('/send_now', msg.chat.id, msg.from?.username || msg.from?.id)
     const seasonConfig = this.seasonManager.getCurrentSeasonConfig()
     const practiceDay = this.seasonManager.getPracticeForDay()
     const useLLM = this.messageGenerator.isLLMAvailable()
@@ -146,6 +154,7 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
   }
 
   private async handleHelp(msg: TelegramBot.Message): Promise<void> {
+    log.command('/help', msg.chat.id, msg.from?.username || msg.from?.id)
     const helpText = `${EMOJIS.FRISBEE} Available Commands
 
 /info - Show training schedule for all seasons

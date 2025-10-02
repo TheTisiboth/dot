@@ -2,8 +2,8 @@ import * as cron from 'node-cron'
 import { type SeasonManager } from './SeasonManager'
 import { type MessageGenerator } from './MessageGenerator'
 import { config } from '../config'
-import { MESSAGES } from '../utils/constants'
 import type TelegramBot from 'node-telegram-bot-api'
+import { log } from '../utils/logger'
 
 export class SchedulerService {
   private readonly seasonManager: SeasonManager
@@ -26,15 +26,12 @@ export class SchedulerService {
     const seasonConfig = this.seasonManager.getCurrentSeasonConfig()
 
     if (!seasonConfig.practices || seasonConfig.practices.length === 0) {
-      console.error('❌ No practice days configured')
+      log.error('Scheduler setup', new Error('No practice days configured'))
       return
     }
 
     // Get unique practice times
     const uniqueTimes = [...new Set(seasonConfig.practices.map(p => p.time))]
-
-    const now = new Date()
-    console.log(`🕐 Scheduler initialized at: ${now.toLocaleString()}`)
 
     // Create a cron job for each unique practice time
     uniqueTimes.forEach(time => {
@@ -43,21 +40,36 @@ export class SchedulerService {
 
       cron.schedule(cronExpression, async () => {
         const now = new Date()
-        console.log(`🕐 Cron triggered at: ${now.toLocaleString()}`)
-        console.log(MESSAGES.CHECKING_MESSAGE_SEND)
+        log.scheduler('Cron triggered', { time: now.toLocaleString() })
 
         if (this.seasonManager.shouldSendMessage()) {
-          console.log(MESSAGES.SENDING_SCHEDULED_MESSAGE)
+          log.scheduler('Training tomorrow - sending message')
           await this.sendScheduledMessage()
+          this.logNextScheduledMessage()
         } else {
-          console.log(MESSAGES.NOT_TRAINING_DAY)
+          log.scheduler('Not a training day')
         }
       })
-
-      console.log(`✅ Scheduled reminder at ${time} (24h before practice)`)
     })
 
-    console.log(`✅ ${MESSAGES.SCHEDULER_INITIALIZED}`)
+    this.logNextScheduledMessage()
+  }
+
+  private logNextScheduledMessage(): void {
+    if (!this.seasonManager.shouldSendMessage()) {
+      const nextTraining = this.seasonManager.getNextTrainingInfo()
+      const reminderDate = new Date(nextTraining.date)
+      reminderDate.setDate(reminderDate.getDate() - 1)
+      reminderDate.setHours(parseInt(nextTraining.time.split(':')[0]), parseInt(nextTraining.time.split(':')[1]), 0, 0)
+
+      log.scheduler('Next reminder scheduled', {
+        date: reminderDate.toLocaleString(),
+        trainingDay: nextTraining.dayName,
+        trainingTime: nextTraining.time
+      })
+    } else {
+      log.scheduler('Next reminder: Today at practice time (should send now)')
+    }
   }
 
   async sendScheduledMessage(): Promise<void> {
@@ -69,15 +81,20 @@ export class SchedulerService {
       const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM }, practiceDay)
 
       if (!this.chatId) {
-        console.error(`❌ ${MESSAGES.CHAT_ID_NOT_CONFIGURED}`, message)
+        log.error('Sending scheduled message', new Error('Chat ID not configured'))
         return
       }
 
       await this.bot.sendMessage(this.chatId, message, { parse_mode: 'Markdown' })
-      console.log(`✅ ${MESSAGES.MESSAGE_SENT_SUCCESS}`)
+      log.scheduler('Scheduled message sent', {
+        chatId: this.chatId,
+        season: seasonConfig.season,
+        useLLM,
+        time: practiceDay?.time,
+        location: practiceDay?.location || seasonConfig.location
+      })
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      console.error('❌ Error sending message:', errorMessage)
+      log.error('Sending scheduled message', error)
     }
   }
 

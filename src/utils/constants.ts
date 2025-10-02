@@ -13,7 +13,8 @@ export const EMOJIS = {
   WINTER: '🏔️',
   SUMMER: '🏖️',
   RUNNER: '🏃',
-  THUMBS_UP: '👍'
+  THUMBS_UP: '👍',
+  CHECK_MARK: '✅'
 } as const
 
 export const MESSAGES = {
