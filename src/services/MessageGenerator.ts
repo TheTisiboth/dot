@@ -13,9 +13,15 @@ export class MessageGenerator {
     }) : null
   }
 
+  private getLocationAndTime(seasonConfig: SeasonConfig, practiceDay?: PracticeDay): { location: string; time: string } {
+    return {
+      location: practiceDay?.location || seasonConfig.location,
+      time: practiceDay?.time || seasonConfig.practices[0]?.time || '20:00'
+    }
+  }
+
   generateTemplateMessage(seasonConfig: SeasonConfig, practiceDay?: PracticeDay): string {
-    const location = practiceDay?.location || seasonConfig.location
-    const time = practiceDay?.time || seasonConfig.practices[0]?.time || '20:00'
+    const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
 
     log.messageGen('Template message generated', { season: seasonConfig.season, time, location })
     return `${EMOJIS.ROCKET} Hey team!
@@ -28,8 +34,7 @@ The more the merrier! ${EMOJIS.FRISBEE}`
   }
 
   generateTrainerTemplateMessage(seasonConfig: SeasonConfig, practiceDay?: PracticeDay): string {
-    const location = practiceDay?.location || seasonConfig.location
-    const time = practiceDay?.time || seasonConfig.practices[0]?.time || '20:00'
+    const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
 
     log.messageGen('Trainer template message generated', { season: seasonConfig.season, time, location })
     return `${EMOJIS.COACH} Trainers needed! We have training tomorrow at ${location} starting at ${time}.
@@ -45,71 +50,76 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     practiceDay?: PracticeDay
   ): Promise<string> {
     if (this.ollama) {
-      return await this.generateOllamaMessage(seasonConfig, options, practiceDay)
+      return await this.generateOllamaMessage(seasonConfig, options, practiceDay, false)
     } else {
       log.messageGen('No LLM configured, using template')
       return this.generateTemplateMessage(seasonConfig, practiceDay)
     }
   }
 
+  private normalizeWhitespace(message: string): string {
+    // Normalize whitespace: remove empty lines and ensure exactly one empty line between sections
+    const lines = message
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+
+    return lines.join('\n\n')
+  }
+
+  private preserveMarkdownLinks(message: string, location: string): string {
+    const markdownLinkMatch = location.match(/\[([^\]]+)]\(([^)]+)\)/)
+    if (markdownLinkMatch) {
+      const locationName = markdownLinkMatch[1]
+      return message.replace(
+        new RegExp(`\\b${locationName}\\b`, 'g'),
+        location
+      )
+    }
+    return message
+  }
+
   private async generateOllamaMessage(
     seasonConfig: SeasonConfig,
     options: MessageGenerationOptions = {},
-    practiceDay?: PracticeDay
+    practiceDay?: PracticeDay,
+    isTrainerMessage = false
   ): Promise<string> {
-    const location = practiceDay?.location || seasonConfig.location
-    const time = practiceDay?.time || seasonConfig.practices[0]?.time || '20:00'
+    const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
     const { season } = seasonConfig
     const { temperature = 0.7, maxTokens = 200 } = options
 
-    const prompt = this.createLLMPrompt(location, time, season)
+    const prompt = isTrainerMessage
+      ? this.createTrainerLLMPrompt(location, time, season)
+      : this.createLLMPrompt(location, time, season)
     const model = config.ollama.model
+    const messageType = isTrainerMessage ? 'Trainer LLM' : 'LLM'
+    const fallbackTemplate = isTrainerMessage
+      ? () => this.generateTrainerTemplateMessage(seasonConfig, practiceDay)
+      : () => this.generateTemplateMessage(seasonConfig, practiceDay)
+
     try {
       const response = await this.ollama!.chat({
         model,
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        options: {
-          temperature,
-          num_predict: maxTokens
-        }
+        messages: [{ role: 'user', content: prompt }],
+        options: { temperature, num_predict: maxTokens }
       })
-      // trim whitespace from the start and end
+
       let generatedMessage = response.message.content?.replace(/^\s+|\s+$/g, '')
 
       if (!generatedMessage) {
         throw new Error('Empty response from Ollama')
       }
 
-      // Normalize whitespace: don't trust LLM formatting at all
-      // Remove all empty lines and trailing/leading whitespace from each line
-      const lines = generatedMessage
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0)
+      generatedMessage = this.normalizeWhitespace(generatedMessage)
+      generatedMessage = this.preserveMarkdownLinks(generatedMessage, location)
 
-      // Rejoin with exactly one empty line between each line (which is 2 newlines)
-      generatedMessage = lines.join('\n\n')
-
-      const markdownLinkMatch = location.match(/\[([^\]]+)]\(([^)]+)\)/)
-      if (markdownLinkMatch) {
-        const locationName = markdownLinkMatch[1]
-        generatedMessage = generatedMessage.replace(
-          new RegExp(`\\b${locationName}\\b`, 'g'),
-          location
-        )
-      }
-
-      log.messageGen('LLM message generated', { model, season, time, location, length: generatedMessage.length })
+      log.messageGen(`${messageType} message generated`, { model, season, time, location, length: generatedMessage.length })
       return generatedMessage
     } catch (error) {
-      log.error('Generating Ollama message', error)
-      log.messageGen('Falling back to template message')
-      return this.generateTemplateMessage(seasonConfig, practiceDay)
+      log.error(`Generating ${messageType} message`, error)
+      log.messageGen(`Falling back to ${isTrainerMessage ? 'trainer ' : ''}template message`)
+      return fallbackTemplate()
     }
   }
 
@@ -135,67 +145,8 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     const { useLLM = false } = options
 
     if (useLLM && this.ollama) {
-      return await this.generateTrainerLLMMessage(seasonConfig, options, practiceDay)
+      return await this.generateOllamaMessage(seasonConfig, options, practiceDay, true)
     } else {
-      return this.generateTrainerTemplateMessage(seasonConfig, practiceDay)
-    }
-  }
-
-  private async generateTrainerLLMMessage(
-    seasonConfig: SeasonConfig,
-    options: MessageGenerationOptions = {},
-    practiceDay?: PracticeDay
-  ): Promise<string> {
-    const location = practiceDay?.location || seasonConfig.location
-    const time = practiceDay?.time || seasonConfig.practices[0]?.time || '20:00'
-    const { season } = seasonConfig
-    const { temperature = 0.7, maxTokens = 200 } = options
-
-    const prompt = this.createTrainerLLMPrompt(location, time, season)
-    const model = config.ollama.model
-    try {
-      const response = await this.ollama!.chat({
-        model,
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        options: {
-          temperature,
-          num_predict: maxTokens
-        }
-      })
-
-      let generatedMessage = response.message.content?.replace(/^\s+|\s+$/g, '')
-
-      if (!generatedMessage) {
-        throw new Error('Empty response from Ollama')
-      }
-
-      // Normalize whitespace: remove empty lines and ensure exactly one empty line between sections
-      const lines = generatedMessage
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0)
-
-      generatedMessage = lines.join('\n\n')
-
-      const markdownLinkMatch = location.match(/\[([^\]]+)]\(([^)]+)\)/)
-      if (markdownLinkMatch) {
-        const locationName = markdownLinkMatch[1]
-        generatedMessage = generatedMessage.replace(
-          new RegExp(`\\b${locationName}\\b`, 'g'),
-          location
-        )
-      }
-
-      log.messageGen('Trainer LLM message generated', { model, season, time, location, length: generatedMessage.length })
-      return generatedMessage
-    } catch (error) {
-      log.error('Generating trainer Ollama message', error)
-      log.messageGen('Falling back to trainer template message')
       return this.generateTrainerTemplateMessage(seasonConfig, practiceDay)
     }
   }
