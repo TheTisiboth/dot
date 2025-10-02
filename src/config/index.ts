@@ -9,7 +9,10 @@ export const config: BotConfig = {
   telegram: {
     token: process.env.TELEGRAM_BOT_TOKEN || '',
     ...(process.env.CHAT_ID && { chatId: process.env.CHAT_ID }),
+    ...(process.env.CHAT_THREAD_ID && { chatThreadId: process.env.CHAT_THREAD_ID }),
     ...(process.env.ADMIN_CHAT_ID && { adminChatId: process.env.ADMIN_CHAT_ID }),
+    ...(process.env.TRAINER_CHAT_ID && { trainerChatId: process.env.TRAINER_CHAT_ID }),
+    ...(process.env.TRAINER_CHAT_THREAD_ID && { trainerChatThreadId: process.env.TRAINER_CHAT_THREAD_ID }),
   },
 
   ollama: {
