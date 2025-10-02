@@ -2,6 +2,7 @@ import { Ollama } from 'ollama'
 import { config } from '../config'
 import { type SeasonConfig, type MessageGenerationOptions, type PracticeDay } from '../types'
 import { EMOJIS } from '../utils/constants'
+import { log } from '../utils/logger'
 
 export class MessageGenerator {
   private readonly ollama: Ollama | null
@@ -16,6 +17,7 @@ export class MessageGenerator {
     const location = practiceDay?.location || seasonConfig.location
     const time = practiceDay?.time || seasonConfig.practices[0]?.time || '20:00'
 
+    log.messageGen('Template message generated', { season: seasonConfig.season, time, location })
     return `${EMOJIS.ROCKET} Hey team!
 
 Tomorrow we're planning an Ultimate Frisbee training at ${location} starting at ${time}.
@@ -33,7 +35,7 @@ The more the merrier! ${EMOJIS.FRISBEE}`
     if (this.ollama) {
       return await this.generateOllamaMessage(seasonConfig, options, practiceDay)
     } else {
-      console.log('No LLM configured, using template')
+      console.log('[MessageGen] No LLM configured, using template')
       return this.generateTemplateMessage(seasonConfig, practiceDay)
     }
   }
@@ -50,7 +52,6 @@ The more the merrier! ${EMOJIS.FRISBEE}`
 
     const prompt = this.createLLMPrompt(location, time, season)
     const model = config.ollama.model
-    console.log(`🔄 Generating message with Ollama (${model}) for ${season} training at ${location}, ${time}`)
     try {
       const response = await this.ollama!.chat({
         model,
@@ -91,11 +92,11 @@ The more the merrier! ${EMOJIS.FRISBEE}`
         )
       }
 
+      log.messageGen('LLM message generated', { model, season, time, location, length: generatedMessage.length })
       return generatedMessage
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      console.error('Error generating Ollama message:', errorMessage)
-      console.log('Fallback to template message')
+      log.error('Generating Ollama message', error)
+      console.log('[MessageGen] Falling back to template message')
       return this.generateTemplateMessage(seasonConfig, practiceDay)
     }
   }

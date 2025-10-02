@@ -46,10 +46,6 @@ class UltimateFrisbeeBot {
     this.bot.on('error', (error) => {
       console.error('Bot error:', error)
     })
-
-    this.bot.on('polling_error', (_error) => {
-      console.error('Polling error:', _error)
-    })
   }
 
   start(): void {
