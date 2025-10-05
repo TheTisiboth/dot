@@ -82,8 +82,9 @@ export class SeasonManager {
     for (const practice of seasonConfig.practices) {
       const daysToAdd = (practice.day - currentDay + 7) % 7
       if (daysToAdd === 0) {
-        daysUntilNext = 1
-        break
+        // If today is a practice day, skip to next week
+        daysUntilNext = 7
+        continue
       }
       if (daysUntilNext === null || daysToAdd < daysUntilNext) {
         daysUntilNext = daysToAdd
@@ -91,7 +92,7 @@ export class SeasonManager {
     }
 
     const nextDate = new Date(date)
-    nextDate.setDate(date.getDate() + (daysUntilNext || 0))
+    nextDate.setDate(date.getDate() + (daysUntilNext || 7))
 
     return nextDate
   }
