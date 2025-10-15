@@ -5,6 +5,7 @@ import { config } from '../config'
 import type TelegramBot from 'node-telegram-bot-api'
 import { log } from '../utils/logger'
 import { type SeasonConfig, type PracticeDay } from '../types'
+import { formatDateLocale, formatDateTimeLocale } from '../utils/formatters'
 
 export class SchedulerService {
   private readonly seasonManager: SeasonManager
@@ -40,16 +41,23 @@ export class SchedulerService {
       const [hour, minute] = time.split(':').map(Number)
       const cronExpression = `${minute} ${hour} * * *`
 
+      log.scheduler(`⏰ Registered daily reminder check at ${time}`)
+
       cron.schedule(cronExpression, async () => {
         const now = new Date()
-        log.scheduler('Cron triggered', { time: now.toLocaleString() })
+        const tomorrow = new Date(now)
+        tomorrow.setDate(now.getDate() + 1)
+
+        log.scheduler(`🔔 Reminder check triggered: ${formatDateTimeLocale(now)}`)
+        log.scheduler(`📆 Checking if training tomorrow (${formatDateLocale(tomorrow)})`)
 
         if (this.seasonManager.shouldSendMessage()) {
-          log.scheduler('Training tomorrow - sending message')
+          log.scheduler('✅ Training tomorrow - sending reminders')
           await this.sendScheduledMessage()
           this.logNextScheduledMessage()
         } else {
-          log.scheduler('Not a training day')
+          log.scheduler('⏭️  No training tomorrow - skipping')
+          this.logNextScheduledMessage()
         }
       })
     })
@@ -58,20 +66,30 @@ export class SchedulerService {
   }
 
   private logNextScheduledMessage(): void {
-    if (!this.seasonManager.shouldSendMessage()) {
-      const nextTraining = this.seasonManager.getNextTrainingInfo()
-      const reminderDate = new Date(nextTraining.date)
+    const now = new Date()
+    let nextTraining = this.seasonManager.getNextTrainingInfo()
+    let reminderDate = new Date(nextTraining.date)
+    reminderDate.setDate(reminderDate.getDate() - 1)
+    reminderDate.setHours(parseInt(nextTraining.time.split(':')[0]), parseInt(nextTraining.time.split(':')[1]), 0, 0)
+
+    // If the reminder has already passed, get the training after this one
+    if (reminderDate <= now) {
+      const dayAfterNextTraining = new Date(nextTraining.date)
+      dayAfterNextTraining.setDate(dayAfterNextTraining.getDate() + 1)
+      nextTraining = this.seasonManager.getNextTrainingInfo(dayAfterNextTraining)
+
+      reminderDate = new Date(nextTraining.date)
       reminderDate.setDate(reminderDate.getDate() - 1)
       reminderDate.setHours(parseInt(nextTraining.time.split(':')[0]), parseInt(nextTraining.time.split(':')[1]), 0, 0)
-
-      log.scheduler('Next reminder scheduled', {
-        date: reminderDate.toLocaleString(),
-        trainingDay: nextTraining.dayName,
-        trainingTime: nextTraining.time
-      })
-    } else {
-      log.scheduler('Next reminder: Today at practice time (should send now)')
     }
+
+    const msUntilReminder = reminderDate.getTime() - now.getTime()
+    const daysUntilReminder = Math.round(msUntilReminder / (1000 * 60 * 60 * 24))
+
+    const reminderDayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][reminderDate.getDay()]
+
+    log.scheduler(`🔔 Next reminder: ${reminderDayName}, ${formatDateLocale(reminderDate)} at ${reminderDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} (in ${daysUntilReminder} days)`)
+    log.scheduler(`📅 For training: ${nextTraining.dayName}, ${formatDateLocale(nextTraining.date)} at ${nextTraining.time}`)
   }
 
   async sendScheduledMessage(): Promise<void> {

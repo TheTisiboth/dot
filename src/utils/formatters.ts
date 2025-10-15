@@ -24,3 +24,25 @@ export function formatPracticeDays(practices: PracticeDay[]): string {
 export function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
+
+export function extractLocationName(location: string): string {
+  // Extract name from markdown format [Name](url)
+  const match = location.match(/^\[([^\]]+)\]/)
+  return match ? match[1] : location
+}
+
+export function formatDateLocale(date: Date): string {
+  // Format as DD/MM/YYYY using French locale
+  return date.toLocaleDateString('fr-FR')
+}
+
+export function formatDateTimeLocale(date: Date): string {
+  // Format as DD/MM/YYYY HH:MM using French locale
+  return date.toLocaleString('fr-FR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}

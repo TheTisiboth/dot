@@ -90,8 +90,10 @@ export class SeasonManager {
       candidateDate.setDate(date.getDate() + daysToAdd)
       candidateDate.setHours(hours, minutes, 0, 0)
 
+      const hasPassed = candidateDate <= date
+
       // If this datetime has already passed, move to next week
-      if (candidateDate <= date) {
+      if (hasPassed) {
         candidateDate.setDate(candidateDate.getDate() + 7)
       }
 

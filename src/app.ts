@@ -6,6 +6,7 @@ import { SchedulerService } from './services/SchedulerService'
 import { BotController } from './controllers/BotController'
 import { MESSAGES, EMOJIS } from './utils/constants'
 import { log } from './utils/logger'
+import { extractLocationName } from './utils/formatters'
 
 class UltimateFrisbeeBot {
   private readonly bot: TelegramBot
@@ -30,7 +31,6 @@ class UltimateFrisbeeBot {
     botController.setSchedulerService(this.schedulerService)
 
     this.setupErrorHandlers()
-    this.schedulerService.setupScheduler()
   }
 
   private setupErrorHandlers(): void {
@@ -54,10 +54,11 @@ class UltimateFrisbeeBot {
     const seasonConfig = this.seasonManager.getCurrentSeasonConfig()
 
     log.bot(`${EMOJIS.FRISBEE} ${MESSAGES.BOT_STARTED}`)
-    log.bot(`${EMOJIS.CALENDAR} Current season: ${currentSeason}`)
+    log.bot(`${EMOJIS.CALENDAR} Season: ${currentSeason} | ${EMOJIS.LOCATION} Location: ${extractLocationName(seasonConfig.location)}`)
     log.bot(`${EMOJIS.RUNNER} Training days: ${trainingDays}`)
-    log.bot(`${EMOJIS.LOCATION} Location: ${seasonConfig.location}`)
-    log.bot(`${EMOJIS.ROBOT} LLM provider: ${this.messageGenerator.getLLMProvider()}`)
+    log.bot(`${EMOJIS.ROBOT} LLM: ${this.messageGenerator.getLLMProvider()}`)
+
+    this.schedulerService.setupScheduler()
   }
 }
 
