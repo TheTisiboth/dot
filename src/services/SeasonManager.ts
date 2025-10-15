@@ -83,7 +83,7 @@ export class SeasonManager {
       const [hours, minutes] = practice.time.split(':').map(Number)
 
       // Calculate days until this practice day
-      let daysToAdd = (practice.day - currentDay + 7) % 7
+      const daysToAdd = (practice.day - currentDay + 7) % 7
 
       // Create the full datetime for this practice
       const candidateDate = new Date(date)

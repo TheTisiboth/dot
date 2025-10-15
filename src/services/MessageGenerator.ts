@@ -70,57 +70,16 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     return lines.join('\n\n')
   }
 
-  private sanitizeMarkdown(message: string): string {
-    // Remove any incomplete or malformed markdown that could cause Telegram parsing errors
-    // This ensures the message can be safely sent with parse_mode: 'Markdown'
-
-    // Preserve markdown links by temporarily replacing them
-    const links: string[] = []
-    message = message.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match) => {
-      links.push(match)
-      return `__LINK_${links.length - 1}__`
-    })
-
-    // Count markdown delimiters to ensure they're balanced (excluding our placeholders)
-    const asterisks = (message.match(/\*/g) || []).length
-    const underscores = (message.match(/(?<!__)_(?!_)/g) || []).length // Exclude our __LINK__ placeholders
-    const backticks = (message.match(/`/g) || []).length
-
-    // If unbalanced, remove all that type of delimiter
-    if (asterisks % 2 !== 0) {
-      message = message.replace(/\*/g, '')
-    }
-    if (underscores % 2 !== 0) {
-      message = message.replace(/(?<!__)_(?!_)/g, '') // Don't remove from placeholders
-    }
-    if (backticks % 2 !== 0) {
-      message = message.replace(/`/g, '')
-    }
-
-    // Restore markdown links
-    links.forEach((link, index) => {
-      message = message.replace(`__LINK_${index}__`, link)
-    })
-
-    return message
-  }
-
-  private preserveMarkdownLinks(message: string, location: string): string {
+  private injectLocationLink(message: string, location: string): string {
+    // If location contains a markdown link, inject it into the message
     const markdownLinkMatch = location.match(/\[([^\]]+)]\(([^)]+)\)/)
     if (markdownLinkMatch) {
       const locationName = markdownLinkMatch[1]
-      const fullUrl = markdownLinkMatch[2]
-
-      // Check if the LLM already included the markdown link
-      if (message.includes(location)) {
-        return message
-      }
 
       // Replace plain text location name with markdown link
-      const escapedLink = `[${locationName}](${fullUrl})`
       return message.replace(
         new RegExp(`\\b${locationName}\\b`, 'g'),
-        escapedLink
+        location
       )
     }
     return message
@@ -136,9 +95,12 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     const { season } = seasonConfig
     const { temperature = 0.7, maxTokens = 200 } = options
 
+    // Extract location name for LLM prompt (without markdown formatting)
+    const locationForPrompt = extractLocationName(location)
+
     const prompt = isTrainerMessage
       ? this.createTrainerLLMPrompt(time, season)
-      : this.createLLMPrompt(location, time, season)
+      : this.createLLMPrompt(locationForPrompt, time, season)
     const model = config.ollama.model
     const messageType = isTrainerMessage ? 'Trainer LLM' : 'LLM'
     const fallbackTemplate = isTrainerMessage
@@ -159,8 +121,7 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
       }
 
       generatedMessage = this.normalizeWhitespace(generatedMessage)
-      generatedMessage = this.preserveMarkdownLinks(generatedMessage, location)
-      generatedMessage = this.sanitizeMarkdown(generatedMessage)
+      generatedMessage = this.injectLocationLink(generatedMessage, location)
 
       const locationName = extractLocationName(location)
       log.messageGen(`${messageType} message generated (${generatedMessage.length} chars) for ${season} at ${locationName} (${time}) using ${model}`)
@@ -261,6 +222,9 @@ Rules:
 - NO quotation marks in output
 - IMPORTANT: Use the location "${location}" EXACTLY as provided without any modifications (it may contain special formatting)
 - Start sentences with a capital letter
+- Only ask once for voting (with thumbs up/down) in the middle line. You shouldn't ask for votes in the first or the last line
+- CRITICAL: DO NOT mention what will be trained or practiced (no "fundamental skills", "drills", "tactics", etc.) - just announce the training time and location
+- Keep the first line simple: just mention it's a training session at the location and time - nothing more
 
 Generate the message now:`
   }
