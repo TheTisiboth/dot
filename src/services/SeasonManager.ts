@@ -77,24 +77,31 @@ export class SeasonManager {
     const seasonConfig = this.getCurrentSeasonConfig(date)
     const currentDay = date.getDay()
 
-    let daysUntilNext: number | null = null
+    let nextTrainingDate: Date | null = null
 
     for (const practice of seasonConfig.practices) {
-      const daysToAdd = (practice.day - currentDay + 7) % 7
-      if (daysToAdd === 0) {
-        // If today is a practice day, skip to next week
-        daysUntilNext = 7
-        continue
+      const [hours, minutes] = practice.time.split(':').map(Number)
+
+      // Calculate days until this practice day
+      let daysToAdd = (practice.day - currentDay + 7) % 7
+
+      // Create the full datetime for this practice
+      const candidateDate = new Date(date)
+      candidateDate.setDate(date.getDate() + daysToAdd)
+      candidateDate.setHours(hours, minutes, 0, 0)
+
+      // If this datetime has already passed, move to next week
+      if (candidateDate <= date) {
+        candidateDate.setDate(candidateDate.getDate() + 7)
       }
-      if (daysUntilNext === null || daysToAdd < daysUntilNext) {
-        daysUntilNext = daysToAdd
+
+      // Keep track of the earliest training
+      if (nextTrainingDate === null || candidateDate < nextTrainingDate) {
+        nextTrainingDate = candidateDate
       }
     }
 
-    const nextDate = new Date(date)
-    nextDate.setDate(date.getDate() + (daysUntilNext || 7))
-
-    return nextDate
+    return nextTrainingDate || new Date(date)
   }
 
   getNextTrainingInfo(date: Date = new Date()): TrainingInfo {
