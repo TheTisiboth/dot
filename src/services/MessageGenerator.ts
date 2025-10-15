@@ -37,7 +37,7 @@ The more the merrier! ${EMOJIS.FRISBEE}`
     const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
 
     log.messageGen('Trainer template message generated', { season: seasonConfig.season, time, location })
-    return `${EMOJIS.COACH} Trainers needed! We have training tomorrow at ${location} starting at ${time}.
+    return `${EMOJIS.COACH} Trainers needed! We have training tomorrow starting at ${time}.
 
 ${EMOJIS.BULB} Can you lead the session? React with ${EMOJIS.THUMBS_UP} if you're available to coach.
 
@@ -90,7 +90,7 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     const { temperature = 0.7, maxTokens = 200 } = options
 
     const prompt = isTrainerMessage
-      ? this.createTrainerLLMPrompt(location, time, season)
+      ? this.createTrainerLLMPrompt(time, season)
       : this.createLLMPrompt(location, time, season)
     const model = config.ollama.model
     const messageType = isTrainerMessage ? 'Trainer LLM' : 'LLM'
@@ -151,7 +151,7 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     }
   }
 
-  private createTrainerLLMPrompt(location: string, time: string, season: string): string {
+  private createTrainerLLMPrompt(time: string, season: string): string {
     return `Generate a message to ask trainers if they can lead tomorrow's Ultimate Frisbee training session. Output ONLY the actual message that will be sent - NO meta text, NO quotes, NO explanations, NO instructions.
 
 CRITICAL: The message MUST be formatted on 3 SEPARATE LINES with blank lines between them. DO NOT put everything on one line.
@@ -164,7 +164,7 @@ Please react with 👍 if you can help.
 Thanks! 🥏
 
 Your message structure:
-Line 1: [emoji] [Direct question asking if a trainer is available for tomorrow's ${season} training at ${location} starting at ${time}]
+Line 1: [emoji] [Direct question asking if a trainer is available for tomorrow's ${season} training starting at ${time}]
 BLANK LINE (press Enter twice)
 Line 2: [sentence asking to react with 👍 if they can lead the session]
 BLANK LINE (press Enter twice)
@@ -181,7 +181,6 @@ Rules:
 - Start the confirmation line with text only, no emoji at the beginning
 - Maximum 3 emojis total in the entire message
 - NO quotation marks in output
-- IMPORTANT: Use the location "${location}" EXACTLY as provided without any modifications
 - Start sentences with a capital letter
 
 Generate the message now:`
