@@ -3,6 +3,7 @@ import { config } from '../config'
 import { type SeasonConfig, type MessageGenerationOptions, type PracticeDay } from '../types'
 import { EMOJIS } from '../utils/constants'
 import { log } from '../utils/logger'
+import { extractLocationName } from '../utils/formatters'
 
 export class MessageGenerator {
   private readonly ollama: Ollama | null
@@ -22,8 +23,9 @@ export class MessageGenerator {
 
   generateTemplateMessage(seasonConfig: SeasonConfig, practiceDay: PracticeDay): string {
     const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
+    const locationName = extractLocationName(location)
 
-    log.messageGen('Template message generated', { season: seasonConfig.season, time, location })
+    log.messageGen(`Template message generated for ${seasonConfig.season} at ${locationName} (${time})`)
     return `${EMOJIS.ROCKET} Hey team!
 
 Tomorrow we're planning an Ultimate Frisbee training at ${location} starting at ${time}.
@@ -35,8 +37,9 @@ The more the merrier! ${EMOJIS.FRISBEE}`
 
   generateTrainerTemplateMessage(seasonConfig: SeasonConfig, practiceDay: PracticeDay): string {
     const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
+    const locationName = extractLocationName(location)
 
-    log.messageGen('Trainer template message generated', { season: seasonConfig.season, time, location })
+    log.messageGen(`Trainer template message generated for ${seasonConfig.season} at ${locationName} (${time})`)
     return `${EMOJIS.COACH} Trainers needed! We have training tomorrow starting at ${time}.
 
 ${EMOJIS.BULB} Can you lead the session? React with ${EMOJIS.THUMBS_UP} if you're available to coach.
@@ -67,13 +70,57 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     return lines.join('\n\n')
   }
 
+  private sanitizeMarkdown(message: string): string {
+    // Remove any incomplete or malformed markdown that could cause Telegram parsing errors
+    // This ensures the message can be safely sent with parse_mode: 'Markdown'
+
+    // Preserve markdown links by temporarily replacing them
+    const links: string[] = []
+    message = message.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match) => {
+      links.push(match)
+      return `__LINK_${links.length - 1}__`
+    })
+
+    // Count markdown delimiters to ensure they're balanced (excluding our placeholders)
+    const asterisks = (message.match(/\*/g) || []).length
+    const underscores = (message.match(/(?<!__)_(?!_)/g) || []).length // Exclude our __LINK__ placeholders
+    const backticks = (message.match(/`/g) || []).length
+
+    // If unbalanced, remove all that type of delimiter
+    if (asterisks % 2 !== 0) {
+      message = message.replace(/\*/g, '')
+    }
+    if (underscores % 2 !== 0) {
+      message = message.replace(/(?<!__)_(?!_)/g, '') // Don't remove from placeholders
+    }
+    if (backticks % 2 !== 0) {
+      message = message.replace(/`/g, '')
+    }
+
+    // Restore markdown links
+    links.forEach((link, index) => {
+      message = message.replace(`__LINK_${index}__`, link)
+    })
+
+    return message
+  }
+
   private preserveMarkdownLinks(message: string, location: string): string {
     const markdownLinkMatch = location.match(/\[([^\]]+)]\(([^)]+)\)/)
     if (markdownLinkMatch) {
       const locationName = markdownLinkMatch[1]
+      const fullUrl = markdownLinkMatch[2]
+
+      // Check if the LLM already included the markdown link
+      if (message.includes(location)) {
+        return message
+      }
+
+      // Replace plain text location name with markdown link
+      const escapedLink = `[${locationName}](${fullUrl})`
       return message.replace(
         new RegExp(`\\b${locationName}\\b`, 'g'),
-        location
+        escapedLink
       )
     }
     return message
@@ -113,8 +160,10 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
 
       generatedMessage = this.normalizeWhitespace(generatedMessage)
       generatedMessage = this.preserveMarkdownLinks(generatedMessage, location)
+      generatedMessage = this.sanitizeMarkdown(generatedMessage)
 
-      log.messageGen(`${messageType} message generated`, { model, season, time, location, length: generatedMessage.length })
+      const locationName = extractLocationName(location)
+      log.messageGen(`${messageType} message generated (${generatedMessage.length} chars) for ${season} at ${locationName} (${time}) using ${model}`)
       return generatedMessage
     } catch (error) {
       log.error(`Generating ${messageType} message`, error)

@@ -5,7 +5,7 @@ import { config } from '../config'
 import type TelegramBot from 'node-telegram-bot-api'
 import { log } from '../utils/logger'
 import { type SeasonConfig, type PracticeDay } from '../types'
-import { formatDateLocale, formatDateTimeLocale } from '../utils/formatters'
+import { formatDateLocale, formatDateTimeLocale, extractLocationName } from '../utils/formatters'
 
 export class SchedulerService {
   private readonly seasonManager: SeasonManager
@@ -94,8 +94,9 @@ export class SchedulerService {
 
   async sendScheduledMessage(): Promise<void> {
     try {
-      const seasonConfig = this.seasonManager.getCurrentSeasonConfig()
-      const practiceDay = this.seasonManager.getPracticeForDay()
+      const nextTraining = this.seasonManager.getNextTrainingInfo()
+      const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
+      const practiceDay = nextTraining.practiceDay
 
       const useLLM = this.messageGenerator.isLLMAvailable()
 
@@ -107,14 +108,10 @@ export class SchedulerService {
         parse_mode: 'Markdown',
         ...(this.chatThreadId && { message_thread_id: parseInt(this.chatThreadId) })
       })
-      log.scheduler('Scheduled message sent to team', {
-        chatId: this.chatId,
-        messageThreadId: this.chatThreadId,
-        season: seasonConfig.season,
-        useLLM,
-        time: practiceDay.time,
-        location: seasonConfig.location
-      })
+
+      const locationName = extractLocationName(seasonConfig.location)
+      const threadInfo = this.chatThreadId ? ` (thread ${this.chatThreadId})` : ''
+      log.scheduler(`Scheduled message sent to team${threadInfo} - ${seasonConfig.season} at ${locationName} (${practiceDay.time}) using ${useLLM ? 'LLM' : 'template'}`)
 
       // Send trainer check message
       await this.sendTrainerCheckMessage(seasonConfig, practiceDay, useLLM)
@@ -140,14 +137,10 @@ export class SchedulerService {
         parse_mode: 'Markdown',
         ...(this.trainerChatThreadId && { message_thread_id: parseInt(this.trainerChatThreadId) })
       })
-      log.scheduler('Trainer check message sent to trainers', {
-        chatId: this.trainerChatId,
-        messageThreadId: this.trainerChatThreadId,
-        season: seasonConfig.season,
-        useLLM,
-        time: practiceDay.time,
-        location: seasonConfig.location
-      })
+
+      const locationName = extractLocationName(seasonConfig.location)
+      const threadInfo = this.trainerChatThreadId ? ` (thread ${this.trainerChatThreadId})` : ''
+      log.scheduler(`Trainer check message sent${threadInfo} - ${seasonConfig.season} at ${locationName} (${practiceDay.time}) using ${useLLM ? 'LLM' : 'template'}`)
     } catch (error) {
       log.error('Sending trainer check message', error)
     }

@@ -95,12 +95,16 @@ OLLAMA_MODEL=llama3.2:3b
 - `/info` - Show training schedule
 - `/training` - Show next training
 
-**Admin only:**
+**Admin only (preview commands):**
 - `/test_template` - Preview template message
-- `/test_llm` - Preview AI message for team
-- `/test_trainer` - Preview AI message for trainers
-- `/send_now` - Send message immediately
-- `/test_scheduled` - Test both team and trainer messages
+- `/test_llm` - Preview LLM team message
+- `/test_trainer` - Preview LLM trainer message
+- `/preview_team` - Preview team message (template or LLM)
+- `/preview_all` - Preview both team and trainer messages
+
+**Admin only (send commands):**
+- `/send_to_team` - Send message to team chat
+- `/send_to_all` - Send messages to team and trainer chats
 
 ## Docker Commands
 
