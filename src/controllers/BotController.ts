@@ -45,8 +45,10 @@ export class BotController {
     this.bot.onText(/\/test_template/, (msg) => this.requireAdmin(msg, () => this.handleTestTemplate(msg)))
     this.bot.onText(/\/test_llm/, (msg) => this.requireAdmin(msg, () => this.handleTestLLM(msg)))
     this.bot.onText(/\/test_trainer/, (msg) => this.requireAdmin(msg, () => this.handleTestTrainer(msg)))
-    this.bot.onText(/\/send_now/, (msg) => this.requireAdmin(msg, () => this.handleSendNow(msg)))
-    this.bot.onText(/\/test_scheduled/, (msg) => this.requireAdmin(msg, () => this.handleTestScheduled(msg)))
+    this.bot.onText(/\/preview_team/, (msg) => this.requireAdmin(msg, () => this.handlePreviewTeam(msg)))
+    this.bot.onText(/\/preview_all/, (msg) => this.requireAdmin(msg, () => this.handlePreviewAll(msg)))
+    this.bot.onText(/\/send_to_team/, (msg) => this.requireAdmin(msg, () => this.handleSendToTeam(msg)))
+    this.bot.onText(/\/send_to_all/, (msg) => this.requireAdmin(msg, () => this.handleSendToAll(msg)))
   }
 
     private async registerBotCommands() {
@@ -60,11 +62,13 @@ export class BotController {
 
         // Admin-only commands
         const adminCommands = [...publicCommands,
-            {command: 'test_template', description: 'Test template message'},
-            {command: 'test_llm', description: 'Test LLM message generation'},
-            {command: 'test_trainer', description: 'Test trainer LLM message generation'},
-            {command: 'send_now', description: 'Send training reminder now'},
-            {command: 'test_scheduled', description: 'Simulate scheduled messages (team + trainers)'}
+            {command: 'test_template', description: 'Preview template message'},
+            {command: 'test_llm', description: 'Preview LLM team message'},
+            {command: 'test_trainer', description: 'Preview LLM trainer message'},
+            {command: 'preview_team', description: 'Preview team message (template or LLM)'},
+            {command: 'preview_all', description: 'Preview both team and trainer messages'},
+            {command: 'send_to_team', description: 'Send message to team chat'},
+            {command: 'send_to_all', description: 'Send messages to team and trainer chats'}
         ]
 
         try {
@@ -120,9 +124,9 @@ ${summerInfo}`
 
   private async handleTestTemplate(msg: TelegramBot.Message): Promise<void> {
     log.command('/test_template', msg.chat.id, msg.from?.username || msg.from?.id)
-    const seasonConfig = this.seasonManager.getCurrentSeasonConfig()
-    const practiceDay = this.seasonManager.getPracticeForDay()
-    const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM: false }, practiceDay)
+    const nextTraining = this.seasonManager.getNextTrainingInfo()
+    const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
+    const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM: false }, nextTraining.practiceDay)
 
     await this.sendMessage(msg.chat.id, `${EMOJIS.MEMO} Template Message:\n\n${message}`, { parse_mode: 'Markdown' })
   }
@@ -131,9 +135,9 @@ ${summerInfo}`
     log.command('/test_llm', msg.chat.id, msg.from?.username || msg.from?.id)
     await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
 
-    const seasonConfig = this.seasonManager.getCurrentSeasonConfig()
-    const practiceDay = this.seasonManager.getPracticeForDay()
-    const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM: true }, practiceDay)
+    const nextTraining = this.seasonManager.getNextTrainingInfo()
+    const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
+    const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM: true }, nextTraining.practiceDay)
 
     await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} LLM Generated Message:\n\n${message}`, { parse_mode: 'Markdown' })
   }
@@ -142,9 +146,9 @@ ${summerInfo}`
     log.command('/test_trainer', msg.chat.id, msg.from?.username || msg.from?.id)
     await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
 
-    const seasonConfig = this.seasonManager.getCurrentSeasonConfig()
-    const practiceDay = this.seasonManager.getPracticeForDay()
-    const message = await this.messageGenerator.generateTrainerMessage(seasonConfig, { useLLM: true }, practiceDay)
+    const nextTraining = this.seasonManager.getNextTrainingInfo()
+    const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
+    const message = await this.messageGenerator.generateTrainerMessage(seasonConfig, { useLLM: true }, nextTraining.practiceDay)
 
     await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} Trainer LLM Generated Message:\n\n${message}`, { parse_mode: 'Markdown' })
   }
@@ -163,31 +167,82 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
     await this.sendMessage(msg.chat.id, trainingText, { parse_mode: 'Markdown' })
   }
 
-  private async handleSendNow(msg: TelegramBot.Message): Promise<void> {
-    log.command('/send_now', msg.chat.id, msg.from?.username || msg.from?.id)
-    const seasonConfig = this.seasonManager.getCurrentSeasonConfig()
-    const practiceDay = this.seasonManager.getPracticeForDay()
+  private async handlePreviewTeam(msg: TelegramBot.Message): Promise<void> {
+    log.command('/preview_team', msg.chat.id, msg.from?.username || msg.from?.id)
+    const nextTraining = this.seasonManager.getNextTrainingInfo()
+    const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
     const useLLM = this.messageGenerator.isLLMAvailable()
-    const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM }, practiceDay)
+    const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM }, nextTraining.practiceDay)
 
-    await this.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' })
+    await this.sendMessage(msg.chat.id, `${EMOJIS.FRISBEE} *Team Message Preview:*\n\n${message}`, { parse_mode: 'Markdown' })
   }
 
-  private async handleTestScheduled(msg: TelegramBot.Message): Promise<void> {
-    log.command('/test_scheduled', msg.chat.id, msg.from?.username || msg.from?.id)
+  private getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : 'Unknown error'
+  }
+
+  private async handlePreviewAll(msg: TelegramBot.Message): Promise<void> {
+    log.command('/preview_all', msg.chat.id, msg.from?.username || msg.from?.id)
+    await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} Generating preview messages...`)
+
+    try {
+      const nextTraining = this.seasonManager.getNextTrainingInfo()
+      const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
+      const useLLM = this.messageGenerator.isLLMAvailable()
+
+      // Generate and show team message
+      const teamMessage = await this.messageGenerator.generateMessage(seasonConfig, { useLLM }, nextTraining.practiceDay)
+      await this.sendMessage(msg.chat.id, `${EMOJIS.FRISBEE} *Team Message Preview:*\n\n${teamMessage}`, { parse_mode: 'Markdown' })
+
+      // Generate and show trainer message
+      const trainerMessage = await this.messageGenerator.generateTrainerMessage(seasonConfig, { useLLM }, nextTraining.practiceDay)
+      await this.sendMessage(msg.chat.id, `${EMOJIS.RUNNER} *Trainer Message Preview:*\n\n${trainerMessage}`, { parse_mode: 'Markdown' })
+
+      await this.sendMessage(msg.chat.id, `${EMOJIS.CHECK_MARK} Preview complete! Use \`/send_to_all\` to send to actual chats.`, { parse_mode: 'Markdown' })
+    } catch (error) {
+      const errorMessage = this.getErrorMessage(error)
+      await this.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} Error: ${errorMessage}`)
+    }
+  }
+
+  private async handleSendToTeam(msg: TelegramBot.Message): Promise<void> {
+    log.command('/send_to_team', msg.chat.id, msg.from?.username || msg.from?.id)
+    await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} Sending message to team chat...`)
+
+    try {
+      const nextTraining = this.seasonManager.getNextTrainingInfo()
+      const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
+      const useLLM = this.messageGenerator.isLLMAvailable()
+      const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM }, nextTraining.practiceDay)
+
+      const chatId = config.telegram.chatId
+      const threadId = config.telegram.chatThreadId
+      await this.bot.sendMessage(chatId, message, {
+        parse_mode: 'Markdown',
+        ...(threadId && { message_thread_id: parseInt(threadId) })
+      })
+      await this.sendMessage(msg.chat.id, `${EMOJIS.CHECK_MARK} Message sent to team chat!`)
+    } catch (error) {
+      const errorMessage = this.getErrorMessage(error)
+      await this.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} Error: ${errorMessage}`)
+    }
+  }
+
+  private async handleSendToAll(msg: TelegramBot.Message): Promise<void> {
+    log.command('/send_to_all', msg.chat.id, msg.from?.username || msg.from?.id)
 
     if (!this.schedulerService) {
       await this.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} Scheduler service not available`)
       return
     }
 
-    await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} Simulating scheduled messages (team + trainers)...`)
+    await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} Sending messages to team and trainer chats...`)
 
     try {
       await this.schedulerService.sendScheduledMessage()
-      await this.sendMessage(msg.chat.id, `${EMOJIS.CHECK_MARK} Test scheduled messages sent! Check the team chat and trainer chat.`)
+      await this.sendMessage(msg.chat.id, `${EMOJIS.CHECK_MARK} Messages sent! Check the team chat and trainer chat.`)
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage = this.getErrorMessage(error)
       await this.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} Error: ${errorMessage}`)
     }
   }

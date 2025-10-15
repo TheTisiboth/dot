@@ -3,6 +3,7 @@ import { config } from '../config'
 import { type SeasonConfig, type MessageGenerationOptions, type PracticeDay } from '../types'
 import { EMOJIS } from '../utils/constants'
 import { log } from '../utils/logger'
+import { extractLocationName } from '../utils/formatters'
 
 export class MessageGenerator {
   private readonly ollama: Ollama | null
@@ -22,8 +23,9 @@ export class MessageGenerator {
 
   generateTemplateMessage(seasonConfig: SeasonConfig, practiceDay: PracticeDay): string {
     const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
+    const locationName = extractLocationName(location)
 
-    log.messageGen('Template message generated', { season: seasonConfig.season, time, location })
+    log.messageGen(`Template message generated for ${seasonConfig.season} at ${locationName} (${time})`)
     return `${EMOJIS.ROCKET} Hey team!
 
 Tomorrow we're planning an Ultimate Frisbee training at ${location} starting at ${time}.
@@ -35,8 +37,9 @@ The more the merrier! ${EMOJIS.FRISBEE}`
 
   generateTrainerTemplateMessage(seasonConfig: SeasonConfig, practiceDay: PracticeDay): string {
     const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
+    const locationName = extractLocationName(location)
 
-    log.messageGen('Trainer template message generated', { season: seasonConfig.season, time, location })
+    log.messageGen(`Trainer template message generated for ${seasonConfig.season} at ${locationName} (${time})`)
     return `${EMOJIS.COACH} Trainers needed! We have training tomorrow starting at ${time}.
 
 ${EMOJIS.BULB} Can you lead the session? React with ${EMOJIS.THUMBS_UP} if you're available to coach.
@@ -67,10 +70,13 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     return lines.join('\n\n')
   }
 
-  private preserveMarkdownLinks(message: string, location: string): string {
+  private injectLocationLink(message: string, location: string): string {
+    // If location contains a markdown link, inject it into the message
     const markdownLinkMatch = location.match(/\[([^\]]+)]\(([^)]+)\)/)
     if (markdownLinkMatch) {
       const locationName = markdownLinkMatch[1]
+
+      // Replace plain text location name with markdown link
       return message.replace(
         new RegExp(`\\b${locationName}\\b`, 'g'),
         location
@@ -89,9 +95,12 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     const { season } = seasonConfig
     const { temperature = 0.7, maxTokens = 200 } = options
 
+    // Extract location name for LLM prompt (without markdown formatting)
+    const locationForPrompt = extractLocationName(location)
+
     const prompt = isTrainerMessage
       ? this.createTrainerLLMPrompt(time, season)
-      : this.createLLMPrompt(location, time, season)
+      : this.createLLMPrompt(locationForPrompt, time, season)
     const model = config.ollama.model
     const messageType = isTrainerMessage ? 'Trainer LLM' : 'LLM'
     const fallbackTemplate = isTrainerMessage
@@ -112,9 +121,10 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
       }
 
       generatedMessage = this.normalizeWhitespace(generatedMessage)
-      generatedMessage = this.preserveMarkdownLinks(generatedMessage, location)
+      generatedMessage = this.injectLocationLink(generatedMessage, location)
 
-      log.messageGen(`${messageType} message generated`, { model, season, time, location, length: generatedMessage.length })
+      const locationName = extractLocationName(location)
+      log.messageGen(`${messageType} message generated (${generatedMessage.length} chars) for ${season} at ${locationName} (${time}) using ${model}`)
       return generatedMessage
     } catch (error) {
       log.error(`Generating ${messageType} message`, error)
@@ -212,6 +222,9 @@ Rules:
 - NO quotation marks in output
 - IMPORTANT: Use the location "${location}" EXACTLY as provided without any modifications (it may contain special formatting)
 - Start sentences with a capital letter
+- Only ask once for voting (with thumbs up/down) in the middle line. You shouldn't ask for votes in the first or the last line
+- CRITICAL: DO NOT mention what will be trained or practiced (no "fundamental skills", "drills", "tactics", etc.) - just announce the training time and location
+- Keep the first line simple: just mention it's a training session at the location and time - nothing more
 
 Generate the message now:`
   }
