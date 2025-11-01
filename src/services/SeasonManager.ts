@@ -116,13 +116,16 @@ export class SeasonManager {
       throw new Error(`No practice day found for day ${nextDate.getDay()}`)
     }
 
+    const exceptionalTraining = config.exceptionalTraining
+
     return {
       date: nextDate,
       dayName: getDayName(nextDate.getDay()),
-      location: seasonConfig.location,
-      time: nextPractice.time,
+      location: exceptionalTraining.location || seasonConfig.location,
+      time: exceptionalTraining.time || nextPractice.time,
       season: seasonConfig.season,
-      practiceDay: nextPractice
+      practiceDay: nextPractice,
+      isCancelled: exceptionalTraining.isCancelled
     }
   }
 

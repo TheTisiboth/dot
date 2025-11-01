@@ -29,4 +29,5 @@ export interface TrainingInfo {
   time: string;
   season: SeasonType;
   practiceDay: PracticeDay;
+  isCancelled?: boolean;
 }

@@ -48,10 +48,18 @@ const testingConfigSchema = z.object({
   overrideDate: z.string().optional()
 })
 
+// Exceptional Training Schema
+const exceptionalTrainingSchema = z.object({
+  location: z.string().optional(),
+  time: z.string().regex(/^\d{1,2}:\d{2}$/, 'Time must be in HH:MM format').optional(),
+  isCancelled: z.boolean().optional()
+})
+
 // Bot Config Schema
 export const botConfigSchema = z.object({
   telegram: telegramConfigSchema,
   ollama: ollamaConfigSchema,
   seasons: seasonsConfigSchema,
-  testing: testingConfigSchema
+  testing: testingConfigSchema,
+  exceptionalTraining: exceptionalTrainingSchema
 })
