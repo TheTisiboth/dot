@@ -35,6 +35,8 @@ services:
     build: .
     container_name: frisbee-bot
     restart: unless-stopped
+    ports:
+      - "3004:3004"
     depends_on:
       ollama:
         condition: service_healthy
@@ -70,16 +72,20 @@ services:
       - TEST_MODE=${TEST_MODE:-false}
       - OVERRIDE_DATE=${OVERRIDE_DATE:-}
 
+      # Health server
+      - HEALTH_PORT=3004
+
     # Optional: Add volume for logs or persistent data
     # volumes:
     #   - ./logs:/app/logs
 
     # Health check for the bot
     healthcheck:
-      test: ["CMD", "node", "-e", "console.log('Bot health check')"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3004/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
 
   # Optional: Ollama model downloader (runs once to pull the model)
   ollama-setup:

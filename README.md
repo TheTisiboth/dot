@@ -106,6 +106,29 @@ OLLAMA_MODEL=llama3.2:3b
 - `/send_to_team` - Send message to team chat
 - `/send_to_all` - Send messages to team and trainer chats
 
+## Health Monitoring
+
+Bot exposes health endpoints on port 3004:
+
+- **`GET /health`** - Full health check (Telegram API connectivity)
+  - Returns 200 with `{status: 'ok', telegram: 'connected', ollama: 'provider'}`
+
+- **`GET /health/ollama`** - Ollama status only
+  - Returns 200 if enabled, 503 if disabled/error
+
+**Uptime-kuma setup:**
+```yaml
+Bot monitor:
+  Type: HTTP(s)
+  URL: http://frisbee-bot:3004/health
+  Interval: 60s
+
+Ollama monitor:
+  Type: HTTP(s)
+  URL: http://ollama:11434/api/tags
+  Interval: 60s
+```
+
 ## Docker Commands
 
 ```bash

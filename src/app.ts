@@ -3,6 +3,7 @@ import { config } from './config'
 import { SeasonManager } from './services/SeasonManager'
 import { MessageGenerator } from './services/MessageGenerator'
 import { SchedulerService } from './services/SchedulerService'
+import { HealthServer } from './services/HealthServer'
 import { BotController } from './controllers/BotController'
 import { MESSAGES, EMOJIS } from './utils/constants'
 import { log } from './utils/logger'
@@ -13,6 +14,7 @@ class UltimateFrisbeeBot {
   private readonly seasonManager: SeasonManager
   private readonly messageGenerator: MessageGenerator
   private readonly schedulerService: SchedulerService
+  private readonly healthServer: HealthServer
 
   constructor() {
     this.bot = new TelegramBot(config.telegram.token, { polling: true })
@@ -30,6 +32,7 @@ class UltimateFrisbeeBot {
     )
     botController.setSchedulerService(this.schedulerService)
 
+    this.healthServer = new HealthServer(this.bot, this.messageGenerator)
     this.setupErrorHandlers()
   }
 
@@ -58,6 +61,7 @@ class UltimateFrisbeeBot {
     log.bot(`${EMOJIS.RUNNER} Training days: ${trainingDays}`)
     log.bot(`${EMOJIS.ROBOT} LLM: ${this.messageGenerator.getLLMProvider()}`)
 
+    this.healthServer.start()
     this.schedulerService.setupScheduler()
   }
 }
