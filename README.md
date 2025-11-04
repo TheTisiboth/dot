@@ -1,5 +1,7 @@
 # Ultimate Frisbee Training Bot 🥏
 
+![Status](https://status.leojan.fr/api/badge/3/status) ![Uptime](https://status.leojan.fr/api/badge/3/uptime/24)
+
 A TypeScript Telegram bot that automatically sends training reminders based on seasonal schedules.
 
 ## Features
