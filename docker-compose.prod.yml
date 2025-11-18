@@ -1,0 +1,19 @@
+# Production override for Dokploy deployment
+# Ensures all containers use dokploy-network for inter-service communication
+
+services:
+  ollama:
+    networks:
+      - dokploy-network
+
+  frisbee-bot:
+    networks:
+      - dokploy-network
+
+  ollama-setup:
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true
