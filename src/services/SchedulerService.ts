@@ -15,6 +15,7 @@ export class SchedulerService {
   private readonly chatThreadId?: string
   private readonly trainerChatId: string
   private readonly trainerChatThreadId?: string
+  private readonly enableTrainerMessages: boolean
 
   constructor(
     seasonManager: SeasonManager,
@@ -28,6 +29,7 @@ export class SchedulerService {
     this.chatThreadId = config.telegram.chatThreadId
     this.trainerChatId = config.telegram.trainerChatId
     this.trainerChatThreadId = config.telegram.trainerChatThreadId
+    this.enableTrainerMessages = config.telegram.enableTrainerMessages
   }
 
   setupScheduler(): void {
@@ -125,6 +127,11 @@ export class SchedulerService {
     practiceDay: PracticeDay,
     useLLM: boolean
   ): Promise<void> {
+    if (!this.enableTrainerMessages) {
+      log.scheduler('Trainer messages disabled, skipping trainer check message')
+      return
+    }
+
     try {
       const trainerMessage = await this.messageGenerator.generateTrainerMessage(
         seasonConfig,

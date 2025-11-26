@@ -15,6 +15,7 @@ function loadAndValidateConfig(): BotConfig {
             adminChatId: process.env.ADMIN_CHAT_ID,
             trainerChatId: process.env.TRAINER_CHAT_ID,
             trainerChatThreadId: process.env.TRAINER_CHAT_THREAD_ID,
+            enableTrainerMessages: process.env.ENABLE_TRAINER_MESSAGES !== 'false',
         },
 
         ollama: {

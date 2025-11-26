@@ -19,7 +19,8 @@ const telegramConfigSchema = z.object({
   chatThreadId: z.string().optional(),
   adminChatId: z.string().min(1, 'ADMIN_CHAT_ID is required'),
   trainerChatId: z.string().min(1, 'TRAINER_CHAT_ID is required'),
-  trainerChatThreadId: z.string().optional()
+  trainerChatThreadId: z.string().optional(),
+  enableTrainerMessages: z.boolean()
 })
 
 // Ollama Config Schema
