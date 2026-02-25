@@ -111,7 +111,7 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
       const response = await this.ollama!.chat({
         model,
         messages: [{ role: 'user', content: prompt }],
-        options: { temperature, num_predict: maxTokens }
+        options: { temperature, num_predict: maxTokens, num_thread: 4 }
       })
 
       let generatedMessage = response.message.content?.replace(/^\s+|\s+$/g, '')
