@@ -49,6 +49,17 @@ class UltimateFrisbeeBot {
     this.bot.on('error', (error) => {
       log.error('Bot error', error)
     })
+
+    const shutdown = (signal: string): void => {
+      log.bot(`Received ${signal}, stopping polling...`)
+      void this.bot.stopPolling().then(() => {
+        log.bot('Polling stopped, exiting')
+        process.exit(0)
+      })
+    }
+
+    process.on('SIGTERM', () => { shutdown('SIGTERM') })
+    process.on('SIGINT', () => { shutdown('SIGINT') })
   }
 
   start(): void {
