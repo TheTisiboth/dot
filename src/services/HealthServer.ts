@@ -43,14 +43,17 @@ export class HealthServer {
       // Test Ollama connection
       try {
         const ollamaStartTime = Date.now()
-        const provider = this.messageGenerator.getLLMProvider()
-        checks.ollama = {
-          status: provider === 'Templates' ? 'disabled' : 'connected',
-          responseTime: Date.now() - ollamaStartTime
-        }
-        if (provider === 'Templates') {
+        if (!this.messageGenerator.isLLMAvailable()) {
+          checks.ollama = { status: 'disabled', responseTime: 0 }
           overallStatus = 'error'
           errorMessage = errorMessage ? `${errorMessage}; Ollama: disabled` : 'Ollama: disabled'
+        } else {
+          // Actually test connectivity by calling Ollama
+          await this.messageGenerator.testOllamaConnection()
+          checks.ollama = {
+            status: 'connected',
+            responseTime: Date.now() - ollamaStartTime
+          }
         }
       } catch (error) {
         checks.ollama.status = 'disconnected'
@@ -100,17 +103,18 @@ export class HealthServer {
     this.app.get('/health/ollama', async (_req, res) => {
       try {
         const startTime = Date.now()
-        const provider = this.messageGenerator.getLLMProvider()
-        const responseTime = Date.now() - startTime
-
-        if (provider === 'Templates') {
+        if (!this.messageGenerator.isLLMAvailable()) {
           res.status(503).json({
             status: 'disabled',
             service: 'ollama',
-            provider: 'Templates',
+            provider: 'disabled',
             timestamp: new Date().toISOString()
           })
         } else {
+          // Actually test connectivity by calling Ollama
+          await this.messageGenerator.testOllamaConnection()
+          const provider = this.messageGenerator.getLLMProvider()
+          const responseTime = Date.now() - startTime
           res.json({
             status: 'ok',
             service: 'ollama',

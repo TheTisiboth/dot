@@ -233,6 +233,14 @@ Generate the message now:`
     return this.ollama !== null
   }
 
+  async testOllamaConnection(): Promise<void> {
+    if (!this.ollama) {
+      throw new Error('Ollama not configured')
+    }
+    // Test connectivity by listing models
+    await this.ollama.list()
+  }
+
   getLLMProvider(): string {
     if (this.ollama) return `Ollama (${config.ollama.model})`
     return 'Template-only'
