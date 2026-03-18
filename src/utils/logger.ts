@@ -1,6 +1,7 @@
 export const log = {
-  command: (command: string, chatId: number, userId?: string | number) => {
-    console.log(`⚡ [Command] ${command} - Chat: ${chatId}, User: ${userId || 'unknown'}`)
+  command: (command: string, chatId: number, userId?: string | number, threadId?: number) => {
+    const threadStr = threadId ? `, Thread: ${threadId}` : ''
+    console.log(`⚡ [Command] ${command} - Chat: ${chatId}${threadStr}, User: ${userId || 'unknown'}`)
   },
 
   scheduler: (action: string, details?: Record<string, unknown>) => {
