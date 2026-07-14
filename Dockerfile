@@ -1,13 +1,16 @@
 # Multi-stage build for Node.js app
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# gramjs depends on bufferutil/utf-8-validate, native modules whose prebuilt binaries are glibc-only,
+# so on musl they are compiled from source. The toolchain is dropped again in the same layer.
+RUN apk add --no-cache --virtual .build-deps python3 make g++ \
+    && npm ci \
+    && apk del .build-deps
 
 # Copy source code
 COPY . .
@@ -22,7 +25,10 @@ WORKDIR /app
 
 # Copy package files and install production dependencies
 COPY package*.json ./
-RUN npm ci --only=production && npm cache clean --force
+RUN apk add --no-cache --virtual .build-deps python3 make g++ \
+    && npm ci --omit=dev \
+    && apk del .build-deps \
+    && npm cache clean --force
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
