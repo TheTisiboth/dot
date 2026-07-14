@@ -18,22 +18,35 @@ function loadAndValidateConfig(): BotConfig {
             enableTrainerMessages: process.env.ENABLE_TRAINER_MESSAGES !== 'false',
         },
 
+        mtproto: {
+            apiId: process.env.TELEGRAM_API_ID,
+            apiHash: process.env.TELEGRAM_API_HASH,
+            session: process.env.TELEGRAM_SESSION,
+        },
+
         ollama: {
             enabled: process.env.OLLAMA_ENABLED === 'true',
             host: process.env.OLLAMA_HOST || 'http://localhost:11434',
             model: process.env.OLLAMA_MODEL || 'llama3.2:3b',
         },
 
+        attendance: {
+            reminderHoursBefore: Number(process.env.REMINDER_HOURS_BEFORE ?? 3),
+            cancelHoursBefore: Number(process.env.CANCEL_HOURS_BEFORE ?? 1),
+        },
+
         seasons: {
             winter: {
                 startDate: parseDate(process.env.WINTER_START_DATE),
                 location: process.env.WINTER_LOCATION,
-                practices: parsePracticeDays(process.env.WINTER_PRACTICE_DAYS)
+                practices: parsePracticeDays(process.env.WINTER_PRACTICE_DAYS),
+                minAttendance: Number(process.env.WINTER_MIN_ATTENDANCE ?? 8)
             },
             summer: {
                 startDate: parseDate(process.env.SUMMER_START_DATE),
                 location: process.env.SUMMER_LOCATION,
-                practices: parsePracticeDays(process.env.SUMMER_PRACTICE_DAYS)
+                practices: parsePracticeDays(process.env.SUMMER_PRACTICE_DAYS),
+                minAttendance: Number(process.env.SUMMER_MIN_ATTENDANCE ?? 8)
             }
         },
 
@@ -54,7 +67,9 @@ function loadAndValidateConfig(): BotConfig {
     } catch (error) {
         if (error instanceof ZodError) {
             console.error('❌ Configuration validation failed:\n')
-            console.log(error.issues)
+            error.issues.forEach(issue => {
+                console.error(`  • ${issue.path.join('.')}: ${issue.message}`)
+            })
             console.error('\nPlease check your .env file and ensure all required fields are properly set.')
             process.exit(1)
         }

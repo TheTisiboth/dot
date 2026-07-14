@@ -11,7 +11,27 @@ A TypeScript Telegram bot that automatically sends training reminders based on s
 - 🗓️ Seasonal scheduling (winter/summer)
 - 🤖 AI-generated messages (optional)
 - 👥 Separate messages for team and trainers
+- 👍 Attendance tracking from 👍 reactions, with automatic reminder and cancellation
 - ⚙️ Fully configurable via environment variables
+
+## Attendance tracking
+
+The training post is the poll: people react 👍 to confirm. The bot then counts those
+reactions and acts twice before each training:
+
+| When | If 👍 count is below the threshold | Sent to |
+|---|---|---|
+| `REMINDER_HOURS_BEFORE` (default 3h) | Posts a reminder to react | Team chat, as a reply to the post |
+| `CANCEL_HOURS_BEFORE` (default 1h) | Posts "training should be cancelled" | Trainer chat |
+
+Each is skipped if the count is at or above `WINTER_MIN_ATTENDANCE` / `SUMMER_MIN_ATTENDANCE`.
+Only 👍 counts — 👎 is ignored. Admins can check the live count anytime with `/attendance`.
+
+> **Why a user account is required.** The Telegram **Bot API cannot read reactions**. Both
+> reaction-read methods (`messages.getMessagesReactions`, `messages.getMessageReactionsList`)
+> are documented *"Only users can use this method"*. So the bot writes the messages, and a
+> separate MTProto client, logged in as **your own Telegram account**, reads the counts.
+> Setup is in [MTProto setup](#mtproto-setup-required-for-attendance) below.
 
 ## Quick Start
 
@@ -51,7 +71,47 @@ CHAT_THREAD_ID=123                        # Team chat thread
 TRAINER_CHAT_THREAD_ID=456                # Trainer chat thread
 ```
 
-### 4. Run
+### 4. MTProto setup (required for attendance)
+
+Reading reactions is impossible with a bot token, so the bot also logs in as **your own
+Telegram account** to read them. Three values are needed.
+
+**Get `api_id` / `api_hash`:**
+
+1. Go to [my.telegram.org](https://my.telegram.org) and log in with the phone number of the
+   account that is **in the frisbee group**. Telegram sends the login code *inside the
+   Telegram app*, not by SMS.
+2. Click **API development tools**.
+3. Fill the form — *App title*: `frisbee-bot`, *Short name*: `frisbeebot`, *Platform*: `Other`.
+4. Copy the resulting **`api_id`** (a number) and **`api_hash`** (32-char hex) into `.env`.
+
+**Mint your session string:**
+
+```bash
+npm run mtproto:login     # run on your machine, not in Docker - it needs a terminal
+```
+
+It asks for your phone number, then the login code Telegram sends you in-app, then your 2FA
+password if you have one. Paste the printed string into `.env` as `TELEGRAM_SESSION`.
+
+```env
+TELEGRAM_API_ID=1234567
+TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef
+TELEGRAM_SESSION=1BQANOTEuMTA4LjU2...
+```
+
+> ### ⚠️ Treat `TELEGRAM_SESSION` like a password
+> Unlike a bot token, it grants **full access to your Telegram account** — it can read every
+> chat you are in and send messages as you. A leak is an *account takeover*. Never commit it,
+> never log it, never paste it anywhere.
+>
+> To revoke: Telegram → **Settings → Devices** → terminate the session.
+
+Your account must be a **member of both** `CHAT_ID` and `TRAINER_CHAT_ID`: it reads reactions
+in the first, and checks for already-sent cancellations in the second. Reactions must be
+enabled in the team group with 👍 available.
+
+### 5. Run
 
 **Docker (recommended):**
 ```bash
@@ -82,6 +142,18 @@ SUMMER_PRACTICE_DAYS=0:19:00,3:19:30
 
 Days: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
 
+### Attendance Settings
+
+```env
+WINTER_MIN_ATTENDANCE=8      # 👍 needed on the training post, else remind then cancel
+SUMMER_MIN_ATTENDANCE=8
+REMINDER_HOURS_BEFORE=3      # Remind the team this many hours before training
+CANCEL_HOURS_BEFORE=1        # Notify trainers to cancel this many hours before training
+```
+
+`CANCEL_HOURS_BEFORE` must be smaller than `REMINDER_HOURS_BEFORE` (the cancellation comes
+after the reminder); the bot refuses to start otherwise.
+
 ### AI Messages (Optional)
 
 Enable Ollama for AI-generated messages:
@@ -109,6 +181,9 @@ OLLAMA_MODEL=llama3.2:3b
 **Admin only (send commands):**
 - `/send_to_team` - Send message to team chat
 - `/send_to_all` - Send messages to team and trainer chats
+
+**Admin only (attendance):**
+- `/attendance` - Live 👍 count on the current training post, vs the season threshold
 
 ## Health Monitoring
 

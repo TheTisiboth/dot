@@ -1,7 +1,7 @@
 import { Ollama } from 'ollama'
 import { config } from '../config'
-import { type SeasonConfig, type MessageGenerationOptions, type PracticeDay } from '../types'
-import { EMOJIS } from '../utils/constants'
+import { type SeasonConfig, type MessageGenerationOptions, type PracticeDay, type Attendance } from '../types'
+import { EMOJIS, MARKERS, CANCELLATION_SIGNATURE } from '../utils/constants'
 import { log } from '../utils/logger'
 import { extractLocationName } from '../utils/formatters'
 
@@ -85,27 +85,15 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     return message
   }
 
-  private async generateOllamaMessage(
-    seasonConfig: SeasonConfig,
-    options: MessageGenerationOptions = {},
-    practiceDay: PracticeDay,
-    isTrainerMessage = false
+  private async runOllama(
+    prompt: string,
+    fallback: () => string,
+    label: string,
+    location: string,
+    options: MessageGenerationOptions = {}
   ): Promise<string> {
-    const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
-    const { season } = seasonConfig
     const { temperature = 0.6, maxTokens = 150 } = options
-
-    // Extract location name for LLM prompt (without markdown formatting)
-    const locationForPrompt = extractLocationName(location)
-
-    const prompt = isTrainerMessage
-      ? this.createTrainerLLMPrompt(time, season)
-      : this.createLLMPrompt(locationForPrompt, time, season)
     const model = config.ollama.model
-    const messageType = isTrainerMessage ? 'Trainer LLM' : 'LLM'
-    const fallbackTemplate = isTrainerMessage
-      ? () => this.generateTrainerTemplateMessage(seasonConfig, practiceDay)
-      : () => this.generateTemplateMessage(seasonConfig, practiceDay)
 
     try {
       const response = await this.ollama!.chat({
@@ -129,14 +117,34 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
       generatedMessage = this.normalizeWhitespace(generatedMessage)
       generatedMessage = this.injectLocationLink(generatedMessage, location)
 
-      const locationName = extractLocationName(location)
-      log.messageGen(`${messageType} message generated (${generatedMessage.length} chars) for ${season} at ${locationName} (${time}) using ${model}`)
+      log.messageGen(`${label} message generated (${generatedMessage.length} chars) using ${model}`)
       return generatedMessage
     } catch (error) {
-      log.error(`Generating ${messageType} message`, error)
-      log.messageGen(`Falling back to ${isTrainerMessage ? 'trainer ' : ''}template message`)
-      return fallbackTemplate()
+      log.error(`Generating ${label} message`, error)
+      log.messageGen(`Falling back to ${label} template message`)
+      return fallback()
     }
+  }
+
+  private async generateOllamaMessage(
+    seasonConfig: SeasonConfig,
+    options: MessageGenerationOptions = {},
+    practiceDay: PracticeDay,
+    isTrainerMessage = false
+  ): Promise<string> {
+    const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
+    const { season } = seasonConfig
+    const locationForPrompt = extractLocationName(location)
+
+    const prompt = isTrainerMessage
+      ? this.createTrainerLLMPrompt(time, season)
+      : this.createLLMPrompt(locationForPrompt, time, season)
+
+    const fallback = isTrainerMessage
+      ? () => this.generateTrainerTemplateMessage(seasonConfig, practiceDay)
+      : () => this.generateTemplateMessage(seasonConfig, practiceDay)
+
+    return await this.runOllama(prompt, fallback, isTrainerMessage ? 'Trainer LLM' : 'LLM', location, options)
   }
 
   async generateMessage(
@@ -165,6 +173,119 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     } else {
       return this.generateTrainerTemplateMessage(seasonConfig, practiceDay)
     }
+  }
+
+  generateReminderTemplateMessage(attendance: Attendance, practiceDay: PracticeDay): string {
+    const { count, threshold } = attendance
+    const { reminderHoursBefore, cancelHoursBefore } = config.attendance
+
+    log.messageGen(`Reminder template message generated (${count}/${threshold})`)
+    return `${MARKERS.REMINDER} Only ${count} of the ${threshold} players we need have confirmed for the ${practiceDay.time} training.
+
+${EMOJIS.BULB} This check runs ${reminderHoursBefore}h before training. React with ${EMOJIS.THUMBS_UP} on the message above if you're coming.
+
+${EMOJIS.WARNING} Without ${threshold} players ${cancelHoursBefore}h before the start, the training will be cancelled.`
+  }
+
+  async generateReminderMessage(
+    seasonConfig: SeasonConfig,
+    options: MessageGenerationOptions = {},
+    practiceDay: PracticeDay,
+    attendance: Attendance
+  ): Promise<string> {
+    const { useLLM = false } = options
+    const fallback = () => this.generateReminderTemplateMessage(attendance, practiceDay)
+
+    if (!useLLM || !this.ollama) return fallback()
+
+    const prompt = this.createReminderLLMPrompt(attendance, practiceDay.time)
+    const message = await this.runOllama(prompt, fallback, 'Reminder LLM', seasonConfig.location, options)
+
+    // The marker must never depend on the LLM: it is how we recognise our own reminder in chat history
+    return message.startsWith(MARKERS.REMINDER) ? message : `${MARKERS.REMINDER} ${message}`
+  }
+
+  /** Deliberately template-only: a cancellation must never be garbled by the LLM. */
+  generateCancellationMessage(
+    seasonConfig: SeasonConfig,
+    practiceDay: PracticeDay,
+    attendance: Attendance
+  ): string {
+    const { count, threshold } = attendance
+    const { cancelHoursBefore } = config.attendance
+    const locationName = extractLocationName(seasonConfig.location)
+
+    log.messageGen(`Cancellation message generated (${count}/${threshold})`)
+    return `${MARKERS.CANCELLATION} *${CANCELLATION_SIGNATURE} - not enough attendance.*
+
+${EMOJIS.RUNNER} Training: ${practiceDay.time} at ${locationName}
+${EMOJIS.THUMBS_UP} Confirmed: *${count}* ${EMOJIS.THUMBS_UP} out of the *${threshold}* required
+
+Only ${count} player${count === 1 ? '' : 's'} confirmed ${cancelHoursBefore}h before the start, below the minimum of ${threshold}.`
+  }
+
+  private createReminderLLMPrompt(attendance: Attendance, time: string): string {
+    const { count, threshold } = attendance
+    const { reminderHoursBefore, cancelHoursBefore } = config.attendance
+
+    return `Generate a short Ultimate Frisbee message reminding the team to confirm attendance for today's training.
+
+Output ONLY the final message text.
+Do NOT include explanations, comments, labels, quotation marks, or markdown.
+Do NOT add anything before or after the message.
+
+The message must follow this EXACT structure:
+
+------------------------------------------------------------
+FIRST LINE
+------------------------------------------------------------
+
+- Write ONE short, funny, slightly nagging Ultimate Frisbee sentence (maximum 12 words) about the team being too quiet.
+- Do NOT mention any numbers in this creative sentence.
+
+Then write EXACTLY one empty line.
+
+------------------------------------------------------------
+MIDDLE LINE (STRICT - FACTS, DO NOT ALTER THE NUMBERS)
+------------------------------------------------------------
+
+- Write exactly two sentences, in this order:
+  1. State that only ${count} out of ${threshold} needed players have confirmed for the ${time} training, and ask people to react with 👍 to confirm.
+  2. State that this check runs ${reminderHoursBefore} hours before training, and that the training will be CANCELLED ${cancelHoursBefore} hours before the start if there are still fewer than ${threshold} players.
+- The numbers ${count}, ${threshold}, ${reminderHoursBefore} and ${cancelHoursBefore} MUST appear exactly as given.
+- Do NOT invent or change any number.
+- The only emoji allowed in these two sentences is 👍.
+
+Then write EXACTLY one empty line.
+
+------------------------------------------------------------
+FINAL LINE
+------------------------------------------------------------
+
+- Write a short Ultimate Frisbee call to action (maximum 8 words).
+- You may add 0-2 emojis at the end, only from the allowed list.
+
+------------------------------------------------------------
+EMOJI RULES (STRICT)
+------------------------------------------------------------
+
+You may ONLY use emojis from this list:
+🥏 🔥 ⚡ 💨 🚀 🌟 ✨ 💪 😎 🤙 🙌 😄 😆 ⏰
+
+Rules:
+- Maximum 3 emojis in the entire message.
+- 👍 is allowed ONLY in the middle section.
+- Do NOT use any emoji outside this list.
+
+------------------------------------------------------------
+TONE
+------------------------------------------------------------
+
+- Chill, social, slightly meme-y
+- Mildly urgent, but not dramatic
+- Not corporate
+
+Generate the message now:`
   }
 
   private createTrainerLLMPrompt(time: string, season: string): string {
