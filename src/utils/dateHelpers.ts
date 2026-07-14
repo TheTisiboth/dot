@@ -25,6 +25,17 @@ export function createDateFromMonthDay(month: number, day: number, year?: number
   return new Date(currentYear, month - 1, day)
 }
 
+export function atTime(date: Date, time: string): Date {
+  const [hours, minutes] = time.split(':').map(Number)
+  const result = new Date(date)
+  result.setHours(hours, minutes, 0, 0)
+  return result
+}
+
+export function hoursBefore(date: Date, hours: number): Date {
+  return new Date(date.getTime() - hours * 60 * 60 * 1000)
+}
+
 export function getDateBefore(dateConfig: DateConfig): DateConfig {
   const date = new Date(2024, dateConfig.month - 1, dateConfig.day)
   date.setDate(date.getDate() - 1)

@@ -1,15 +1,24 @@
 import * as cron from 'node-cron'
 import { type SeasonManager } from './SeasonManager'
 import { type MessageGenerator } from './MessageGenerator'
+import { type ReactionReader } from './ReactionReader'
 import { config } from '../config'
 import type TelegramBot from 'node-telegram-bot-api'
 import { log } from '../utils/logger'
-import { type SeasonConfig, type PracticeDay } from '../types'
+import { type SeasonConfig, type PracticeDay, type Attendance, type TrainingInfo } from '../types'
+import { CANCELLATION_SIGNATURE } from '../utils/constants'
+import { atTime, hoursBefore, getEffectiveDate } from '../utils/dateHelpers'
 import { formatDateLocale, formatDateTimeLocale, extractLocationName } from '../utils/formatters'
+
+interface AttendanceCheck extends Attendance {
+  pollMessageId: number
+  training: TrainingInfo
+}
 
 export class SchedulerService {
   private readonly seasonManager: SeasonManager
   private readonly messageGenerator: MessageGenerator
+  private readonly reactionReader: ReactionReader
   private readonly bot: TelegramBot
   private readonly chatId: string
   private readonly chatThreadId?: string
@@ -17,19 +26,33 @@ export class SchedulerService {
   private readonly trainerChatThreadId?: string
   private readonly enableTrainerMessages: boolean
 
+  private pollMessageId?: number
+  private timers: NodeJS.Timeout[] = []
+
   constructor(
     seasonManager: SeasonManager,
     messageGenerator: MessageGenerator,
+    reactionReader: ReactionReader,
     bot: TelegramBot
   ) {
     this.seasonManager = seasonManager
     this.messageGenerator = messageGenerator
+    this.reactionReader = reactionReader
     this.bot = bot
     this.chatId = config.telegram.chatId
     this.chatThreadId = config.telegram.chatThreadId
     this.trainerChatId = config.telegram.trainerChatId
     this.trainerChatThreadId = config.telegram.trainerChatThreadId
     this.enableTrainerMessages = config.telegram.enableTrainerMessages
+
+    // The trainer post also asks for a 👍, so with both posts loose in the same chat there is
+    // nothing left to tell them apart once the training post's id is lost to a restart
+    if (this.trainerChatId === this.chatId && !this.trainerChatThreadId && !this.chatThreadId) {
+      log.warn(
+        'Attendance',
+        'Team and trainer messages share one chat with no threads - after a restart the training post cannot be told apart from the trainer post. Set CHAT_THREAD_ID or TRAINER_CHAT_THREAD_ID.'
+      )
+    }
   }
 
   setupScheduler(): void {
@@ -64,7 +87,163 @@ export class SchedulerService {
       })
     })
 
+    // Re-arm on startup: a restart must not silently drop an attendance check
+    this.armAttendanceTimers()
     this.logNextScheduledMessage()
+  }
+
+  /**
+   * Arms one-shot timers for the attendance checks.
+   *
+   * Called after posting the training post and again on startup. A boundary that already
+   * passed fires immediately (catch-up); the history check keeps that from double-posting.
+   */
+  armAttendanceTimers(): void {
+    this.clearTimers()
+
+    const trainingAt = this.getTrainingAt(this.seasonManager.getNextTrainingInfo())
+    const { reminderHoursBefore, cancelHoursBefore } = config.attendance
+
+    this.armTimer('Attendance reminder', hoursBefore(trainingAt, reminderHoursBefore), trainingAt, () =>
+      this.runReminderCheck(trainingAt)
+    )
+    this.armTimer('Training cancellation', hoursBefore(trainingAt, cancelHoursBefore), trainingAt, () =>
+      this.runCancellationCheck(trainingAt)
+    )
+  }
+
+  private armTimer(label: string, firesAt: Date, trainingAt: Date, check: () => Promise<void>): void {
+    const now = getEffectiveDate(new Date())
+
+    if (now > trainingAt) {
+      log.scheduler(`⏭️  ${label} skipped - training already started`)
+      return
+    }
+
+    const delay = Math.max(0, firesAt.getTime() - now.getTime())
+    const when = delay === 0 ? 'now (catch-up)' : formatDateTimeLocale(firesAt)
+    log.scheduler(`⏰ ${label} armed for ${when}`)
+
+    this.timers.push(setTimeout(() => { void check() }, delay))
+  }
+
+  private clearTimers(): void {
+    this.timers.forEach(clearTimeout)
+    this.timers = []
+  }
+
+  private getTrainingAt(training: TrainingInfo): Date {
+    return atTime(training.date, training.time)
+  }
+
+  /**
+   * Reads the live 👍 count off the training post.
+   * Returns null when the post cannot be found, so a missing post never cancels a training.
+   */
+  private async getAttendance(trainingAt: Date): Promise<AttendanceCheck | null> {
+    const training = this.seasonManager.getNextTrainingInfo()
+
+    this.pollMessageId ??= await this.reactionReader.findPollMessage(this.chatId, this.chatThreadId, trainingAt)
+
+    if (!this.pollMessageId) {
+      log.warn('Attendance', 'Training post not found - skipping check')
+      return null
+    }
+
+    const count = await this.reactionReader.getThumbsUpCount(this.chatId, this.pollMessageId)
+    const threshold = this.seasonManager.getCurrentSeasonConfig(trainingAt).minAttendance
+
+    log.scheduler(`👍 Attendance: ${count}/${threshold} for training at ${formatDateTimeLocale(trainingAt)}`)
+
+    return { pollMessageId: this.pollMessageId, count, threshold, training }
+  }
+
+  private async runReminderCheck(trainingAt: Date): Promise<void> {
+    try {
+      const attendance = await this.getAttendance(trainingAt)
+      if (!attendance) return
+
+      const { pollMessageId, count, threshold, training } = attendance
+
+      if (count >= threshold) {
+        log.scheduler(`⏭️  Reminder skipped - attendance reached (${count}/${threshold})`)
+        return
+      }
+
+      if (await this.reactionReader.hasBotReplyTo(this.chatId, this.chatThreadId, pollMessageId)) {
+        log.scheduler('⏭️  Reminder already sent - skipping')
+        return
+      }
+
+      const seasonConfig = this.seasonManager.getCurrentSeasonConfig(trainingAt)
+      const message = await this.messageGenerator.generateReminderMessage(
+        seasonConfig,
+        { useLLM: this.messageGenerator.isLLMAvailable() },
+        training.practiceDay,
+        { count, threshold }
+      )
+
+      await this.bot.sendMessage(this.chatId, message, {
+        parse_mode: 'Markdown',
+        reply_to_message_id: pollMessageId,
+        ...(this.chatThreadId && { message_thread_id: parseInt(this.chatThreadId) })
+      })
+
+      log.scheduler(`📣 Attendance reminder sent to team (${count}/${threshold})`)
+    } catch (error) {
+      log.error('Running attendance reminder check', error)
+    }
+  }
+
+  private async runCancellationCheck(trainingAt: Date): Promise<void> {
+    try {
+      const attendance = await this.getAttendance(trainingAt)
+      if (!attendance) return
+
+      const { count, threshold, training } = attendance
+
+      if (count >= threshold) {
+        log.scheduler(`⏭️  Cancellation skipped - attendance reached (${count}/${threshold})`)
+        return
+      }
+
+      if (!this.enableTrainerMessages) {
+        log.scheduler('⏭️  Trainer messages disabled - not sending cancellation')
+        return
+      }
+
+      const since = hoursBefore(trainingAt, config.attendance.cancelHoursBefore + 1)
+      const alreadyCancelled = await this.reactionReader.hasBotMessageContaining(
+        this.trainerChatId,
+        this.trainerChatThreadId,
+        CANCELLATION_SIGNATURE,
+        since
+      )
+      if (alreadyCancelled) {
+        log.scheduler('⏭️  Cancellation already sent - skipping')
+        return
+      }
+
+      const seasonConfig = this.seasonManager.getCurrentSeasonConfig(trainingAt)
+      const message = this.messageGenerator.generateCancellationMessage(seasonConfig, training.practiceDay, {
+        count,
+        threshold
+      })
+
+      await this.bot.sendMessage(this.trainerChatId, message, {
+        parse_mode: 'Markdown',
+        ...(this.trainerChatThreadId && { message_thread_id: parseInt(this.trainerChatThreadId) })
+      })
+
+      log.scheduler(`❌ Cancellation sent to trainers (${count}/${threshold})`)
+    } catch (error) {
+      log.error('Running training cancellation check', error)
+    }
+  }
+
+  /** Exposed for the /attendance admin command. */
+  async inspectAttendance(): Promise<AttendanceCheck | null> {
+    return await this.getAttendance(this.getTrainingAt(this.seasonManager.getNextTrainingInfo()))
   }
 
   private logNextScheduledMessage(): void {
@@ -106,10 +285,14 @@ export class SchedulerService {
       const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM }, practiceDay)
 
       log.bot(`Sending message to chat ${this.chatId}`)
-      await this.bot.sendMessage(this.chatId, message, {
+      const sent = await this.bot.sendMessage(this.chatId, message, {
         parse_mode: 'Markdown',
         ...(this.chatThreadId && { message_thread_id: parseInt(this.chatThreadId) })
       })
+
+      // The training post is the poll: its 👍 reactions are the attendance count
+      this.pollMessageId = sent.message_id
+      this.armAttendanceTimers()
 
       const locationName = extractLocationName(seasonConfig.location)
       const threadInfo = this.chatThreadId ? ` (thread ${this.chatThreadId})` : ''

@@ -50,6 +50,17 @@ services:
       - TRAINER_CHAT_ID=${TRAINER_CHAT_ID}
       - TRAINER_CHAT_THREAD_ID=${TRAINER_CHAT_THREAD_ID}
 
+      # MTProto user account (required to read reactions - bots cannot)
+      - TELEGRAM_API_ID=${TELEGRAM_API_ID}
+      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
+      - TELEGRAM_SESSION=${TELEGRAM_SESSION}
+
+      # Attendance
+      - WINTER_MIN_ATTENDANCE=${WINTER_MIN_ATTENDANCE:-8}
+      - SUMMER_MIN_ATTENDANCE=${SUMMER_MIN_ATTENDANCE:-8}
+      - REMINDER_HOURS_BEFORE=${REMINDER_HOURS_BEFORE:-3}
+      - CANCEL_HOURS_BEFORE=${CANCEL_HOURS_BEFORE:-1}
+
       # Timezone configuration
       - TZ=Europe/Brussels
 

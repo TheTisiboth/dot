@@ -49,6 +49,7 @@ export class BotController {
     this.bot.onText(/\/preview_all/, (msg) => this.requireAdmin(msg, () => this.handlePreviewAll(msg)))
     this.bot.onText(/\/send_to_team/, (msg) => this.requireAdmin(msg, () => this.handleSendToTeam(msg)))
     this.bot.onText(/\/send_to_all/, (msg) => this.requireAdmin(msg, () => this.handleSendToAll(msg)))
+    this.bot.onText(/\/attendance/, (msg) => this.requireAdmin(msg, () => this.handleAttendance(msg)))
   }
 
     private async registerBotCommands() {
@@ -68,7 +69,8 @@ export class BotController {
             {command: 'preview_team', description: 'Preview team message (template or LLM)'},
             {command: 'preview_all', description: 'Preview both team and trainer messages'},
             {command: 'send_to_team', description: 'Send message to team chat'},
-            {command: 'send_to_all', description: 'Send messages to team and trainer chats'}
+            {command: 'send_to_all', description: 'Send messages to team and trainer chats'},
+            {command: 'attendance', description: 'Show live 👍 count on the training post'}
         ]
 
         try {
@@ -244,6 +246,40 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
     } catch (error) {
       const errorMessage = this.getErrorMessage(error)
       await this.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} Error: ${errorMessage}`)
+    }
+  }
+
+  private async handleAttendance(msg: TelegramBot.Message): Promise<void> {
+    log.command('/attendance', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
+
+    if (!this.schedulerService) {
+      await this.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} Scheduler service not available`)
+      return
+    }
+
+    try {
+      const attendance = await this.schedulerService.inspectAttendance()
+
+      if (!attendance) {
+        await this.sendMessage(msg.chat.id, `${EMOJIS.WARNING} No training post found for the next training - nothing to count yet.`)
+        return
+      }
+
+      const { count, threshold, pollMessageId, training } = attendance
+      const status = count >= threshold ? `${EMOJIS.CHECK_MARK} Enough players` : `${EMOJIS.WARNING} Below threshold`
+      const { reminderHoursBefore, cancelHoursBefore } = config.attendance
+
+      const text = `${EMOJIS.THUMBS_UP} *Attendance*
+
+${status}: *${count}* / *${threshold}*
+
+${EMOJIS.CALENDAR} Training: ${formatDate(training.date)} at ${training.time}
+${EMOJIS.MEMO} Poll message id: \`${pollMessageId}\`
+${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHoursBefore}h before`
+
+      await this.sendMessage(msg.chat.id, text, { parse_mode: 'Markdown' })
+    } catch (error) {
+      await this.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} Error: ${this.getErrorMessage(error)}`)
     }
   }
 

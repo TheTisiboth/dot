@@ -1,10 +1,8 @@
 import type { z } from 'zod'
 import type { botConfigSchema, practiceDaySchema, dateConfigSchema } from '../config/schema'
 
-export interface SeasonConfig {
+export interface SeasonConfig extends SeasonConfigBase {
   season: SeasonType;
-  location: string;
-  practices: PracticeDay[];
 }
 
 export type PracticeDay = z.infer<typeof practiceDaySchema>
@@ -20,6 +18,11 @@ export interface MessageGenerationOptions {
   useLLM?: boolean;
   temperature?: number;
   maxTokens?: number;
+}
+
+export interface Attendance {
+  count: number;
+  threshold: number;
 }
 
 export interface TrainingInfo {
