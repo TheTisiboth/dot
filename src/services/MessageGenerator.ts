@@ -177,14 +177,13 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
 
   generateReminderTemplateMessage(attendance: Attendance, practiceDay: PracticeDay): string {
     const { count, threshold } = attendance
-    const { reminderHoursBefore, cancelHoursBefore } = config.attendance
 
     log.messageGen(`Reminder template message generated (${count}/${threshold})`)
-    return `${MARKERS.REMINDER} Only ${count} of the ${threshold} players we need have confirmed for the ${practiceDay.time} training.
+    return `${MARKERS.REMINDER} So far ${count} of the ${threshold} players we need have confirmed for the ${practiceDay.time} training.
 
-${EMOJIS.BULB} This check runs ${reminderHoursBefore}h before training. React with ${EMOJIS.THUMBS_UP} on the message above if you're coming.
+${EMOJIS.BULB} If you're coming, please react with ${EMOJIS.THUMBS_UP} on the original training post above (the one this message replies to).
 
-${EMOJIS.WARNING} Without ${threshold} players ${cancelHoursBefore}h before the start, the training will be cancelled.`
+${EMOJIS.WARNING} If we don't reach ${threshold}, the training might have to be cancelled.`
   }
 
   async generateReminderMessage(
@@ -226,7 +225,6 @@ Only ${count} player${count === 1 ? '' : 's'} confirmed ${cancelHoursBefore}h be
 
   private createReminderLLMPrompt(attendance: Attendance, time: string): string {
     const { count, threshold } = attendance
-    const { reminderHoursBefore, cancelHoursBefore } = config.attendance
 
     return `Generate a short Ultimate Frisbee message reminding the team to confirm attendance for today's training.
 
@@ -240,7 +238,9 @@ The message must follow this EXACT structure:
 FIRST LINE
 ------------------------------------------------------------
 
-- Write ONE short, funny, slightly nagging Ultimate Frisbee sentence (maximum 12 words) about the team being too quiet.
+- Write ONE short, warm and friendly Ultimate Frisbee sentence (maximum 12 words) gently encouraging the team to reply.
+- Keep it kind, positive and playful.
+- Do NOT be rude, aggressive, passive-aggressive or guilt-tripping. NEVER use insults or commands such as "shut up".
 - Do NOT mention any numbers in this creative sentence.
 
 Then write EXACTLY one empty line.
@@ -250,10 +250,10 @@ MIDDLE LINE (STRICT - FACTS, DO NOT ALTER THE NUMBERS)
 ------------------------------------------------------------
 
 - Write exactly two sentences, in this order:
-  1. State that only ${count} out of ${threshold} needed players have confirmed for the ${time} training, and ask people to react with 👍 to confirm.
-  2. State that this check runs ${reminderHoursBefore} hours before training, and that the training will be CANCELLED ${cancelHoursBefore} hours before the start if there are still fewer than ${threshold} players.
-- The numbers ${count}, ${threshold}, ${reminderHoursBefore} and ${cancelHoursBefore} MUST appear exactly as given.
-- Do NOT invent or change any number.
+  1. State that so far ${count} out of ${threshold} needed players have confirmed for the ${time} training, and kindly ask people to react with 👍 on the original training post above (the message this one replies to) to confirm.
+  2. State that if we do not reach ${threshold} players, the training might have to be cancelled. Do NOT mention any specific time or number of hours for the cancellation.
+- The numbers ${count} and ${threshold} MUST appear exactly as given.
+- Do NOT invent or change any number, and do NOT add any other number.
 - The only emoji allowed in these two sentences is 👍.
 
 Then write EXACTLY one empty line.
@@ -281,9 +281,10 @@ Rules:
 TONE
 ------------------------------------------------------------
 
-- Chill, social, slightly meme-y
-- Mildly urgent, but not dramatic
-- Not corporate
+- Warm, friendly, welcoming and encouraging
+- Chill and social, lightly playful
+- Never rude, aggressive or guilt-tripping
+- Not dramatic, not corporate
 
 Generate the message now:`
   }
