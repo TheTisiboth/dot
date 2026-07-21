@@ -37,7 +37,7 @@ services:
     container_name: frisbee-bot
     restart: unless-stopped
     ports:
-      - "3004:3004"
+      - "${APP_PORT:-3004}:3004"
     depends_on:
       ollama:
         condition: service_healthy
