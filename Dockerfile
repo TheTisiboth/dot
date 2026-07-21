@@ -42,8 +42,8 @@ RUN chown -R nodejs:nodejs /app
 
 USER nodejs
 
-# Expose port (though the bot doesn't serve HTTP, this is for documentation)
-EXPOSE 3000
+# Health server port
+EXPOSE 3004
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
