@@ -61,6 +61,10 @@ services:
       - REMINDER_HOURS_BEFORE=${REMINDER_HOURS_BEFORE:-3}
       - CANCEL_HOURS_BEFORE=${CANCEL_HOURS_BEFORE:-1}
 
+      # Key-holder message
+      - WINTER_KEY_MESSAGE_ENABLED=${WINTER_KEY_MESSAGE_ENABLED:-true}
+      - SUMMER_KEY_MESSAGE_ENABLED=${SUMMER_KEY_MESSAGE_ENABLED:-true}
+
       # Timezone configuration
       - TZ=Europe/Brussels
 

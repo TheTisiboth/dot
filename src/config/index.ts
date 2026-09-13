@@ -40,13 +40,15 @@ function loadAndValidateConfig(): BotConfig {
                 startDate: parseDate(process.env.WINTER_START_DATE),
                 location: process.env.WINTER_LOCATION,
                 practices: parsePracticeDays(process.env.WINTER_PRACTICE_DAYS),
-                minAttendance: Number(process.env.WINTER_MIN_ATTENDANCE ?? 8)
+                minAttendance: Number(process.env.WINTER_MIN_ATTENDANCE ?? 8),
+                keyMessageEnabled: process.env.WINTER_KEY_MESSAGE_ENABLED !== 'false'
             },
             summer: {
                 startDate: parseDate(process.env.SUMMER_START_DATE),
                 location: process.env.SUMMER_LOCATION,
                 practices: parsePracticeDays(process.env.SUMMER_PRACTICE_DAYS),
-                minAttendance: Number(process.env.SUMMER_MIN_ATTENDANCE ?? 8)
+                minAttendance: Number(process.env.SUMMER_MIN_ATTENDANCE ?? 8),
+                keyMessageEnabled: process.env.SUMMER_KEY_MESSAGE_ENABLED !== 'false'
             }
         },
 

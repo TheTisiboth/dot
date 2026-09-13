@@ -204,6 +204,53 @@ ${EMOJIS.WARNING} If we don't reach ${threshold}, the training might have to be 
     return message.startsWith(MARKERS.REMINDER) ? message : `${MARKERS.REMINDER} ${message}`
   }
 
+  generateKeyTemplateMessage(): string {
+    log.messageGen('Key template message generated')
+    return `${MARKERS.KEY} Hi team!
+
+If you have the key to the sports hall and will bring it to tomorrow's training, please react with ${EMOJIS.THUMBS_UP} to this message.
+
+If you have the key but can't come, please react with ${EMOJIS.CRYING}.`
+  }
+
+  async generateKeyMessage(
+    seasonConfig: SeasonConfig,
+    options: MessageGenerationOptions = {}
+  ): Promise<string> {
+    const { useLLM = false } = options
+    const fallback = () => this.generateKeyTemplateMessage()
+
+    if (!useLLM || !this.ollama) return fallback()
+
+    const generated = await this.runOllama(
+      this.createKeyLLMPrompt(),
+      fallback,
+      'Key LLM',
+      seasonConfig.location,
+      { temperature: 0.5, maxTokens: 200, ...options }
+    )
+    const message = generated.replace(new RegExp(`^${MARKERS.KEY}\\s*`, 'u'), '')
+
+    // A key holder reacting with the wrong emoji is worse than a boring message, so drift falls back
+    if (!this.isValidKeyMessage(message)) {
+      log.messageGen('Key LLM message failed validation, falling back to template')
+      return fallback()
+    }
+
+    return `${MARKERS.KEY} ${message}`
+  }
+
+  private isValidKeyMessage(message: string): boolean {
+    const countOf = (emoji: string) => message.split(emoji).length - 1
+
+    return countOf(EMOJIS.THUMBS_UP) === 1 &&
+      countOf(EMOJIS.CRYING) === 1 &&
+      message.indexOf(EMOJIS.THUMBS_UP) < message.indexOf(EMOJIS.CRYING) &&
+      !message.includes(EMOJIS.THUMBS_DOWN) &&
+      /\bkeys?\b/i.test(message) &&
+      message.length <= 400
+  }
+
   /** Deliberately template-only: a cancellation must never be garbled by the LLM. */
   generateCancellationMessage(
     seasonConfig: SeasonConfig,
@@ -285,6 +332,89 @@ TONE
 - Chill and social, lightly playful
 - Never rude, aggressive or guilt-tripping
 - Not dramatic, not corporate
+
+Generate the message now:`
+  }
+
+  private createKeyLLMPrompt(): string {
+    return `Generate a short message asking the Ultimate Frisbee team who has the key to the sports hall for tomorrow's training.
+
+Output ONLY the final message text.
+Do NOT include explanations, comments, labels, quotation marks, or markdown.
+Do NOT add anything before or after the message.
+
+The message must follow this EXACT structure:
+
+------------------------------------------------------------
+FIRST LINE
+------------------------------------------------------------
+
+- Write ONE short, warm and friendly greeting sentence (maximum 12 words).
+- Do NOT use any emoji in this line.
+- Do NOT mention reactions, emojis, numbers, times or places in this line.
+- Do NOT start the message with 🔑.
+
+Then write EXACTLY one empty line.
+
+------------------------------------------------------------
+MIDDLE LINES (STRICT - DO NOT CHANGE THE MEANING)
+------------------------------------------------------------
+
+- Write EXACTLY these two sentences, each on its own line, with one empty line between them.
+- You may only change a few words for style. The meaning MUST stay exactly the same.
+
+If you have the key to the sports hall and will bring it to tomorrow's training, please react with 👍 to this message.
+
+If you have the key but can't come, please react with 😢.
+
+Rules for these two sentences:
+- 👍 means: I have the key AND I am coming. It MUST be in the first sentence.
+- 😢 means: I have the key BUT I cannot come. It MUST be in the second sentence.
+- NEVER swap 👍 and 😢.
+- Use 👍 exactly once and 😢 exactly once in the whole message.
+- NEVER use 👎.
+- Do NOT ask people without the key to react.
+- Do NOT ask people to confirm their attendance. This message is ONLY about the key.
+
+Then write EXACTLY one empty line.
+
+------------------------------------------------------------
+FINAL LINE
+------------------------------------------------------------
+
+- Write a short thank you sentence (maximum 8 words).
+- You may add 0-1 emoji at the end, only from the allowed list.
+
+------------------------------------------------------------
+EMOJI RULES (STRICT)
+------------------------------------------------------------
+
+- 👍 and 😢 are allowed ONLY in the middle lines, once each.
+- In the final line you may ONLY use one of these: 🥏 🙌 🙏 😄 ✨
+- Maximum 3 emojis in the entire message.
+- Do NOT use any other emoji.
+
+------------------------------------------------------------
+TONE
+------------------------------------------------------------
+
+- Friendly, simple and clear
+- Short, no jokes about the key
+- Not dramatic, not corporate
+
+------------------------------------------------------------
+EXAMPLE OF A CORRECT OUTPUT STRUCTURE
+------------------------------------------------------------
+
+Hey frisbee crew, one little favour before tomorrow!
+
+If you have the key to the sports hall and will bring it to tomorrow's training, please react with 👍 to this message.
+
+If you have the key but can't come, please react with 😢.
+
+You're the best, thank you! 🥏
+
+IMPORTANT: Write your OWN first line and your OWN final line. Do NOT copy the first and final line of the example.
 
 Generate the message now:`
   }
