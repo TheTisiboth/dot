@@ -289,7 +289,7 @@ export class SchedulerService {
       const threadInfo = this.chatThreadId ? ` (thread ${this.chatThreadId})` : ''
       log.scheduler(`Scheduled message sent to team${threadInfo} - ${seasonConfig.season} at ${locationName} (${practiceDay.time}) using ${useLLM ? 'LLM' : 'template'}`)
 
-      await this.sendKeyMessage(seasonConfig, useLLM)
+      await this.sendKeyMessage(seasonConfig)
 
       // Send trainer check message
       await this.sendTrainerCheckMessage(seasonConfig, practiceDay, useLLM)
@@ -298,14 +298,14 @@ export class SchedulerService {
     }
   }
 
-  private async sendKeyMessage(seasonConfig: SeasonConfig, useLLM: boolean): Promise<void> {
+  private async sendKeyMessage(seasonConfig: SeasonConfig): Promise<void> {
     if (!seasonConfig.keyMessageEnabled) {
       log.scheduler(`Key message disabled for ${seasonConfig.season}, skipping`)
       return
     }
 
     try {
-      const keyMessage = await this.messageGenerator.generateKeyMessage(seasonConfig, { useLLM })
+      const keyMessage = this.messageGenerator.generateKeyMessage()
 
       log.bot(`Sending message to chat ${this.chatId}`)
       await this.bot.sendMessage(this.chatId, keyMessage, {
@@ -314,7 +314,7 @@ export class SchedulerService {
       })
 
       const threadInfo = this.chatThreadId ? ` (thread ${this.chatThreadId})` : ''
-      log.scheduler(`Key message sent to team${threadInfo} using ${useLLM ? 'LLM' : 'template'}`)
+      log.scheduler(`Key message sent to team${threadInfo}`)
     } catch (error) {
       log.error('Sending key message', error)
     }

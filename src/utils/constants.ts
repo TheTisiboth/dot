@@ -18,8 +18,7 @@ export const EMOJIS = {
   COACH: '👨‍🏫',
   MEGAPHONE: '📣',
   KEY: '🔑',
-  CRYING: '😢',
-  THUMBS_DOWN: '👎'
+  CRYING: '😢'
 } as const
 
 // Prepended in code (never by the LLM). Cosmetic only - the LLM does not reliably respect the
