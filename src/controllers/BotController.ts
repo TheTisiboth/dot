@@ -67,7 +67,7 @@ export class BotController {
             {command: 'test_template', description: 'Preview template message'},
             {command: 'test_llm', description: 'Preview LLM team message'},
             {command: 'test_trainer', description: 'Preview LLM trainer message'},
-            {command: 'test_key', description: 'Preview LLM key-holder message'},
+            {command: 'test_key', description: 'Preview key-holder message'},
             {command: 'preview_team', description: 'Preview team message (template or LLM)'},
             {command: 'preview_all', description: 'Preview both team and trainer messages'},
             {command: 'send_to_team', description: 'Send message to team chat'},
@@ -159,14 +159,13 @@ ${summerInfo}`
 
   private async handleTestKey(msg: TelegramBot.Message): Promise<void> {
     log.command('/test_key', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
-    await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
 
     const nextTraining = this.seasonManager.getNextTrainingInfo()
     const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
-    const message = await this.messageGenerator.generateKeyMessage(seasonConfig, { useLLM: true })
+    const message = this.messageGenerator.generateKeyMessage()
     const status = seasonConfig.keyMessageEnabled ? '' : `\n\n${EMOJIS.WARNING} Disabled for ${seasonConfig.season}: it will not be sent.`
 
-    await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} Key LLM Generated Message:\n\n${message}${status}`, { parse_mode: 'Markdown' })
+    await this.sendMessage(msg.chat.id, `${EMOJIS.KEY} Key Message:\n\n${message}${status}`, { parse_mode: 'Markdown' })
   }
 
 
@@ -211,7 +210,7 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
       await this.sendMessage(msg.chat.id, `${EMOJIS.FRISBEE} *Team Message Preview:*\n\n${teamMessage}`, { parse_mode: 'Markdown' })
 
       if (seasonConfig.keyMessageEnabled) {
-        const keyMessage = await this.messageGenerator.generateKeyMessage(seasonConfig, { useLLM })
+        const keyMessage = this.messageGenerator.generateKeyMessage()
         await this.sendMessage(msg.chat.id, `${EMOJIS.KEY} *Key Message Preview:*\n\n${keyMessage}`, { parse_mode: 'Markdown' })
       } else {
         await this.sendMessage(msg.chat.id, `${EMOJIS.KEY} Key message disabled for ${seasonConfig.season}`)
