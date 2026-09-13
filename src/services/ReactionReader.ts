@@ -1,5 +1,7 @@
 // sessions comes from the package root: Node's ESM loader cannot import the 'telegram/sessions' directory
-import { TelegramClient, Api, sessions } from 'telegram'
+import { TelegramClient, Api, sessions, Logger } from 'telegram'
+// Type-only: the LogLevel enum is not re-exported from the root, and ESM cannot deep-import it without an extension
+import type { LogLevel } from 'telegram/extensions/Logger'
 import { config } from '../config'
 import { EMOJIS, isKeyMessage } from '../utils/constants'
 import { hoursBefore } from '../utils/dateHelpers'
@@ -30,8 +32,13 @@ export class ReactionReader {
       new sessions.StringSession(config.mtproto.session),
       config.mtproto.apiId,
       config.mtproto.apiHash,
-      { connectionRetries: 5 }
+      // GramJS prints raw stack traces for routine keep-alive timeouts it recovers from on its own.
+      // Real failures still reach us as rejected calls.
+      { connectionRetries: 5, baseLogger: new Logger('none' as LogLevel) }
     )
+    this.client.onError = async (error) => {
+      log.warn('MTProto', `Connection issue, GramJS retries on its own: ${error.message}`)
+    }
     // A bot token is "<botId>:<hash>" - cheaper than a getMe() round trip
     this.botId = config.telegram.token.split(':')[0]
   }
