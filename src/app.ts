@@ -5,6 +5,7 @@ import { MessageGenerator } from './services/MessageGenerator'
 import { ReactionReader } from './services/ReactionReader'
 import { SchedulerService } from './services/SchedulerService'
 import { HealthServer } from './services/HealthServer'
+import { PollingGuard } from './services/PollingGuard'
 import { BotController } from './controllers/BotController'
 import { MESSAGES, EMOJIS } from './utils/constants'
 import { log } from './utils/logger'
@@ -17,9 +18,11 @@ class UltimateFrisbeeBot {
   private readonly reactionReader: ReactionReader
   private readonly schedulerService: SchedulerService
   private readonly healthServer: HealthServer
+  private readonly pollingGuard: PollingGuard
 
   constructor() {
     this.bot = new TelegramBot(config.telegram.token, { polling: true })
+    this.pollingGuard = new PollingGuard(this.bot)
     this.seasonManager = new SeasonManager()
     this.messageGenerator = new MessageGenerator()
     this.reactionReader = new ReactionReader()
@@ -41,8 +44,8 @@ class UltimateFrisbeeBot {
   }
 
   private setupErrorHandlers(): void {
-    process.on('unhandledRejection', (reason, _promise) => {
-      log.error('Unhandled Rejection', new Error(String(reason)))
+    process.on('unhandledRejection', (reason) => {
+      log.error('Unhandled Rejection', reason instanceof Error ? reason : new Error(String(reason)))
     })
 
     process.on('uncaughtException', (error) => {
@@ -60,6 +63,7 @@ class UltimateFrisbeeBot {
       shuttingDown = true
 
       log.bot(`Received ${signal}, stopping polling...`)
+      this.pollingGuard.stop()
       void Promise.all([this.bot.stopPolling(), this.reactionReader.disconnect()]).then(() => {
         log.bot('Polling stopped, exiting')
         process.exit(0)
