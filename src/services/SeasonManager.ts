@@ -43,7 +43,8 @@ export class SeasonManager {
     }
   }
 
-  shouldSendMessage(date: Date = new Date()): boolean {
+  /** Whether a training starts tomorrow at `time`: the post goes out exactly 24h before it. */
+  shouldSendMessage(time: string, date: Date = new Date()): boolean {
     date = getEffectiveDate(date)
 
     const tomorrow = new Date(date)
@@ -52,7 +53,13 @@ export class SeasonManager {
     const seasonConfig = this.getCurrentSeasonConfig(tomorrow)
     const tomorrowDayOfWeek = tomorrow.getDay()
 
-    return seasonConfig.practices.some(practice => practice.day === tomorrowDayOfWeek)
+    return seasonConfig.practices.some(practice => practice.day === tomorrowDayOfWeek && practice.time === time)
+  }
+
+  /** Practice times of every season, so a season switch never lands on a time with no check registered. */
+  getAllPracticeTimes(): string[] {
+    const practices = [...this.seasons.winter.practices, ...this.seasons.summer.practices]
+    return [...new Set(practices.map(practice => practice.time))]
   }
 
   getPracticeForDay(date: Date = new Date()): PracticeDay {

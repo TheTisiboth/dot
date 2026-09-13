@@ -56,34 +56,23 @@ export class SchedulerService {
   }
 
   setupScheduler(): void {
-    const seasonConfig = this.seasonManager.getCurrentSeasonConfig()
-
-    // Get unique practice times
-    const uniqueTimes = [...new Set(seasonConfig.practices.map(p => p.time))]
-
-    // Create a cron job for each unique practice time
-    uniqueTimes.forEach(time => {
+    this.seasonManager.getAllPracticeTimes().forEach(time => {
       const [hour, minute] = time.split(':').map(Number)
       const cronExpression = `${minute} ${hour} * * *`
 
       log.scheduler(`⏰ Registered daily reminder check at ${time}`)
 
       cron.schedule(cronExpression, async () => {
-        const now = new Date()
-        const tomorrow = new Date(now)
-        tomorrow.setDate(now.getDate() + 1)
+        const tomorrow = new Date()
+        tomorrow.setDate(tomorrow.getDate() + 1)
 
-        log.scheduler(`🔔 Reminder check triggered: ${formatDateTimeLocale(now)}`)
-        log.scheduler(`📆 Checking if training tomorrow (${formatDateLocale(tomorrow)})`)
-
-        if (this.seasonManager.shouldSendMessage()) {
-          log.scheduler('✅ Training tomorrow - sending reminders')
+        if (this.seasonManager.shouldSendMessage(time)) {
+          log.scheduler(`✅ Training tomorrow (${formatDateLocale(tomorrow)}) at ${time} - sending reminders`)
           await this.sendScheduledMessage()
-          this.logNextScheduledMessage()
         } else {
-          log.scheduler('⏭️  No training tomorrow - skipping')
-          this.logNextScheduledMessage()
+          log.scheduler(`⏭️  No training tomorrow (${formatDateLocale(tomorrow)}) at ${time} - skipping`)
         }
+        this.logNextScheduledMessage()
       })
     })
 
@@ -248,20 +237,22 @@ export class SchedulerService {
 
   private logNextScheduledMessage(): void {
     const now = new Date()
+    // The cron fires at the practice's base time, which EXCEPTIONAL_TIME does not move
+    const reminderDateFor = (training: TrainingInfo): Date => {
+      const date = atTime(training.date, training.practiceDay.time)
+      date.setDate(date.getDate() - 1)
+      return date
+    }
+
     let nextTraining = this.seasonManager.getNextTrainingInfo()
-    let reminderDate = new Date(nextTraining.date)
-    reminderDate.setDate(reminderDate.getDate() - 1)
-    reminderDate.setHours(parseInt(nextTraining.time.split(':')[0]), parseInt(nextTraining.time.split(':')[1]), 0, 0)
+    let reminderDate = reminderDateFor(nextTraining)
 
     // If the reminder has already passed, get the training after this one
     if (reminderDate <= now) {
       const dayAfterNextTraining = new Date(nextTraining.date)
       dayAfterNextTraining.setDate(dayAfterNextTraining.getDate() + 1)
       nextTraining = this.seasonManager.getNextTrainingInfo(dayAfterNextTraining)
-
-      reminderDate = new Date(nextTraining.date)
-      reminderDate.setDate(reminderDate.getDate() - 1)
-      reminderDate.setHours(parseInt(nextTraining.time.split(':')[0]), parseInt(nextTraining.time.split(':')[1]), 0, 0)
+      reminderDate = reminderDateFor(nextTraining)
     }
 
     const msUntilReminder = reminderDate.getTime() - now.getTime()
