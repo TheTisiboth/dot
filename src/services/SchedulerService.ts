@@ -298,10 +298,34 @@ export class SchedulerService {
       const threadInfo = this.chatThreadId ? ` (thread ${this.chatThreadId})` : ''
       log.scheduler(`Scheduled message sent to team${threadInfo} - ${seasonConfig.season} at ${locationName} (${practiceDay.time}) using ${useLLM ? 'LLM' : 'template'}`)
 
+      await this.sendKeyMessage(seasonConfig, useLLM)
+
       // Send trainer check message
       await this.sendTrainerCheckMessage(seasonConfig, practiceDay, useLLM)
     } catch (error) {
       log.error('Sending scheduled message', error)
+    }
+  }
+
+  private async sendKeyMessage(seasonConfig: SeasonConfig, useLLM: boolean): Promise<void> {
+    if (!seasonConfig.keyMessageEnabled) {
+      log.scheduler(`Key message disabled for ${seasonConfig.season}, skipping`)
+      return
+    }
+
+    try {
+      const keyMessage = await this.messageGenerator.generateKeyMessage(seasonConfig, { useLLM })
+
+      log.bot(`Sending message to chat ${this.chatId}`)
+      await this.bot.sendMessage(this.chatId, keyMessage, {
+        parse_mode: 'Markdown',
+        ...(this.chatThreadId && { message_thread_id: parseInt(this.chatThreadId) })
+      })
+
+      const threadInfo = this.chatThreadId ? ` (thread ${this.chatThreadId})` : ''
+      log.scheduler(`Key message sent to team${threadInfo} using ${useLLM ? 'LLM' : 'template'}`)
+    } catch (error) {
+      log.error('Sending key message', error)
     }
   }
 

@@ -45,6 +45,7 @@ export class BotController {
     this.bot.onText(/\/test_template/, (msg) => this.requireAdmin(msg, () => this.handleTestTemplate(msg)))
     this.bot.onText(/\/test_llm/, (msg) => this.requireAdmin(msg, () => this.handleTestLLM(msg)))
     this.bot.onText(/\/test_trainer/, (msg) => this.requireAdmin(msg, () => this.handleTestTrainer(msg)))
+    this.bot.onText(/\/test_key/, (msg) => this.requireAdmin(msg, () => this.handleTestKey(msg)))
     this.bot.onText(/\/preview_team/, (msg) => this.requireAdmin(msg, () => this.handlePreviewTeam(msg)))
     this.bot.onText(/\/preview_all/, (msg) => this.requireAdmin(msg, () => this.handlePreviewAll(msg)))
     this.bot.onText(/\/send_to_team/, (msg) => this.requireAdmin(msg, () => this.handleSendToTeam(msg)))
@@ -66,6 +67,7 @@ export class BotController {
             {command: 'test_template', description: 'Preview template message'},
             {command: 'test_llm', description: 'Preview LLM team message'},
             {command: 'test_trainer', description: 'Preview LLM trainer message'},
+            {command: 'test_key', description: 'Preview LLM key-holder message'},
             {command: 'preview_team', description: 'Preview team message (template or LLM)'},
             {command: 'preview_all', description: 'Preview both team and trainer messages'},
             {command: 'send_to_team', description: 'Send message to team chat'},
@@ -155,6 +157,18 @@ ${summerInfo}`
     await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} Trainer LLM Generated Message:\n\n${message}`, { parse_mode: 'Markdown' })
   }
 
+  private async handleTestKey(msg: TelegramBot.Message): Promise<void> {
+    log.command('/test_key', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
+    await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
+
+    const nextTraining = this.seasonManager.getNextTrainingInfo()
+    const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
+    const message = await this.messageGenerator.generateKeyMessage(seasonConfig, { useLLM: true })
+    const status = seasonConfig.keyMessageEnabled ? '' : `\n\n${EMOJIS.WARNING} Disabled for ${seasonConfig.season}: it will not be sent.`
+
+    await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} Key LLM Generated Message:\n\n${message}${status}`, { parse_mode: 'Markdown' })
+  }
+
 
   private async handleTraining(msg: TelegramBot.Message): Promise<void> {
     log.command('/training', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
@@ -195,6 +209,13 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
       // Generate and show team message
       const teamMessage = await this.messageGenerator.generateMessage(seasonConfig, { useLLM }, nextTraining.practiceDay)
       await this.sendMessage(msg.chat.id, `${EMOJIS.FRISBEE} *Team Message Preview:*\n\n${teamMessage}`, { parse_mode: 'Markdown' })
+
+      if (seasonConfig.keyMessageEnabled) {
+        const keyMessage = await this.messageGenerator.generateKeyMessage(seasonConfig, { useLLM })
+        await this.sendMessage(msg.chat.id, `${EMOJIS.KEY} *Key Message Preview:*\n\n${keyMessage}`, { parse_mode: 'Markdown' })
+      } else {
+        await this.sendMessage(msg.chat.id, `${EMOJIS.KEY} Key message disabled for ${seasonConfig.season}`)
+      }
 
       // Generate and show trainer message
       const trainerMessage = await this.messageGenerator.generateTrainerMessage(seasonConfig, { useLLM }, nextTraining.practiceDay)

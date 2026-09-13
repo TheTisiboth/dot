@@ -1,7 +1,7 @@
 // sessions comes from the package root: Node's ESM loader cannot import the 'telegram/sessions' directory
 import { TelegramClient, Api, sessions } from 'telegram'
 import { config } from '../config'
-import { EMOJIS } from '../utils/constants'
+import { EMOJIS, isKeyMessage } from '../utils/constants'
 import { hoursBefore } from '../utils/dateHelpers'
 import { withTimeout } from '../utils/async'
 import { log } from '../utils/logger'
@@ -91,7 +91,8 @@ export class ReactionReader {
   /**
    * Recovers the training post after a restart, when its id is no longer in memory.
    * It is the bot's most recent standalone message carrying a 👍 in the run-up to the training -
-   * command replies never contain one, so they cannot be mistaken for it.
+   * command replies never contain one, so they cannot be mistaken for it. The key message, posted
+   * right after it, also carries a 👍 and is skipped explicitly.
    */
   async findPollMessage(chatId: string, threadId: string | undefined, trainingAt: Date): Promise<number | undefined> {
     const messages = await this.fetchMessages(chatId, { limit: HISTORY_LIMIT }, threadId)
@@ -101,6 +102,7 @@ export class ReactionReader {
       this.isFromBot(message) &&
       !this.isReplyToMessage(message, threadId) &&
       message.message?.includes(EMOJIS.THUMBS_UP) &&
+      !isKeyMessage(message.message) &&
       this.sentAt(message) >= windowStart &&
       this.sentAt(message) <= trainingAt
     )

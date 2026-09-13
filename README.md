@@ -12,6 +12,7 @@ A TypeScript Telegram bot that automatically sends training reminders based on s
 - 🤖 AI-generated messages (optional)
 - 👥 Separate messages for team and trainers
 - 👍 Attendance tracking from 👍 reactions, with automatic reminder and cancellation
+- 🔑 Key-holder message asking who brings the sports hall key
 - ⚙️ Fully configurable via environment variables
 
 ## Attendance tracking
@@ -154,6 +155,20 @@ CANCEL_HOURS_BEFORE=1        # Notify trainers to cancel this many hours before 
 `CANCEL_HOURS_BEFORE` must be smaller than `REMINDER_HOURS_BEFORE` (the cancellation comes
 after the reminder); the bot refuses to start otherwise.
 
+### Key-holder Message
+
+Right after the training post, the bot sends a separate message to the team chat asking key
+holders to react: 👍 = I have the key and I'm coming, 😢 = I have the key but can't come.
+
+```env
+WINTER_KEY_MESSAGE_ENABLED=true   # default: true
+SUMMER_KEY_MESSAGE_ENABLED=true   # default: true
+```
+
+With Ollama enabled the text is LLM-generated, but it falls back to the template if the output
+drifts (wrong, missing or swapped emojis, no mention of the key). The bot adds a 🔑 marker itself,
+which keeps this message from being mistaken for the training post after a restart.
+
 ### AI Messages (Optional)
 
 Enable Ollama for AI-generated messages:
@@ -175,8 +190,9 @@ OLLAMA_MODEL=llama3.2:3b
 - `/test_template` - Preview template message
 - `/test_llm` - Preview LLM team message
 - `/test_trainer` - Preview LLM trainer message
+- `/test_key` - Preview LLM key-holder message
 - `/preview_team` - Preview team message (template or LLM)
-- `/preview_all` - Preview both team and trainer messages
+- `/preview_all` - Preview team, key-holder and trainer messages
 
 **Admin only (send commands):**
 - `/send_to_team` - Send message to team chat
@@ -220,11 +236,12 @@ npm run docker:dev          # Run with live logs
 
 ## Message Flow
 
-The bot sends **two separate messages** 24h before each training:
+The bot sends **three separate messages** 24h before each training:
 1. **Team message** → `CHAT_ID` (optional thread: `CHAT_THREAD_ID`)
-2. **Trainer message** → `TRAINER_CHAT_ID` (optional thread: `TRAINER_CHAT_THREAD_ID`)
+2. **Key-holder message** → `CHAT_ID`, right after the team message (per-season toggle)
+3. **Trainer message** → `TRAINER_CHAT_ID` (optional thread: `TRAINER_CHAT_THREAD_ID`)
 
-Both messages can be:
+All messages can be:
 - **Template**: Simple, consistent format
 - **AI-generated**: Varied, engaging (requires Ollama)
 
