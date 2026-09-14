@@ -15,20 +15,17 @@ RUN apk add --no-cache --virtual .build-deps python3 make g++ \
 # Copy source code
 COPY . .
 
-# Build the application
-RUN npm run build
+# Build the application, then drop dev dependencies so production reuses the compiled native modules
+RUN npm run build \
+    && npm prune --omit=dev
 
 # Production stage
 FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Copy package files and install production dependencies
 COPY package*.json ./
-RUN apk add --no-cache --virtual .build-deps python3 make g++ \
-    && npm ci --omit=dev \
-    && apk del .build-deps \
-    && npm cache clean --force
+COPY --from=builder /app/node_modules ./node_modules
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist

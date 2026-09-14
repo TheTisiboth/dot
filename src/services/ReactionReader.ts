@@ -37,6 +37,8 @@ export class ReactionReader {
       { connectionRetries: 5, baseLogger: new Logger('none' as LogLevel) }
     )
     this.client.onError = async (error) => {
+      // GramJS's idle update loop throws TIMEOUT routinely and reconnects itself
+      if (error.message === 'TIMEOUT') return
       log.warn('MTProto', `Connection issue, GramJS retries on its own: ${error.message}`)
     }
     // A bot token is "<botId>:<hash>" - cheaper than a getMe() round trip
