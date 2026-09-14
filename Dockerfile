@@ -1,50 +1,30 @@
-# Multi-stage build for Node.js app
-FROM node:20-alpine AS builder
+ARG NODE_VERSION=22
 
+FROM node:${NODE_VERSION}-alpine AS base
 WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
 
 # gramjs depends on bufferutil/utf-8-validate, native modules whose prebuilt binaries are glibc-only,
-# so on musl they are compiled from source. The toolchain is dropped again in the same layer.
-RUN apk add --no-cache --virtual .build-deps python3 make g++ \
-    && npm ci \
-    && apk del .build-deps
+# so on musl they are compiled from source. The toolchain stays in this stage and is never shipped.
+FROM base AS deps
+RUN apk add --no-cache python3 make g++
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
-# Copy source code
+FROM deps AS build
 COPY . .
+RUN npm run build
 
-# Build the application, then drop dev dependencies so production reuses the compiled native modules
-RUN npm run build \
-    && npm prune --omit=dev
+FROM deps AS prod-deps
+RUN npm prune --omit=dev
 
-# Production stage
-FROM node:20-alpine AS production
+FROM base AS runner
+ENV NODE_ENV=production
 
-WORKDIR /app
+COPY --chown=node:node package.json ./
+COPY --from=prod-deps --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/dist ./dist
 
-COPY package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
-
-# Copy built application from builder stage
-COPY --from=builder /app/dist ./dist
-
-# Create a non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
-
-# Change ownership of the app directory
-RUN chown -R nodejs:nodejs /app
-
-USER nodejs
-
-# Health server port
+USER node
 EXPOSE 3004
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "console.log('Bot is healthy')" || exit 1
-
-# Start the application
 CMD ["node", "dist/app.js"]

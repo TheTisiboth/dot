@@ -1,13 +1,10 @@
-# Production override for Dokploy deployment
-# Ensures all containers use dokploy-network for inter-service communication
+# Production override for Dokploy: frisbee-bot has no Domain, so Dokploy doesn't attach it to
+# dokploy-network; homepage needs it there for its health dot. Ollama stays on the private network.
 
 services:
-  ollama:
-    networks:
-      - dokploy-network
-
   frisbee-bot:
     networks:
+      - default
       - dokploy-network
 
 networks:
