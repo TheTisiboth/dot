@@ -1,6 +1,6 @@
 import { config } from '../config'
 import { type SeasonConfig, type SeasonType, type TrainingInfo, type PracticeDay } from '../types'
-import { getEffectiveDate, createDateFromMonthDay } from '../utils/dateHelpers'
+import { getEffectiveDate, createDateFromMonthDay, atTime } from '../utils/dateHelpers'
 import { getDayName } from '../utils/formatters'
 
 export class SeasonManager {
@@ -73,44 +73,31 @@ export class SeasonManager {
 
     const practiceDay = seasonConfig.practices.find(practice => practice.day === tomorrowDayOfWeek)
 
-      if (!practiceDay) {
-          throw new Error(`No practice day found for day ${tomorrowDayOfWeek}`)
-      }
+    if (!practiceDay) {
+      throw new Error(`No practice day found for day ${tomorrowDayOfWeek}`)
+    }
 
     return practiceDay
   }
 
+  /** Walks day by day so each candidate uses its own season's practices (season switches change the weekdays). */
   getNextTrainingDate(date: Date = new Date()): Date {
-    const seasonConfig = this.getCurrentSeasonConfig(date)
-    const currentDay = date.getDay()
+    for (let offset = 0; offset < 14; offset++) {
+      const day = new Date(date)
+      day.setDate(date.getDate() + offset)
 
-    let nextTrainingDate: Date | null = null
+      const candidates = this.getCurrentSeasonConfig(day).practices
+        .filter(practice => practice.day === day.getDay())
+        .map(practice => atTime(day, practice.time))
+        .filter(candidate => candidate > date)
+        .sort((a, b) => a.getTime() - b.getTime())
 
-    for (const practice of seasonConfig.practices) {
-      const [hours, minutes] = practice.time.split(':').map(Number)
-
-      // Calculate days until this practice day
-      const daysToAdd = (practice.day - currentDay + 7) % 7
-
-      // Create the full datetime for this practice
-      const candidateDate = new Date(date)
-      candidateDate.setDate(date.getDate() + daysToAdd)
-      candidateDate.setHours(hours, minutes, 0, 0)
-
-      const hasPassed = candidateDate <= date
-
-      // If this datetime has already passed, move to next week
-      if (hasPassed) {
-        candidateDate.setDate(candidateDate.getDate() + 7)
-      }
-
-      // Keep track of the earliest training
-      if (nextTrainingDate === null || candidateDate < nextTrainingDate) {
-        nextTrainingDate = candidateDate
+      if (candidates.length > 0) {
+        return candidates[0]
       }
     }
 
-    return nextTrainingDate || new Date(date)
+    return new Date(date)
   }
 
   getNextTrainingInfo(date: Date = new Date()): TrainingInfo {
