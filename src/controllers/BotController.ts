@@ -95,7 +95,7 @@ export class BotController {
   private async requireAdmin(msg: TelegramBot.Message, handler: () => Promise<void>): Promise<void> {
     if (!this.isAdmin(msg.chat.id)) {
       log.auth('Non-admin attempted admin command', msg.from?.username || msg.from?.id, msg.chat.id)
-      await this.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} ${MESSAGES.ADMIN_ONLY_COMMAND}`)
+      await this.reply(msg, `${EMOJIS.CROSS_MARK} ${MESSAGES.ADMIN_ONLY_COMMAND}`)
       return
     }
     await handler()
@@ -109,7 +109,7 @@ I send training reminders to the team group 24h before each practice.
 
 Type /help to see available commands.`
 
-    await this.sendMessage(msg.chat.id, helpText)
+    await this.reply(msg, helpText)
   }
 
   private async handleInfo(msg: TelegramBot.Message): Promise<void> {
@@ -123,7 +123,7 @@ ${winterInfo}
 
 ${summerInfo}`
 
-    await this.sendMessage(msg.chat.id, infoText, { parse_mode: 'Markdown' })
+    await this.reply(msg, infoText, { parse_mode: 'Markdown' })
   }
 
   private async handleTestTemplate(msg: TelegramBot.Message): Promise<void> {
@@ -132,29 +132,29 @@ ${summerInfo}`
     const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
     const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM: false }, nextTraining.practiceDay)
 
-    await this.sendMessage(msg.chat.id, `${EMOJIS.MEMO} Template Message:\n\n${message}`, { parse_mode: 'Markdown' })
+    await this.reply(msg, `${EMOJIS.MEMO} Template Message:\n\n${message}`, { parse_mode: 'Markdown' })
   }
 
   private async handleTestLLM(msg: TelegramBot.Message): Promise<void> {
     log.command('/test_llm', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
-    await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
+    await this.reply(msg, `${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
 
     const nextTraining = this.seasonManager.getNextTrainingInfo()
     const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
     const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM: true }, nextTraining.practiceDay)
 
-    await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} LLM Generated Message:\n\n${message}`, { parse_mode: 'Markdown' })
+    await this.reply(msg, `${EMOJIS.ROBOT} LLM Generated Message:\n\n${message}`, { parse_mode: 'Markdown' })
   }
 
   private async handleTestTrainer(msg: TelegramBot.Message): Promise<void> {
     log.command('/test_trainer', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
-    await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
+    await this.reply(msg, `${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
 
     const nextTraining = this.seasonManager.getNextTrainingInfo()
     const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
     const message = await this.messageGenerator.generateTrainerMessage(seasonConfig, { useLLM: true }, nextTraining.practiceDay)
 
-    await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} Trainer LLM Generated Message:\n\n${message}`, { parse_mode: 'Markdown' })
+    await this.reply(msg, `${EMOJIS.ROBOT} Trainer LLM Generated Message:\n\n${message}`, { parse_mode: 'Markdown' })
   }
 
   private async handleTestKey(msg: TelegramBot.Message): Promise<void> {
@@ -165,7 +165,7 @@ ${summerInfo}`
     const message = this.messageGenerator.generateKeyMessage()
     const status = seasonConfig.keyMessageEnabled ? '' : `\n\n${EMOJIS.WARNING} Disabled for ${seasonConfig.season}: it will not be sent.`
 
-    await this.sendMessage(msg.chat.id, `${EMOJIS.KEY} Key Message:\n\n${message}${status}`, { parse_mode: 'Markdown' })
+    await this.reply(msg, `${EMOJIS.KEY} Key Message:\n\n${message}${status}`, { parse_mode: 'Markdown' })
   }
 
 
@@ -179,7 +179,7 @@ ${EMOJIS.CALENDAR} ${formatDate(nextTraining.date)}
 ${EMOJIS.CLOCK} ${nextTraining.time}
 ${EMOJIS.LOCATION} ${nextTraining.location}`
 
-    await this.sendMessage(msg.chat.id, trainingText, { parse_mode: 'Markdown' })
+    await this.reply(msg, trainingText, { parse_mode: 'Markdown' })
   }
 
   private async handlePreviewTeam(msg: TelegramBot.Message): Promise<void> {
@@ -189,7 +189,7 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
     const useLLM = this.messageGenerator.isLLMAvailable()
     const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM }, nextTraining.practiceDay)
 
-    await this.sendMessage(msg.chat.id, `${EMOJIS.FRISBEE} *Team Message Preview:*\n\n${message}`, { parse_mode: 'Markdown' })
+    await this.reply(msg, `${EMOJIS.FRISBEE} *Team Message Preview:*\n\n${message}`, { parse_mode: 'Markdown' })
   }
 
   private getErrorMessage(error: unknown): string {
@@ -198,7 +198,7 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
 
   private async handlePreviewAll(msg: TelegramBot.Message): Promise<void> {
     log.command('/preview_all', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
-    await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} Generating preview messages...`)
+    await this.reply(msg, `${EMOJIS.ROBOT} Generating preview messages...`)
 
     try {
       const nextTraining = this.seasonManager.getNextTrainingInfo()
@@ -207,29 +207,29 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
 
       // Generate and show team message
       const teamMessage = await this.messageGenerator.generateMessage(seasonConfig, { useLLM }, nextTraining.practiceDay)
-      await this.sendMessage(msg.chat.id, `${EMOJIS.FRISBEE} *Team Message Preview:*\n\n${teamMessage}`, { parse_mode: 'Markdown' })
+      await this.reply(msg, `${EMOJIS.FRISBEE} *Team Message Preview:*\n\n${teamMessage}`, { parse_mode: 'Markdown' })
 
       if (seasonConfig.keyMessageEnabled) {
         const keyMessage = this.messageGenerator.generateKeyMessage()
-        await this.sendMessage(msg.chat.id, `${EMOJIS.KEY} *Key Message Preview:*\n\n${keyMessage}`, { parse_mode: 'Markdown' })
+        await this.reply(msg, `${EMOJIS.KEY} *Key Message Preview:*\n\n${keyMessage}`, { parse_mode: 'Markdown' })
       } else {
-        await this.sendMessage(msg.chat.id, `${EMOJIS.KEY} Key message disabled for ${seasonConfig.season}`)
+        await this.reply(msg, `${EMOJIS.KEY} Key message disabled for ${seasonConfig.season}`)
       }
 
       // Generate and show trainer message
       const trainerMessage = await this.messageGenerator.generateTrainerMessage(seasonConfig, { useLLM }, nextTraining.practiceDay)
-      await this.sendMessage(msg.chat.id, `${EMOJIS.RUNNER} *Trainer Message Preview:*\n\n${trainerMessage}`, { parse_mode: 'Markdown' })
+      await this.reply(msg, `${EMOJIS.RUNNER} *Trainer Message Preview:*\n\n${trainerMessage}`, { parse_mode: 'Markdown' })
 
-      await this.sendMessage(msg.chat.id, `${EMOJIS.CHECK_MARK} Preview complete! Use \`/send_to_all\` to send to actual chats.`, { parse_mode: 'Markdown' })
+      await this.reply(msg, `${EMOJIS.CHECK_MARK} Preview complete! Use \`/send_to_all\` to send to actual chats.`, { parse_mode: 'Markdown' })
     } catch (error) {
       const errorMessage = this.getErrorMessage(error)
-      await this.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} Error: ${errorMessage}`)
+      await this.reply(msg, `${EMOJIS.CROSS_MARK} Error: ${errorMessage}`)
     }
   }
 
   private async handleSendToTeam(msg: TelegramBot.Message): Promise<void> {
     log.command('/send_to_team', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
-    await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} Sending message to team chat...`)
+    await this.reply(msg, `${EMOJIS.ROBOT} Sending message to team chat...`)
 
     try {
       const nextTraining = this.seasonManager.getNextTrainingInfo()
@@ -243,10 +243,10 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
         parse_mode: 'Markdown',
         ...(threadId && { message_thread_id: parseInt(threadId) })
       })
-      await this.sendMessage(msg.chat.id, `${EMOJIS.CHECK_MARK} Message sent to team chat!`)
+      await this.reply(msg, `${EMOJIS.CHECK_MARK} Message sent to team chat!`)
     } catch (error) {
       const errorMessage = this.getErrorMessage(error)
-      await this.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} Error: ${errorMessage}`)
+      await this.reply(msg, `${EMOJIS.CROSS_MARK} Error: ${errorMessage}`)
     }
   }
 
@@ -254,18 +254,18 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
     log.command('/send_to_all', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
 
     if (!this.schedulerService) {
-      await this.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} Scheduler service not available`)
+      await this.reply(msg, `${EMOJIS.CROSS_MARK} Scheduler service not available`)
       return
     }
 
-    await this.sendMessage(msg.chat.id, `${EMOJIS.ROBOT} Sending messages to team and trainer chats...`)
+    await this.reply(msg, `${EMOJIS.ROBOT} Sending messages to team and trainer chats...`)
 
     try {
       await this.schedulerService.sendScheduledMessage()
-      await this.sendMessage(msg.chat.id, `${EMOJIS.CHECK_MARK} Messages sent! Check the team chat and trainer chat.`)
+      await this.reply(msg, `${EMOJIS.CHECK_MARK} Messages sent! Check the team chat and trainer chat.`)
     } catch (error) {
       const errorMessage = this.getErrorMessage(error)
-      await this.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} Error: ${errorMessage}`)
+      await this.reply(msg, `${EMOJIS.CROSS_MARK} Error: ${errorMessage}`)
     }
   }
 
@@ -273,7 +273,7 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
     log.command('/attendance', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
 
     if (!this.schedulerService) {
-      await this.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} Scheduler service not available`)
+      await this.reply(msg, `${EMOJIS.CROSS_MARK} Scheduler service not available`)
       return
     }
 
@@ -281,7 +281,7 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
       const attendance = await this.schedulerService.inspectAttendance()
 
       if (!attendance) {
-        await this.sendMessage(msg.chat.id, `${EMOJIS.WARNING} No training post found for the next training - nothing to count yet.`)
+        await this.reply(msg, `${EMOJIS.WARNING} No training post found for the next training - nothing to count yet.`)
         return
       }
 
@@ -297,9 +297,9 @@ ${EMOJIS.CALENDAR} Training: ${formatDate(training.date)} at ${training.time}
 ${EMOJIS.MEMO} Poll message id: \`${pollMessageId}\`
 ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHoursBefore}h before`
 
-      await this.sendMessage(msg.chat.id, text, { parse_mode: 'Markdown' })
+      await this.reply(msg, text, { parse_mode: 'Markdown' })
     } catch (error) {
-      await this.sendMessage(msg.chat.id, `${EMOJIS.CROSS_MARK} Error: ${this.getErrorMessage(error)}`)
+      await this.reply(msg, `${EMOJIS.CROSS_MARK} Error: ${this.getErrorMessage(error)}`)
     }
   }
 
@@ -310,12 +310,16 @@ ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHo
 /info - Show training schedule for all seasons
 /training - Show next training session`
 
-    await this.sendMessage(msg.chat.id, helpText)
+    await this.reply(msg, helpText)
   }
 
-  private async sendMessage(chatId: number | string, text: string, options?: TelegramBot.SendMessageOptions): Promise<void> {
-    log.bot(`Sending message to chat ${chatId}`)
-    await this.bot.sendMessage(chatId, text, options)
+  private async reply(msg: TelegramBot.Message, text: string, options?: TelegramBot.SendMessageOptions): Promise<void> {
+    const threadId = msg.is_topic_message ? msg.message_thread_id : undefined
+    log.bot(`Sending message to chat ${msg.chat.id}${threadId ? ` (thread ${threadId})` : ''}`)
+    await this.bot.sendMessage(msg.chat.id, text, {
+      ...options,
+      ...(threadId && { message_thread_id: threadId })
+    })
   }
 
   private formatSeasonInfo(
