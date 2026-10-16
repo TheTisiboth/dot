@@ -21,6 +21,12 @@ export function formatPracticeDays(practices: PracticeDay[]): string {
     .join('\n')
 }
 
+export function formatStartTime(time: string, warmupTime?: string): string {
+  return warmupTime
+    ? `with warmup at ${warmupTime} and training starting at ${time}`
+    : `starting at ${time}`
+}
+
 export function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
