@@ -58,7 +58,8 @@ const seasonConfigBaseSchema = z.object({
   location: z.string().trim().min(1, 'WINTER_LOCATION and SUMMER_LOCATION is required'),
   practices: z.array(practiceDaySchema).length(2, 'WINTER_PRACTICE_DAYS and SUMMER_PRACTICE_DAYS must have exactly 2 practice days'),
   minAttendance: z.number().int().min(1, 'WINTER_MIN_ATTENDANCE and SUMMER_MIN_ATTENDANCE must be at least 1'),
-  keyMessageEnabled: z.boolean()
+  keyMessageEnabled: z.boolean(),
+  warmupMinutesBefore: z.number().int().min(0, 'WINTER_WARMUP_MINUTES_BEFORE and SUMMER_WARMUP_MINUTES_BEFORE must be at least 0')
 })
 
 // Seasons Config Schema

@@ -3,7 +3,8 @@ import { config } from '../config'
 import { type SeasonConfig, type MessageGenerationOptions, type PracticeDay, type Attendance } from '../types'
 import { EMOJIS, MARKERS, CANCELLATION_SIGNATURE } from '../utils/constants'
 import { log } from '../utils/logger'
-import { extractLocationName } from '../utils/formatters'
+import { extractLocationName, formatStartTime } from '../utils/formatters'
+import { getWarmupTime } from '../utils/dateHelpers'
 
 export class MessageGenerator {
   private readonly ollama: Ollama | null
@@ -14,21 +15,22 @@ export class MessageGenerator {
     }) : null
   }
 
-  private getLocationAndTime(seasonConfig: SeasonConfig, practiceDay: PracticeDay): { location: string; time: string } {
+  private getLocationAndTime(seasonConfig: SeasonConfig, practiceDay: PracticeDay): { location: string; time: string; startTime: string } {
     return {
       location: seasonConfig.location,
-      time: practiceDay.time
+      time: practiceDay.time,
+      startTime: formatStartTime(practiceDay.time, getWarmupTime(practiceDay.time, seasonConfig.warmupMinutesBefore))
     }
   }
 
   generateTemplateMessage(seasonConfig: SeasonConfig, practiceDay: PracticeDay): string {
-    const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
+    const { location, time, startTime } = this.getLocationAndTime(seasonConfig, practiceDay)
     const locationName = extractLocationName(location)
 
     log.messageGen(`Template message generated for ${seasonConfig.season} at ${locationName} (${time})`)
     return `${EMOJIS.ROCKET} Hey team!
 
-Tomorrow we're planning an Ultimate Frisbee training at ${location} starting at ${time}.
+Tomorrow we're planning an Ultimate Frisbee training at ${location} ${startTime}.
 
 ${EMOJIS.BULB} If you're in, just drop a ${EMOJIS.THUMBS_UP} on this message so we know how many are coming.
 
@@ -132,13 +134,13 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     practiceDay: PracticeDay,
     isTrainerMessage = false
   ): Promise<string> {
-    const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
+    const { location, time, startTime } = this.getLocationAndTime(seasonConfig, practiceDay)
     const { season } = seasonConfig
     const locationForPrompt = extractLocationName(location)
 
     const prompt = isTrainerMessage
       ? this.createTrainerLLMPrompt(time, season)
-      : this.createLLMPrompt(locationForPrompt, time, season)
+      : this.createLLMPrompt(locationForPrompt, time, startTime, season)
 
     const fallback = isTrainerMessage
       ? () => this.generateTrainerTemplateMessage(seasonConfig, practiceDay)
@@ -330,7 +332,7 @@ Rules:
 Generate the message now:`
   }
 
-  private createLLMPrompt(location: string, time: string, season: string): string {
+  private createLLMPrompt(location: string, time: string, startTime: string, season: string): string {
     return `Generate an Ultimate Frisbee training invitation message.
 
 Output ONLY the final message text.
@@ -354,7 +356,7 @@ FIRST LINE
 
 - After that creative sentence, add ONE space and then write EXACTLY this sentence (do not modify wording except variable replacement):
 
-Tomorrow's ${season} training is at ${location} starting at ${time}.
+Tomorrow's ${season} training is at ${location} ${startTime}.
 
 - Do NOT change this sentence.
 - Do NOT add anything after ${time}.

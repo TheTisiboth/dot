@@ -5,6 +5,7 @@ export const EMOJIS = {
   CALENDAR: '📅',
   LOCATION: '📍',
   CLOCK: '⏰',
+  FIRE: '🔥',
   SCHEDULE: '🗓️',
   MEMO: '📝',
   ROBOT: '🤖',

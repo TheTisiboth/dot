@@ -1,6 +1,6 @@
 import { config } from '../config'
 import { type SeasonConfig, type SeasonType, type TrainingInfo, type PracticeDay } from '../types'
-import { getEffectiveDate, createDateFromMonthDay, atTime } from '../utils/dateHelpers'
+import { getEffectiveDate, createDateFromMonthDay, atTime, getWarmupTime } from '../utils/dateHelpers'
 import { getDayName } from '../utils/formatters'
 
 export class SeasonManager {
@@ -111,12 +111,14 @@ export class SeasonManager {
     }
 
     const exceptionalTraining = config.exceptionalTraining
+    const time = exceptionalTraining.time || nextPractice.time
 
     return {
       date: nextDate,
       dayName: getDayName(nextDate.getDay()),
       location: exceptionalTraining.location || seasonConfig.location,
-      time: exceptionalTraining.time || nextPractice.time,
+      time,
+      warmupTime: getWarmupTime(time, seasonConfig.warmupMinutesBefore),
       season: seasonConfig.season,
       practiceDay: nextPractice,
       isCancelled: exceptionalTraining.isCancelled

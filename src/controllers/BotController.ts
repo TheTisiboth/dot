@@ -172,11 +172,14 @@ ${summerInfo}`
   private async handleTraining(msg: TelegramBot.Message): Promise<void> {
     log.command('/training', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
     const nextTraining = this.seasonManager.getNextTrainingInfo()
+    const timeLines = nextTraining.warmupTime
+      ? `${EMOJIS.FIRE} Warmup: ${nextTraining.warmupTime}\n${EMOJIS.CLOCK} Training: ${nextTraining.time}`
+      : `${EMOJIS.CLOCK} ${nextTraining.time}`
 
     const trainingText = `${EMOJIS.RUNNER} Next Training:
 
 ${EMOJIS.CALENDAR} ${formatDate(nextTraining.date)}
-${EMOJIS.CLOCK} ${nextTraining.time}
+${timeLines}
 ${EMOJIS.LOCATION} ${nextTraining.location}`
 
     await this.reply(msg, trainingText, { parse_mode: 'Markdown' })
