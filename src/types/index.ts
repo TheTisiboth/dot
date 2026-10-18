@@ -30,7 +30,7 @@ export interface TrainingInfo {
   dayName: string;
   location: string;
   time: string;
-  warmupTime?: string;
+  throwingTime?: string;
   season: SeasonType;
   practiceDay: PracticeDay;
   isCancelled?: boolean;

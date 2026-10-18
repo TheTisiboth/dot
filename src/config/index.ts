@@ -42,7 +42,7 @@ function loadAndValidateConfig(): BotConfig {
                 practices: parsePracticeDays(process.env.WINTER_PRACTICE_DAYS),
                 minAttendance: Number(process.env.WINTER_MIN_ATTENDANCE ?? 8),
                 keyMessageEnabled: process.env.WINTER_KEY_MESSAGE_ENABLED !== 'false',
-                warmupMinutesBefore: Number(process.env.WINTER_WARMUP_MINUTES_BEFORE ?? 0)
+                throwingMinutesBefore: Number(process.env.WINTER_THROWING_MINUTES_BEFORE ?? 0)
             },
             summer: {
                 startDate: parseDate(process.env.SUMMER_START_DATE),
@@ -50,7 +50,7 @@ function loadAndValidateConfig(): BotConfig {
                 practices: parsePracticeDays(process.env.SUMMER_PRACTICE_DAYS),
                 minAttendance: Number(process.env.SUMMER_MIN_ATTENDANCE ?? 8),
                 keyMessageEnabled: process.env.SUMMER_KEY_MESSAGE_ENABLED !== 'false',
-                warmupMinutesBefore: Number(process.env.SUMMER_WARMUP_MINUTES_BEFORE ?? 0)
+                throwingMinutesBefore: Number(process.env.SUMMER_THROWING_MINUTES_BEFORE ?? 0)
             }
         },
 

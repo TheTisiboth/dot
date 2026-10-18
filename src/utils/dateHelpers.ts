@@ -32,10 +32,10 @@ export function atTime(date: Date, time: string): Date {
   return result
 }
 
-export function getWarmupTime(time: string, minutesBefore: number): string | undefined {
+export function getThrowingTime(time: string, minutesBefore: number): string | undefined {
   if (minutesBefore === 0) return undefined
-  const warmup = new Date(atTime(new Date(), time).getTime() - minutesBefore * 60 * 1000)
-  return `${warmup.getHours()}:${String(warmup.getMinutes()).padStart(2, '0')}`
+  const throwing = new Date(atTime(new Date(), time).getTime() - minutesBefore * 60 * 1000)
+  return `${throwing.getHours()}:${String(throwing.getMinutes()).padStart(2, '0')}`
 }
 
 export function hoursBefore(date: Date, hours: number): Date {

@@ -4,7 +4,7 @@ import { type SeasonConfig, type MessageGenerationOptions, type PracticeDay, typ
 import { EMOJIS, MARKERS, CANCELLATION_SIGNATURE } from '../utils/constants'
 import { log } from '../utils/logger'
 import { extractLocationName, formatStartTime } from '../utils/formatters'
-import { getWarmupTime } from '../utils/dateHelpers'
+import { getThrowingTime } from '../utils/dateHelpers'
 
 export class MessageGenerator {
   private readonly ollama: Ollama | null
@@ -19,7 +19,7 @@ export class MessageGenerator {
     return {
       location: seasonConfig.location,
       time: practiceDay.time,
-      startTime: formatStartTime(practiceDay.time, getWarmupTime(practiceDay.time, seasonConfig.warmupMinutesBefore))
+      startTime: formatStartTime(practiceDay.time, getThrowingTime(practiceDay.time, seasonConfig.throwingMinutesBefore))
     }
   }
 

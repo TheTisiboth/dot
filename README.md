@@ -134,13 +134,13 @@ npm run dev
 WINTER_START_DATE=9:15
 WINTER_LOCATION=Park Arena
 WINTER_PRACTICE_DAYS=2:20:30,6:21:00
-WINTER_WARMUP_MINUTES_BEFORE=15         # Optional: warmup shown in the team post, 0 = none
+WINTER_THROWING_MINUTES_BEFORE=15       # Optional: throwing session shown in the team post, 0 = none
 
 # Summer (default: May 20 - Sept 14)
 SUMMER_START_DATE=5:20
 SUMMER_LOCATION=Beach Courts
 SUMMER_PRACTICE_DAYS=0:19:00,3:19:30
-SUMMER_WARMUP_MINUTES_BEFORE=0
+SUMMER_THROWING_MINUTES_BEFORE=0
 ```
 
 Days: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
