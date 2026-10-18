@@ -21,9 +21,9 @@ export function formatPracticeDays(practices: PracticeDay[]): string {
     .join('\n')
 }
 
-export function formatStartTime(time: string, warmupTime?: string): string {
-  return warmupTime
-    ? `with warmup at ${warmupTime} and training starting at ${time}`
+export function formatStartTime(time: string, throwingTime?: string): string {
+  return throwingTime
+    ? `with throwing at ${throwingTime} and training starting at ${time}`
     : `starting at ${time}`
 }
 
