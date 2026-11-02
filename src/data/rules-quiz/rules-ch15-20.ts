@@ -148,7 +148,7 @@ export const rulesCh15to20: QuizBatch = {
       ref: '16.2.4.1',
       question: 'A receiver calls a foul while the disc is in the air, but catches it anyway. What should they call to keep play going?',
       answer: 'Play on',
-      wrong: ['Contest', 'Retracted', 'Disc in'],
+      wrong: ['Contest', 'Stop', 'Disc in'],
       explanation: 'If the team that made the call gains possession anyway, the play stands. The caller should say "Play on" as soon as possible so play does not stop.'
     },
     {
@@ -208,7 +208,7 @@ export const rulesCh15to20: QuizBatch = {
       difficulty: 'hard',
       modes: ALL_MODES,
       ref: '17.5.2',
-      question: 'A receiver jumps to catch the disc above the end zone, but a defender pushes them and they land in the central zone. The foul is accepted. What happens?',
+      question: 'A receiver jumps to catch the disc and would have landed in the end zone, but a defender pushes them and they land in the central zone. The foul is accepted. What happens?',
       answer: 'Goal',
       wrong: ['Possession on the goal line', 'Possession where they landed', BACK_TO_THROWER],
       explanation: 'This is a force-out foul: the contact made the receiver catch in the central zone instead of the end zone. If they would have caught it in the end zone, it is a goal.'
@@ -361,7 +361,7 @@ export const rulesCh15to20: QuizBatch = {
       modes: ALL_MODES,
       ref: '18.1.1.4',
       question: 'What is "wrapping"?',
-      answer: "The marker's arms come within one disc diameter of the thrower's torso",
+      answer: "A line between the marker's hands comes within one disc diameter of the thrower's torso",
       wrong: ["The marker's feet straddle the pivot", "The marker blocks the thrower's view", 'Two defenders surround the thrower'],
       explanation: "Wrapping: a line between the defender's hands or arms comes within one disc diameter of the thrower's torso, or part of their body is above the pivot point."
     },
