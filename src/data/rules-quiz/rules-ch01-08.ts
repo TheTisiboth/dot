@@ -39,7 +39,7 @@ export const rulesCh01to08: QuizBatch = {
       question: 'Which of these is listed in the rules as a clear violation of the Spirit of the Game?',
       answer: 'Calling for a pass from an opposition player',
       wrong: ['Celebrating with your team after scoring', 'Asking an opponent to explain their call', 'Retracting a call you no longer believe in'],
-      explanation: 'Calling for a pass from an opponent (e.g. shouting "here!" to the thrower you are marking) is a clear Spirit violation, added in the 2025 rules. Retracting a wrong call is an example of good Spirit.'
+      explanation: 'Calling for a pass from an opponent (e.g. a defender shouting "yes!" to trick the thrower) is a clear Spirit violation. Retracting a wrong call is an example of good Spirit.'
     },
     {
       id: 'r1_04',
@@ -76,10 +76,10 @@ export const rulesCh01to08: QuizBatch = {
       difficulty: 'hard',
       modes: ALL_MODES,
       ref: '1.10.2',
-      question: 'Apart from the players on the field, who may get involved in discussing a call?',
+      question: 'Without being asked by a player, which non-player may get involved in resolving a call?',
       answer: 'The captains',
-      wrong: ['The coaches', 'Spectators with a good view', 'Substitutes on the sideline'],
-      explanation: 'Non-players, apart from the captains, should refrain from getting involved. Players may still ask others to clarify the rules.'
+      wrong: ['The coaches', 'The team manager', 'The tournament director'],
+      explanation: 'Non-players, apart from the captains, should refrain from getting involved. Others (e.g. people on the sideline) may only give their perspective when a player involved asks them.'
     },
     {
       id: 'r1_08',
@@ -156,7 +156,7 @@ export const rulesCh01to08: QuizBatch = {
     {
       id: 'r2_05',
       difficulty: 'easy',
-      modes: ALL_MODES,
+      modes: OUTDOOR_ONLY,
       ref: '2.6',
       question: 'How many cones mark the corners of the central zone and the end zones?',
       answer: '8',
@@ -254,10 +254,10 @@ export const rulesCh01to08: QuizBatch = {
       difficulty: 'medium',
       modes: ALL_MODES,
       ref: '5.3',
-      question: 'When may a team make substitutions?',
+      question: 'When may a team make unlimited substitutions?',
       answer: 'After a goal, before signalling readiness for the pull',
-      wrong: ['Any time play is dead', 'Only after a time-out', 'Only at half time'],
-      explanation: 'A team may make unlimited substitutions after a goal is scored and before it signals readiness for the pull.'
+      wrong: ['Any time play is dead', 'During a time-out', 'Only at half time'],
+      explanation: 'A team may make unlimited substitutions after a goal is scored and before it signals readiness for the pull. Outside that, a player can only be substituted for an injury or faulty equipment.'
     },
     {
       id: 'r5_04',
@@ -321,7 +321,7 @@ export const rulesCh01to08: QuizBatch = {
       question: 'Two receivers swap places along the goal line after signalling readiness but before the pull is released. What can the defence call?',
       answer: 'False start',
       wrong: ['Offside', 'Travel', 'Pick'],
-      explanation: 'Offensive players must not change location relative to one another until the pull is released (7.3). Breaching this is a "false start" (7.5).'
+      explanation: 'Offensive players must not change location relative to one another until the pull is released (7.3). Breaching this is a "false start" (7.5). It is recommended to warn the other team before enforcing it.'
     },
     {
       id: 'r7_04',
@@ -331,7 +331,7 @@ export const rulesCh01to08: QuizBatch = {
       question: "A defender's foot crosses the goal line before the pull is released. What can the offence call?",
       answer: 'Offside',
       wrong: ['False start', 'Pick', 'Foul'],
-      explanation: 'Defensive players must keep their feet entirely behind the goal line until the pull is released (7.4). Breaching this is "offside" (7.5).'
+      explanation: 'Defensive players must keep their feet entirely behind the goal line until the pull is released (7.4). Breaching this is "offside" (7.5). It is recommended to warn the other team before enforcing it.'
     },
     {
       id: 'r7_05',
@@ -500,9 +500,9 @@ export const rulesCh01to08: QuizBatch = {
       difficulty: 'medium',
       modes: ALL_MODES,
       ref: '8.4.1',
-      question: 'A pull is rolling. A defender stops it, but kicks it far up the field. Where may the offence put the disc into play?',
-      answer: 'Where the defender touched the disc',
-      wrong: ['Where the disc ends up', AT_BRICK_MARK, ON_GOAL_LINE],
+      question: 'A pull is rolling. A defender stops it, but kicks it far up the field. What may the offence request?',
+      answer: 'To put the disc into play where the defender touched it',
+      wrong: ['A re-pull', 'A brick', 'To take the disc to the goal line'],
       explanation: 'Any player may stop a rolling disc (8.4). If they significantly alter its position, the opposition may ask for the pivot where the disc was contacted.'
     }
   ]
