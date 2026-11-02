@@ -1,4 +1,5 @@
 import { type QuizBatch, type QuizDifficulty, type QuizQuestion } from '../../types'
+import { ALL_MODES } from './modes'
 
 interface Signal {
   n: number;
@@ -46,35 +47,29 @@ const byNumber = (n: number): Signal => {
 
 const pad = (n: number): string => String(n).padStart(2, '0')
 
-// Varies the correct option's position without needing a random seed
-const withAnswerAt = (correct: string, wrong: string[], index: number): string[] =>
-  [...wrong.slice(0, index), correct, ...wrong.slice(index)]
-
 const explain = (s: Signal): string => `${s.name}: ${s.description.charAt(0).toLowerCase()}${s.description.slice(1)}.`
 
 const toQuestions = (s: Signal): QuizQuestion[] => {
   const lookalikes = s.lookalikes.map(byNumber)
-  const nameIndex = s.n % 4
-  const descriptionIndex = (s.n + 2) % 4
 
   return [
     {
       id: `sig_${pad(s.n)}`,
       difficulty: s.difficulty.image,
-      modes: ['outdoor', 'indoor'],
+      modes: ALL_MODES,
       question: 'Which call does this hand signal show?',
-      options: withAnswerAt(s.name, lookalikes.map(l => l.name), nameIndex),
-      correctIndex: nameIndex,
+      answer: s.name,
+      wrong: lookalikes.map(l => l.name),
       explanation: explain(s),
       image: `assets/signals/${pad(s.n)}-${s.slug}.png`
     },
     {
       id: `sig_${pad(s.n)}_r`,
       difficulty: s.difficulty.description,
-      modes: ['outdoor', 'indoor'],
+      modes: ALL_MODES,
       question: `What is the hand signal for "${s.name}"?`,
-      options: withAnswerAt(s.description, lookalikes.map(l => l.description), descriptionIndex),
-      correctIndex: descriptionIndex,
+      answer: s.description,
+      wrong: lookalikes.map(l => l.description),
       explanation: explain(s)
     }
   ]

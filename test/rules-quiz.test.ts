@@ -2,7 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { QUIZ_BATCHES } from '../src/data/rules-quiz'
-import { type QuizDifficulty, type QuizMode } from '../src/types'
+import { type QuizDifficulty } from '../src/types'
+import { ALL_MODES } from '../src/data/rules-quiz/modes'
 
 // Telegram sendPoll limits
 const MAX_QUESTION = 300
@@ -18,21 +19,18 @@ test('ids are unique and hashtag-safe', () => {
 
 test('questions fit Telegram poll limits', () => {
   questions.forEach(q => {
+    const options = [q.answer, ...q.wrong]
     assert.ok(q.question.length <= MAX_QUESTION, q.id)
-    assert.ok(q.options.length >= 3 && q.options.length <= 4, q.id)
-    assert.equal(new Set(q.options).size, q.options.length, `${q.id} has duplicate options`)
-    q.options.forEach(option => assert.ok(option.length <= MAX_OPTION, `${q.id}: ${option}`))
-    assert.ok(Number.isInteger(q.correctIndex) && q.correctIndex >= 0 && q.correctIndex < q.options.length, q.id)
+    assert.ok(options.length >= 3 && options.length <= 4, q.id)
+    assert.equal(new Set(options).size, options.length, `${q.id} has duplicate options`)
+    options.forEach(option => assert.ok(option.length > 0 && option.length <= MAX_OPTION, `${q.id}: ${option}`))
     assert.ok(q.modes.length > 0, q.id)
     assert.ok(q.explanation.length > 0, q.id)
   })
 })
 
-test('links point to their rule', () => {
-  questions.filter(q => q.url).forEach(q => {
-    assert.ok(q.ref, `${q.id} has a url but no ref`)
-    assert.ok(q.url?.endsWith(`#${q.ref}`), q.id)
-  })
+test('rule refs are WFDF rule numbers', () => {
+  questions.filter(q => q.ref).forEach(q => assert.match(q.ref as string, /^\d{1,2}(\.\d+)*$/, q.id))
   QUIZ_BATCHES.forEach(batch => assert.match(batch.source.url, /^https:\/\//))
 })
 
@@ -41,9 +39,8 @@ test('images exist', () => {
 })
 
 test('every mode has questions at every difficulty', () => {
-  const modes: QuizMode[] = ['outdoor', 'indoor']
   const levels: QuizDifficulty[] = ['easy', 'medium', 'hard']
-  modes.forEach(mode => levels.forEach(level =>
+  ALL_MODES.forEach(mode => levels.forEach(level =>
     assert.ok(questions.some(q => q.modes.includes(mode) && q.difficulty === level), `${mode}/${level}`)
   ))
 })

@@ -43,11 +43,12 @@ export interface QuizQuestion {
   id: string;
   difficulty: QuizDifficulty;
   modes: QuizMode[];
+  /** WFDF rule number (e.g. 9.5.1), linked on urules.org; without it the batch source is linked */
   ref?: string;
-  url?: string;
   question: string;
-  options: string[];
-  correctIndex: number;
+  answer: string;
+  /** Options are shuffled when posting */
+  wrong: string[];
   explanation: string;
   /** Sent as a photo before the poll, relative to the app root */
   image?: string;
