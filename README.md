@@ -247,6 +247,21 @@ All messages can be:
 - **Template**: Simple, consistent format
 - **AI-generated**: Varied, engaging (requires Ollama)
 
+## Rules quiz
+
+The question bank lives in `src/data/rules-quiz/`, one file per source document. Each
+file exports its source (`title`, `url`) and its questions. Question ids are hashtag-safe
+and must never be renamed once posted: the bot remembers which questions it asked by id.
+`npm test` checks the bank against Telegram's poll limits.
+
+Hand-signal images in `assets/signals/` are cropped from the WFDF Hand Signals PDF.
+
+**Sources and licence.** Questions are adapted from the
+[WFDF Rules of Ultimate 2025-2028](https://rules.wfdf.sport/) and related WFDF rules
+documents, © World Flying Disc Federation, licensed under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Indoor questions are adapted
+from the [EUF Indoor Rules Appendix](https://www.ultimatefederation.eu/rules-of-ultimate).
+
 ## Development
 
 ```bash

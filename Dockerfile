@@ -29,6 +29,8 @@ COPY --from=builder /app/node_modules ./node_modules
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
+# Rules quiz hand-signal images, sent as photos
+COPY --from=builder /app/assets ./assets
 
 # Create a non-root user
 RUN addgroup -g 1001 -S nodejs

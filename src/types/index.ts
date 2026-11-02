@@ -35,3 +35,25 @@ export interface TrainingInfo {
   practiceDay: PracticeDay;
   isCancelled?: boolean;
 }
+export type QuizDifficulty = 'easy' | 'medium' | 'hard'
+export type QuizMode = 'outdoor' | 'indoor'
+
+export interface QuizQuestion {
+  /** Hashtag-safe and never renamed once posted: the bot remembers asked questions by it */
+  id: string;
+  difficulty: QuizDifficulty;
+  modes: QuizMode[];
+  ref?: string;
+  url?: string;
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+  /** Sent as a photo before the poll, relative to the app root */
+  image?: string;
+}
+
+export interface QuizBatch {
+  source: { title: string; url: string };
+  questions: QuizQuestion[];
+}
