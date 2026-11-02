@@ -156,7 +156,7 @@ export const rulesCh01to08: QuizBatch = {
     {
       id: 'r2_05',
       difficulty: 'easy',
-      modes: OUTDOOR_ONLY,
+      modes: ALL_MODES,
       ref: '2.6',
       question: 'How many cones mark the corners of the central zone and the end zones?',
       answer: '8',
