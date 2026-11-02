@@ -63,7 +63,7 @@ export const indoor: QuizBatch = {
       modes: INDOOR_ONLY,
       question: 'Indoors (EUF), what makes a pull valid?',
       answer: 'It passes through a 2 m high box above the receiving end zone before touching anything',
-      wrong: ['It lands anywhere in-bounds', 'It first touches the floor in the central zone', 'It is caught by the receivers in the central zone'],
+      wrong: ['It lands anywhere in-bounds', 'It first touches the floor in the central zone', 'It reaches the end zone after one bounce'],
       explanation: 'A valid pull passes through any part of a 2 m high box over the receiving end zone without touching the ground or anything out-of-bounds first. It is also valid if a receiver touches it in the air.'
     },
     {
@@ -95,7 +95,7 @@ export const indoor: QuizBatch = {
     },
     {
       id: 'in_09',
-      difficulty: 'easy',
+      difficulty: 'medium',
       modes: INDOOR_ONLY,
       question: 'Indoors (EUF), a receiver tries to catch the pull but drops it. What happens?',
       answer: 'No turnover: they play it from where the disc stops',
@@ -201,7 +201,7 @@ export const indoor: QuizBatch = {
       difficulty: 'medium',
       modes: INDOOR_ONLY,
       question: 'Indoors (EUF), after the disc goes out-of-bounds, where may the thrower set their pivot?',
-      answer: '1 metre inside the field',
+      answer: 'Up to 1 metre inside the field',
       wrong: ['On the perimeter line', '3 metres inside the field', AT_BRICK_MARK],
       explanation: 'Indoors, when the disc is out-of-bounds, the player who restarts play can set their pivot foot 1 metre inside the playing field, away from the wall.'
     },
@@ -220,7 +220,7 @@ export const indoor: QuizBatch = {
       id: 'in_22',
       difficulty: 'hard',
       modes: INDOOR_ONLY,
-      question: 'Indoors (EUF), a player calls a time-out during play. What happens?',
+      question: 'Indoors (EUF), the thrower calls a time-out during play. What happens?',
       answer: 'Play stops, then restarts with the stall count + 2',
       wrong: ['Nothing: play continues', 'Turnover', 'Play stops and the stall count restarts at one'],
       explanation: 'Indoors, time-outs are only allowed between points. If one is called during play, play stops and continues with stall + 2.'
