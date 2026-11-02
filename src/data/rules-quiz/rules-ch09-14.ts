@@ -73,7 +73,7 @@ export const rulesCh09to14: QuizBatch = {
       difficulty: 'medium',
       modes: OUTDOOR_ONLY,
       ref: '9.5.2',
-      question: 'The thrower accepts a travel call. Where does the stall count restart?',
+      question: 'The marker calls a foul on the thrower, who accepts it. Where does the stall count restart?',
       answer: MAX_NINE,
       wrong: [STALLING_ONE, MAX_SIX, 'Stalling eight'],
       explanation: 'After an accepted breach by the offence, the stall count restarts at maximum 9: the last agreed number plus one, but never higher than 9.'
@@ -137,6 +137,16 @@ export const rulesCh09to14: QuizBatch = {
       answer: 'Once the thrower has established a pivot',
       wrong: ['As soon as the interceptor catches the disc', 'Only after a check', 'After 3 seconds'],
       explanation: 'The marker may only stall while play is live, or once a pivot is established after a turnover. An interceptor who is still running must stop and establish a pivot first.'
+    },
+    {
+      id: 'r9_13',
+      difficulty: 'medium',
+      modes: ALL_MODES,
+      ref: '18.2.5.2',
+      question: 'The thrower accepts a travel call. What happens to the stall count?',
+      answer: 'It pauses until the pivot is corrected, then continues',
+      wrong: [STALLING_ONE, MAX_NINE, MAX_SIX],
+      explanation: 'After an accepted travel, play does not stop. The stall count pauses until the thrower re-establishes the correct pivot, then resumes without saying "Stalling" again.'
     },
 
     // 10. The Check
@@ -297,7 +307,7 @@ export const rulesCh09to14: QuizBatch = {
       difficulty: 'hard',
       modes: ALL_MODES,
       ref: '11.3.4',
-      question: 'A receiver standing in-bounds catches the disc while leaning on a team-mate who is out-of-bounds. Is the catch in?',
+      question: 'A receiver standing in-bounds catches the disc and, at the same moment, bumps into a team-mate standing out-of-bounds. Is the catch in?',
       answer: "Yes, contact doesn't pass on out-of-bounds status",
       wrong: ['No, it is out-of-bounds', 'Only if the receiver is airborne', PASS_REPLAYED],
       explanation: 'Contact between players does not confer the state of being in- or out-of-bounds from one to another.'
@@ -317,7 +327,7 @@ export const rulesCh09to14: QuizBatch = {
       difficulty: 'hard',
       modes: ALL_MODES,
       ref: '11.3.3',
-      question: 'Holding the disc, the thrower steps on the sideline while pivoting. What happens?',
+      question: 'Holding the disc, the thrower steps on the sideline with their non-pivot foot. What happens?',
       answer: 'Nothing: they are in-bounds until they throw',
       wrong: [OB_TURNOVER, 'Travel', 'They must step back before the stall continues'],
       explanation: 'A thrower who contacts an out-of-bounds area is considered in-bounds until they make a pass.'
