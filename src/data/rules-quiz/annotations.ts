@@ -282,10 +282,10 @@ export const annotations: QuizBatch = {
       difficulty: 'medium',
       modes: ALL_MODES,
       ref: '14.1',
-      question: "A receiver catches in the end zone without realising it, throws another pass, and it is dropped. What's the result?",
+      question: "A receiver catches in the end zone and lands safely, but doesn't realise it. They throw another pass, which is dropped. What's the result?",
       answer: 'Goal',
       wrong: [TURNOVER_STANDS, BACK_TO_THROWER, POINT_REPLAYED],
-      explanation: 'The scorer does not need to know they scored. The disc cannot be thrown after a goal, so the extra pass is disregarded.'
+      explanation: 'The scorer does not need to know they scored. The disc cannot be thrown after a goal, so the extra pass is disregarded. (If they throw before surviving the ground contact of the catch, an incomplete pass is a turnover.)'
     },
     {
       id: 'ann_27',
