@@ -150,7 +150,7 @@ export class RulesQuizService {
     if (question.answerImage) {
       await this.sendImage(chat, question.answerImage, pollMessageId, text)
     } else {
-      await this.sendText(chat, text, pollMessageId, { parse_mode: 'HTML', disable_web_page_preview: true })
+      await this.sendText(chat, text, pollMessageId, { parse_mode: 'HTML' })
     }
   }
 
