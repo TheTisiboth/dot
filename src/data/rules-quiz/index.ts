@@ -1,4 +1,4 @@
-import { type QuizBatch } from '../../types'
+import { type QuizBatch, type QuizQuestion } from '../../types'
 import { annotations } from './annotations'
 import { changes } from './changes'
 import { indoor } from './indoor'
@@ -8,3 +8,7 @@ import { rulesCh15to20 } from './rules-ch15-20'
 import { signals } from './signals'
 
 export const QUIZ_BATCHES: QuizBatch[] = [signals, rulesCh01to08, rulesCh09to14, rulesCh15to20, indoor, annotations, changes]
+
+export const QUIZ_QUESTIONS: QuizQuestion[] = QUIZ_BATCHES.flatMap(batch => batch.questions)
+
+export const findQuizQuestion = (id: string): QuizQuestion | undefined => QUIZ_QUESTIONS.find(q => q.id === id)

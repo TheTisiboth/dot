@@ -4,6 +4,7 @@ import { SeasonManager } from './services/SeasonManager'
 import { MessageGenerator } from './services/MessageGenerator'
 import { ReactionReader } from './services/ReactionReader'
 import { SchedulerService } from './services/SchedulerService'
+import { RulesQuizService } from './services/RulesQuizService'
 import { HealthServer } from './services/HealthServer'
 import { PollingGuard } from './services/PollingGuard'
 import { BotController } from './controllers/BotController'
@@ -26,16 +27,19 @@ class UltimateFrisbeeBot {
     this.seasonManager = new SeasonManager()
     this.messageGenerator = new MessageGenerator()
     this.reactionReader = new ReactionReader()
+    const rulesQuiz = new RulesQuizService(this.bot, this.seasonManager, this.reactionReader)
     this.schedulerService = new SchedulerService(
       this.seasonManager,
       this.messageGenerator,
       this.reactionReader,
-      this.bot
+      this.bot,
+      rulesQuiz
     )
     const botController = new BotController(
       this.bot,
       this.seasonManager,
-      this.messageGenerator
+      this.messageGenerator,
+      rulesQuiz
     )
     botController.setSchedulerService(this.schedulerService)
 

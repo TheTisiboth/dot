@@ -1,15 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { QUIZ_BATCHES } from '../src/data/rules-quiz'
+import { QUIZ_BATCHES, QUIZ_QUESTIONS } from '../src/data/rules-quiz'
 import { type QuizDifficulty } from '../src/types'
 import { ALL_MODES } from '../src/data/rules-quiz/modes'
+import { POLL_LIMITS } from '../src/utils/telegram'
 
-// Telegram sendPoll limits
-const MAX_QUESTION = 300
-const MAX_OPTION = 100
-
-const questions = QUIZ_BATCHES.flatMap(batch => batch.questions)
+const questions = QUIZ_QUESTIONS
 
 test('ids are unique and hashtag-safe', () => {
   const ids = questions.map(q => q.id)
@@ -20,10 +17,10 @@ test('ids are unique and hashtag-safe', () => {
 test('questions fit Telegram poll limits', () => {
   questions.forEach(q => {
     const options = [q.answer, ...q.wrong]
-    assert.ok(q.question.length <= MAX_QUESTION, q.id)
+    assert.ok(q.question.length <= POLL_LIMITS.question, q.id)
     assert.ok(options.length >= 3 && options.length <= 4, q.id)
     assert.equal(new Set(options).size, options.length, `${q.id} has duplicate options`)
-    options.forEach(option => assert.ok(option.length > 0 && option.length <= MAX_OPTION, `${q.id}: ${option}`))
+    options.forEach(option => assert.ok(option.length > 0 && option.length <= POLL_LIMITS.option, `${q.id}: ${option}`))
     assert.ok(q.modes.length > 0, q.id)
     assert.ok(q.explanation.length > 0, q.id)
   })

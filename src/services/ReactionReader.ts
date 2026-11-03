@@ -1,5 +1,5 @@
 // sessions comes from the package root: Node's ESM loader cannot import the 'telegram/sessions' directory
-import { TelegramClient, Api, sessions, Logger } from 'telegram'
+import { TelegramClient, Api, sessions, Logger, helpers } from 'telegram'
 // Type-only: the LogLevel enum is not re-exported from the root, and ESM cannot deep-import it without an extension
 import type { LogLevel } from 'telegram/extensions/Logger'
 import { config } from '../config'
@@ -7,6 +7,7 @@ import { EMOJIS, isKeyMessage } from '../utils/constants'
 import { hoursBefore } from '../utils/dateHelpers'
 import { withTimeout } from '../utils/async'
 import { log } from '../utils/logger'
+import { parseQuizTag } from '../utils/quizTag'
 
 // How far back to look for the training post. The cron posts it ~24h before training, but a
 // manually triggered one can land earlier, so leave room. Messages come back newest-first, so
@@ -14,6 +15,7 @@ import { log } from '../utils/logger'
 const POLL_LOOKBACK_HOURS = 48
 const HISTORY_LIMIT = 100
 const CONNECT_TIMEOUT_MS = 20_000
+const SEARCH_PAGE_SIZE = 100
 
 /**
  * Reads message reactions through a user account (MTProto).
@@ -150,6 +152,69 @@ export class ReactionReader {
       message.message?.includes(needle) &&
       this.sentAt(message) >= since
     )
+  }
+
+  /** Ids of the quiz questions already posted, newest first: the chat history is the quiz memory. */
+  async getAskedQuizIds(chatId: string, threadId: string | undefined, botUsername: string): Promise<string[]> {
+    const messages = await this.searchBotMessages(chatId, threadId, botUsername)
+
+    return messages.flatMap(message => {
+      const id = this.quizIdOf(message)
+      return id ? [id] : []
+    })
+  }
+
+  private quizIdOf(message: Api.Message): string | undefined {
+    if (!(message.media instanceof Api.MessageMediaPoll)) return undefined
+    return parseQuizTag(message.media.poll.question.text)
+  }
+
+  /**
+   * Every message the bot sent in the chat, newest first. Filtered on the sender server-side, so
+   * discussion in the chat is never read, and paged to the end. Built on messages.search directly:
+   * GramJS's getMessages ignores the sender filter inside a forum topic.
+   */
+  private async searchBotMessages(chatId: string, threadId: string | undefined, botUsername: string): Promise<Api.Message[]> {
+    if (!this.connected) await this.connect()
+
+    const peer = await this.client.getInputEntity(Number(chatId))
+    // By username: the account may never have seen the bot's access hash, which the search needs
+    const bot = await this.client.getInputEntity(botUsername)
+    const messages: Api.Message[] = []
+    let page: Api.Message[]
+
+    do {
+      page = await this.searchPage(peer, bot, threadId, messages.at(-1)?.id ?? 0)
+      messages.push(...page)
+    } while (page.length > 0)
+
+    return messages
+  }
+
+  private async searchPage(
+    peer: Api.TypeInputPeer,
+    fromId: Api.TypeInputPeer,
+    threadId: string | undefined,
+    offsetId: number
+  ): Promise<Api.Message[]> {
+    const result = await this.client.invoke(new Api.messages.Search({
+      peer,
+      fromId,
+      ...(threadId && { topMsgId: Number(threadId) }),
+      q: '',
+      filter: new Api.InputMessagesFilterEmpty(),
+      minDate: 0,
+      maxDate: 0,
+      offsetId,
+      addOffset: 0,
+      limit: SEARCH_PAGE_SIZE,
+      maxId: 0,
+      minId: 0,
+      hash: helpers.returnBigInt(0)
+    }))
+
+    if (result instanceof Api.messages.MessagesNotModified) return []
+    return result.messages.filter((message): message is Api.Message => message instanceof Api.Message)
   }
 
   private async fetchMessages(

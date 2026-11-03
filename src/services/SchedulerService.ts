@@ -5,10 +5,12 @@ import { type ReactionReader } from './ReactionReader'
 import { config } from '../config'
 import type TelegramBot from 'node-telegram-bot-api'
 import { log } from '../utils/logger'
+import { type RulesQuizService } from './RulesQuizService'
 import { type SeasonConfig, type PracticeDay, type Attendance, type TrainingInfo } from '../types'
 import { CANCELLATION_SIGNATURE } from '../utils/constants'
 import { atTime, hoursBefore, getEffectiveDate } from '../utils/dateHelpers'
 import { formatDateLocale, formatDateTimeLocale, extractLocationName } from '../utils/formatters'
+import { threadOptions } from '../utils/telegram'
 
 interface AttendanceCheck extends Attendance {
   pollMessageId: number
@@ -20,6 +22,7 @@ export class SchedulerService {
   private readonly messageGenerator: MessageGenerator
   private readonly reactionReader: ReactionReader
   private readonly bot: TelegramBot
+  private readonly rulesQuiz: RulesQuizService
   private readonly chatId: string
   private readonly chatThreadId?: string
   private readonly trainerChatId: string
@@ -33,12 +36,14 @@ export class SchedulerService {
     seasonManager: SeasonManager,
     messageGenerator: MessageGenerator,
     reactionReader: ReactionReader,
-    bot: TelegramBot
+    bot: TelegramBot,
+    rulesQuiz: RulesQuizService
   ) {
     this.seasonManager = seasonManager
     this.messageGenerator = messageGenerator
     this.reactionReader = reactionReader
     this.bot = bot
+    this.rulesQuiz = rulesQuiz
     this.chatId = config.telegram.chatId
     this.chatThreadId = config.telegram.chatThreadId
     this.trainerChatId = config.telegram.trainerChatId
@@ -175,7 +180,7 @@ export class SchedulerService {
       await this.bot.sendMessage(this.chatId, message, {
         parse_mode: 'Markdown',
         reply_to_message_id: pollMessageId,
-        ...(this.chatThreadId && { message_thread_id: parseInt(this.chatThreadId) })
+        ...threadOptions(this.chatThreadId)
       })
 
       log.scheduler(`📣 Attendance reminder sent to team (${count}/${threshold})`)
@@ -221,7 +226,7 @@ export class SchedulerService {
 
       await this.bot.sendMessage(this.trainerChatId, message, {
         parse_mode: 'Markdown',
-        ...(this.trainerChatThreadId && { message_thread_id: parseInt(this.trainerChatThreadId) })
+        ...threadOptions(this.trainerChatThreadId)
       })
 
       log.scheduler(`❌ Cancellation sent to trainers (${count}/${threshold})`)
@@ -278,7 +283,7 @@ export class SchedulerService {
       log.bot(`Sending message to chat ${this.chatId}`)
       const sent = await this.bot.sendMessage(this.chatId, message, {
         parse_mode: 'Markdown',
-        ...(this.chatThreadId && { message_thread_id: parseInt(this.chatThreadId) })
+        ...threadOptions(this.chatThreadId)
       })
 
       // The training post is the poll: its 👍 reactions are the attendance count
@@ -296,6 +301,9 @@ export class SchedulerService {
     } catch (error) {
       log.error('Sending scheduled message', error)
     }
+
+    // Outside the try above: a failed training post must not skip the quiz, which goes out even if training is cancelled
+    await this.rulesQuiz.sendScheduled()
   }
 
   private async sendKeyMessage(seasonConfig: SeasonConfig): Promise<void> {
@@ -310,7 +318,7 @@ export class SchedulerService {
       log.bot(`Sending message to chat ${this.chatId}`)
       await this.bot.sendMessage(this.chatId, keyMessage, {
         parse_mode: 'Markdown',
-        ...(this.chatThreadId && { message_thread_id: parseInt(this.chatThreadId) })
+        ...threadOptions(this.chatThreadId)
       })
 
       const threadInfo = this.chatThreadId ? ` (thread ${this.chatThreadId})` : ''
@@ -340,7 +348,7 @@ export class SchedulerService {
       log.bot(`Sending message to chat ${this.trainerChatId}`)
       await this.bot.sendMessage(this.trainerChatId, trainerMessage, {
         parse_mode: 'Markdown',
-        ...(this.trainerChatThreadId && { message_thread_id: parseInt(this.trainerChatThreadId) })
+        ...threadOptions(this.trainerChatThreadId)
       })
 
       const locationName = extractLocationName(seasonConfig.location)
