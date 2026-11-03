@@ -1,7 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildQuizPost, parseQuizTag, pickQuestion, quizTag } from '../src/services/quizPicker'
-import { QUIZ_BATCHES } from '../src/data/rules-quiz'
+import { buildQuizPost, pickQuestion } from '../src/services/quizPicker'
+import { parseQuizTag, quizTag } from '../src/utils/quizTag'
+import { QUIZ_QUESTIONS } from '../src/data/rules-quiz'
 import { type QuizDifficulty, type QuizMode, type QuizQuestion } from '../src/types'
 
 const q = (id: string, difficulty: QuizDifficulty, modes: QuizMode[] = ['outdoor', 'indoor'], question = 'Q?'): QuizQuestion =>
@@ -44,7 +45,7 @@ test('ignores ids no longer in the bank', () => {
 })
 
 test('hidden tag round-trips every id and stays invisible', () => {
-  QUIZ_BATCHES.flatMap(batch => batch.questions).forEach(({ id }) => {
+  QUIZ_QUESTIONS.forEach(({ id }) => {
     assert.equal(parseQuizTag(`text${quizTag(id)}\n\nmore`), id)
     assert.match(quizTag(id), /^[\u2063\u200B\u200C\u200D\u2060]+$/u)
   })

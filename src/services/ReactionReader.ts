@@ -7,7 +7,7 @@ import { EMOJIS, isKeyMessage } from '../utils/constants'
 import { hoursBefore } from '../utils/dateHelpers'
 import { withTimeout } from '../utils/async'
 import { log } from '../utils/logger'
-import { parseQuizTag } from './quizPicker'
+import { parseQuizTag } from '../utils/quizTag'
 
 // How far back to look for the training post. The cron posts it ~24h before training, but a
 // manually triggered one can land earlier, so leave room. Messages come back newest-first, so
@@ -160,12 +160,17 @@ export class ReactionReader {
     const messages = await this.fetchMessages(chatId, { limit: QUIZ_HISTORY_LIMIT }, threadId)
 
     return messages.flatMap(message => {
-      // In a broadcast channel the sender is the channel itself, not the bot
-      if (!this.isFromBot(message) && !message.post) return []
-      if (!(message.media instanceof Api.MessageMediaPoll)) return []
-      const id = parseQuizTag(message.media.poll.question.text)
+      const id = this.quizIdOf(message)
       return id ? [id] : []
     })
+  }
+
+  /** The id hidden in a quiz poll the bot posted; any other message has none. */
+  private quizIdOf(message: Api.Message): string | undefined {
+    // In a broadcast channel the sender is the channel itself, not the bot
+    const fromBot = this.isFromBot(message) || message.post
+    if (!fromBot || !(message.media instanceof Api.MessageMediaPoll)) return undefined
+    return parseQuizTag(message.media.poll.question.text)
   }
 
   private async fetchMessages(

@@ -2,28 +2,34 @@ import type TelegramBot from 'node-telegram-bot-api'
 import { type SeasonManager } from '../services/SeasonManager'
 import { type MessageGenerator } from '../services/MessageGenerator'
 import { type SchedulerService } from '../services/SchedulerService'
+import { type RulesQuizService } from '../services/RulesQuizService'
+import { findQuizQuestion } from '../data/rules-quiz'
 import { type SeasonConfigBase, type DateConfig } from '../types'
 import { config } from '../config'
 import { EMOJIS, MESSAGES } from '../utils/constants'
 import { getDateBefore } from '../utils/dateHelpers'
 import { capitalize, formatDateShort, formatDate, formatPracticeDays } from '../utils/formatters'
 import { log } from '../utils/logger'
+import { threadOptions } from '../utils/telegram'
 
 export class BotController {
   private readonly bot: TelegramBot
   private readonly seasonManager: SeasonManager
   private readonly messageGenerator: MessageGenerator
+  private readonly rulesQuiz: RulesQuizService
   private readonly adminChatId: string
   private schedulerService?: SchedulerService
 
   constructor(
     bot: TelegramBot,
     seasonManager: SeasonManager,
-    messageGenerator: MessageGenerator
+    messageGenerator: MessageGenerator,
+    rulesQuiz: RulesQuizService
   ) {
     this.bot = bot
     this.seasonManager = seasonManager
     this.messageGenerator = messageGenerator
+    this.rulesQuiz = rulesQuiz
     this.adminChatId = config.telegram.adminChatId
 
     this.setupCommands()
@@ -248,7 +254,7 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
       const threadId = config.telegram.chatThreadId
       await this.bot.sendMessage(chatId, message, {
         parse_mode: 'Markdown',
-        ...(threadId && { message_thread_id: parseInt(threadId) })
+        ...threadOptions(threadId)
       })
       await this.reply(msg, `${EMOJIS.CHECK_MARK} Message sent to team chat!`)
     } catch (error) {
@@ -313,13 +319,8 @@ ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHo
   private async handleSendRule(msg: TelegramBot.Message): Promise<void> {
     log.command('/send_rule', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
 
-    if (!this.schedulerService) {
-      await this.reply(msg, `${EMOJIS.CROSS_MARK} Scheduler service not available`)
-      return
-    }
-
     try {
-      const question = await this.schedulerService.postNextRulesQuiz()
+      const question = await this.rulesQuiz.postNext()
       await this.reply(msg, `${EMOJIS.CHECK_MARK} Rules quiz posted: ${question.id} (${question.difficulty})`)
     } catch (error) {
       await this.reply(msg, `${EMOJIS.CROSS_MARK} Error: ${this.getErrorMessage(error)}`)
@@ -329,23 +330,15 @@ ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHo
   private async handleTestRule(msg: TelegramBot.Message, id?: string): Promise<void> {
     log.command('/test_rule', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
 
-    if (!this.schedulerService) {
-      await this.reply(msg, `${EMOJIS.CROSS_MARK} Scheduler service not available`)
-      return
-    }
-
     try {
-      const question = id
-        ? this.schedulerService.findRulesQuestion(id)
-        : await this.schedulerService.pickRulesQuestion()
+      const question = id ? findQuizQuestion(id) : await this.rulesQuiz.pickNext()
 
       if (!question) {
         await this.reply(msg, `${EMOJIS.CROSS_MARK} Unknown question id: ${id}`)
         return
       }
 
-      const threadId = msg.is_topic_message ? msg.message_thread_id?.toString() : undefined
-      await this.schedulerService.postRulesQuiz(msg.chat.id.toString(), threadId, question)
+      await this.rulesQuiz.post({ chatId: msg.chat.id.toString(), threadId: this.topicId(msg)?.toString() }, question)
     } catch (error) {
       await this.reply(msg, `${EMOJIS.CROSS_MARK} Error: ${this.getErrorMessage(error)}`)
     }
@@ -362,12 +355,17 @@ ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHo
   }
 
   private async reply(msg: TelegramBot.Message, text: string, options?: TelegramBot.SendMessageOptions): Promise<void> {
-    const threadId = msg.is_topic_message ? msg.message_thread_id : undefined
+    const threadId = this.topicId(msg)
     log.bot(`Sending message to chat ${msg.chat.id}${threadId ? ` (thread ${threadId})` : ''}`)
     await this.bot.sendMessage(msg.chat.id, text, {
       ...options,
-      ...(threadId && { message_thread_id: threadId })
+      ...threadOptions(threadId)
     })
+  }
+
+  /** The topic a command came from; outside forum topics message_thread_id points at a reply thread instead. */
+  private topicId(msg: TelegramBot.Message): number | undefined {
+    return msg.is_topic_message ? msg.message_thread_id : undefined
   }
 
   private formatSeasonInfo(
