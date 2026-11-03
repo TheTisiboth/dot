@@ -39,7 +39,7 @@ export function ruleLink(question: QuizQuestion, source: QuizBatch['source']): s
 export function buildAnswer(question: QuizQuestion, source: QuizBatch['source'], poll?: PollResult): string {
   return [
     `✅ <b>${escapeHtml(question.answer)}</b>`,
-    escapeHtml(question.explanation),
+    question.explanation && escapeHtml(question.explanation),
     [answerStats(question.answer, poll), ruleLink(question, source)].filter(Boolean).join('\n')
-  ].join('\n\n')
+  ].filter(Boolean).join('\n\n')
 }

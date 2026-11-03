@@ -150,7 +150,7 @@ export class RulesQuizService {
     if (question.answerImage) {
       await this.sendImage(chat, question.answerImage, pollMessageId, text)
     } else {
-      await this.sendText(chat, text, pollMessageId, 'HTML')
+      await this.sendText(chat, text, pollMessageId, { parse_mode: 'HTML', disable_web_page_preview: true })
     }
   }
 
@@ -201,12 +201,8 @@ export class RulesQuizService {
     return sent.message_id
   }
 
-  private async sendText({ chatId, threadId }: Chat, text: string, replyTo?: number, parseMode?: TelegramBot.ParseMode): Promise<number> {
-    const sent = await this.bot.sendMessage(chatId, text, {
-      ...threadOptions(threadId),
-      ...replyOptions(replyTo),
-      ...(parseMode && { parse_mode: parseMode })
-    })
+  private async sendText({ chatId, threadId }: Chat, text: string, replyTo?: number, options?: TelegramBot.SendMessageOptions): Promise<number> {
+    const sent = await this.bot.sendMessage(chatId, text, { ...threadOptions(threadId), ...replyOptions(replyTo), ...options })
     return sent.message_id
   }
 

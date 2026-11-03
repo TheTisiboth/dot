@@ -212,6 +212,7 @@ test('answer: closes the poll, then replies to it in the topic with the stats', 
   assert.equal(answer.options.reply_to_message_id, 50)
   assert.equal(answer.options.message_thread_id, 7)
   assert.equal(answer.options.parse_mode, 'HTML')
+  assert.equal(answer.options.disable_web_page_preview, true)
   assert.match(answer.content as string, /^✅ <b>/)
   assert.match(answer.content as string, /📊 1\/4 got it right \(25%\)/)
 })

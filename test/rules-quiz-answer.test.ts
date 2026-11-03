@@ -58,3 +58,7 @@ test('answer: answer, explanation, stats and link, with HTML escaped', () => {
 test('answer: without poll result, no stats line', () => {
   assert.ok(!buildAnswer(question(), source).includes('📊'))
 })
+
+test('answer: no explanation, no empty paragraph', () => {
+  assert.ok(buildAnswer(question({ explanation: undefined }), source).startsWith('✅ <b>Turnover</b>\n\n📖 '))
+})
