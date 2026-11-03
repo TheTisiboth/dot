@@ -43,7 +43,8 @@ export class ReactionReader {
       config.mtproto.apiHash,
       // GramJS prints raw stack traces for routine keep-alive timeouts it recovers from on its own.
       // Real failures still reach us as rejected calls.
-      { connectionRetries: 5, baseLogger: new Logger('none' as LogLevel) }
+      // WebSocket on 443: networks that filter MTProto's raw TCP still let HTTPS through
+      { connectionRetries: 5, useWSS: true, baseLogger: new Logger('none' as LogLevel) }
     )
     this.client.onError = async (error) => {
       // GramJS's idle update loop throws TIMEOUT routinely and reconnects itself
