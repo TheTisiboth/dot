@@ -33,3 +33,37 @@ test('history: ids of the quiz polls among the bot messages, newest first', asyn
   assert.deepEqual(await reader.getAskedQuizIds('-400', '7', 'quiz_bot'), ['r1_01', 'sig_01'])
   assert.deepEqual(searched, ['-400', '7', 'quiz_bot'])
 })
+
+const reply = (id: number, replyToMsgId: number): Api.Message =>
+  ({ id, date: 1_800_000_000, replyTo: new Api.MessageReplyHeader({ replyToMsgId }) }) as unknown as Api.Message
+
+const readerReturning = (messages: Api.Message[]): ReactionReader =>
+  Object.assign(Object.create(ReactionReader.prototype) as ReactionReader, { searchBotMessages: async () => messages })
+
+const quizPoll = (id: number, questionId: string, fields: { replyToMsgId?: number } = {}): Api.Message =>
+  ({
+    id,
+    date: 1_800_000_000,
+    media: poll(`🟢 Easy${quizTag(questionId)}\n\nQ?`),
+    ...(fields.replyToMsgId && { replyTo: new Api.MessageReplyHeader({ replyToMsgId: fields.replyToMsgId }) })
+  }) as unknown as Api.Message
+
+test('latest quiz: the newest poll, not answered yet', async () => {
+  const latest = await readerReturning([
+    quizPoll(20, 'r1_02', { replyToMsgId: 19 }), // replies to its own photo
+    message({ message: 'photo' }),
+    reply(12, 10),
+    quizPoll(10, 'r1_01')
+  ]).getLatestQuiz('-400', '7', 'quiz_bot')
+
+  assert.deepEqual(latest, { messageId: 20, questionId: 'r1_02', postedAt: new Date(1_800_000_000_000), answered: false })
+})
+
+test('latest quiz: answered once the bot replied to it', async () => {
+  const latest = await readerReturning([reply(21, 20), quizPoll(20, 'r1_02')]).getLatestQuiz('-400', '7', 'quiz_bot')
+  assert.equal(latest?.answered, true)
+})
+
+test('latest quiz: none posted', async () => {
+  assert.equal(await readerReturning([message({ message: 'hello' })]).getLatestQuiz('-400', '7', 'quiz_bot'), undefined)
+})

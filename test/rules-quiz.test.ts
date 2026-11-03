@@ -32,7 +32,9 @@ test('rule refs are WFDF rule numbers', () => {
 })
 
 test('images exist', () => {
-  questions.filter(q => q.image).forEach(q => assert.ok(existsSync(q.image as string), `${q.id}: ${q.image}`))
+  questions.forEach(q => [q.image, q.answerImage].filter(Boolean).forEach(image =>
+    assert.ok(existsSync(image as string), `${q.id}: ${image}`)
+  ))
 })
 
 test('every mode has questions at every difficulty', () => {

@@ -54,6 +54,7 @@ const explain = (s: Signal): string =>
 
 const toQuestions = (s: Signal): QuizQuestion[] => {
   const lookalikes = s.lookalikes.map(byNumber)
+  const image = `assets/signals/${pad(s.n)}-${s.slug}.png`
 
   return [
     {
@@ -64,7 +65,7 @@ const toQuestions = (s: Signal): QuizQuestion[] => {
       answer: s.name,
       wrong: lookalikes.map(l => l.name),
       explanation: explain(s),
-      image: `assets/signals/${pad(s.n)}-${s.slug}.png`
+      image
     },
     {
       id: `sig_${pad(s.n)}_r`,
@@ -73,7 +74,8 @@ const toQuestions = (s: Signal): QuizQuestion[] => {
       question: `What is the hand signal for "${s.name}"?`,
       answer: s.description,
       wrong: lookalikes.map(l => l.description),
-      explanation: explain(s)
+      explanation: explain(s),
+      answerImage: image
     }
   ]
 }

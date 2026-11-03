@@ -58,6 +58,7 @@ export class BotController {
     this.bot.onText(/\/send_to_all/, (msg) => this.requireAdmin(msg, () => this.handleSendToAll(msg)))
     this.bot.onText(/\/attendance/, (msg) => this.requireAdmin(msg, () => this.handleAttendance(msg)))
     this.bot.onText(/\/send_rule/, (msg) => this.requireAdmin(msg, () => this.handleSendRule(msg)))
+    this.bot.onText(/\/answer_rule/, (msg) => this.requireAdmin(msg, () => this.handleAnswerRule(msg)))
     this.bot.onText(/\/test_rule(?:@\w+)?(?:\s+(\S+))?/, (msg, match) => this.requireAdmin(msg, () => this.handleTestRule(msg, match?.[1])))
   }
 
@@ -82,7 +83,8 @@ export class BotController {
             {command: 'send_to_all', description: 'Send messages to team and trainer chats'},
             {command: 'attendance', description: 'Show live 👍 count on the training post'},
             {command: 'test_rule', description: 'Preview a rules quiz question here: /test_rule [id]'},
-            {command: 'send_rule', description: 'Post the next rules quiz question to the rules chat'}
+            {command: 'send_rule', description: 'Post the next rules quiz question to the rules chat'},
+            {command: 'answer_rule', description: 'Answer the latest rules quiz poll now'}
         ]
 
         try {
@@ -322,6 +324,20 @@ ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHo
     try {
       const question = await this.rulesQuiz.postNext()
       await this.reply(msg, `${EMOJIS.CHECK_MARK} Rules quiz posted: ${question.id} (${question.difficulty})`)
+    } catch (error) {
+      await this.reply(msg, `${EMOJIS.CROSS_MARK} Error: ${this.getErrorMessage(error)}`)
+    }
+  }
+
+  private async handleAnswerRule(msg: TelegramBot.Message): Promise<void> {
+    log.command('/answer_rule', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
+
+    try {
+      const question = await this.rulesQuiz.answerLatest()
+      const text = question
+        ? `${EMOJIS.CHECK_MARK} Rules quiz answered: ${question.id}`
+        : `${EMOJIS.WARNING} Nothing to answer: no quiz poll, or the latest one is already answered.`
+      await this.reply(msg, text)
     } catch (error) {
       await this.reply(msg, `${EMOJIS.CROSS_MARK} Error: ${this.getErrorMessage(error)}`)
     }

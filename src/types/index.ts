@@ -52,6 +52,8 @@ export interface QuizQuestion {
   explanation: string;
   /** Sent as a photo before the poll, relative to the app root */
   image?: string;
+  /** Sent as a photo with the answer, relative to the app root */
+  answerImage?: string;
 }
 
 export interface QuizBatch {
