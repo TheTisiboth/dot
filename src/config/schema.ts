@@ -81,6 +81,14 @@ const exceptionalTrainingSchema = z.object({
   isCancelled: z.boolean().optional()
 })
 
+// Rules Quiz Config Schema
+const rulesQuizConfigSchema = z.object({
+  enabled: z.boolean(),
+  chatId: z.string().optional(),
+  chatThreadId: z.string().optional(),
+  answerTime: z.string().regex(/^\d{1,2}:\d{2}$/, 'RULES_ANSWER_TIME must be in HH:MM format')
+}).refine(({ enabled, chatId }) => !enabled || chatId, 'RULES_CHAT_ID is required when RULES_QUIZ_ENABLED=true')
+
 // Bot Config Schema
 export const botConfigSchema = z.object({
   telegram: telegramConfigSchema,
@@ -89,5 +97,6 @@ export const botConfigSchema = z.object({
   attendance: attendanceConfigSchema,
   seasons: seasonsConfigSchema,
   testing: testingConfigSchema,
-  exceptionalTraining: exceptionalTrainingSchema
+  exceptionalTraining: exceptionalTrainingSchema,
+  rulesQuiz: rulesQuizConfigSchema
 })

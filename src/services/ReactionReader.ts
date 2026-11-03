@@ -7,6 +7,7 @@ import { EMOJIS, isKeyMessage } from '../utils/constants'
 import { hoursBefore } from '../utils/dateHelpers'
 import { withTimeout } from '../utils/async'
 import { log } from '../utils/logger'
+import { parseQuizTag } from './quizPicker'
 
 // How far back to look for the training post. The cron posts it ~24h before training, but a
 // manually triggered one can land earlier, so leave room. Messages come back newest-first, so
@@ -14,6 +15,8 @@ import { log } from '../utils/logger'
 const POLL_LOOKBACK_HOURS = 48
 const HISTORY_LIMIT = 100
 const CONNECT_TIMEOUT_MS = 20_000
+// shortcut: two quizzes a week, so 1000 messages covers ~10 years; page through history if that runs out
+const QUIZ_HISTORY_LIMIT = 1000
 
 /**
  * Reads message reactions through a user account (MTProto).
@@ -150,6 +153,19 @@ export class ReactionReader {
       message.message?.includes(needle) &&
       this.sentAt(message) >= since
     )
+  }
+
+  /** Ids of the quiz questions already posted, newest first: the chat history is the quiz memory. */
+  async getAskedQuizIds(chatId: string, threadId: string | undefined): Promise<string[]> {
+    const messages = await this.fetchMessages(chatId, { limit: QUIZ_HISTORY_LIMIT }, threadId)
+
+    return messages.flatMap(message => {
+      // In a broadcast channel the sender is the channel itself, not the bot
+      if (!this.isFromBot(message) && !message.post) return []
+      if (!(message.media instanceof Api.MessageMediaPoll)) return []
+      const id = parseQuizTag(message.media.poll.question.text)
+      return id ? [id] : []
+    })
   }
 
   private async fetchMessages(

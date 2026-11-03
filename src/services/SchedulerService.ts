@@ -5,10 +5,14 @@ import { type ReactionReader } from './ReactionReader'
 import { config } from '../config'
 import type TelegramBot from 'node-telegram-bot-api'
 import { log } from '../utils/logger'
-import { type SeasonConfig, type PracticeDay, type Attendance, type TrainingInfo } from '../types'
+import { type SeasonConfig, type PracticeDay, type Attendance, type TrainingInfo, type QuizQuestion } from '../types'
+import { QUIZ_BATCHES } from '../data/rules-quiz'
+import { buildQuizPost, modeFor, pickQuestion } from './quizPicker'
 import { CANCELLATION_SIGNATURE } from '../utils/constants'
 import { atTime, hoursBefore, getEffectiveDate } from '../utils/dateHelpers'
 import { formatDateLocale, formatDateTimeLocale, extractLocationName } from '../utils/formatters'
+
+const QUIZ_QUESTIONS = QUIZ_BATCHES.flatMap(batch => batch.questions)
 
 interface AttendanceCheck extends Attendance {
   pollMessageId: number
@@ -296,6 +300,78 @@ export class SchedulerService {
     } catch (error) {
       log.error('Sending scheduled message', error)
     }
+
+    // Outside the try above: a failed training post must not skip the quiz, which goes out even if training is cancelled
+    await this.sendRulesQuiz()
+  }
+
+  /** Picks the next question the way the scheduler does, from the rules chat history. */
+  async pickRulesQuestion(): Promise<QuizQuestion> {
+    const { chatId, chatThreadId } = this.rulesChat()
+    const nextTraining = this.seasonManager.getNextTrainingInfo()
+    const mode = modeFor(nextTraining.season)
+    const askedIds = await this.reactionReader.getAskedQuizIds(chatId, chatThreadId)
+
+    return pickQuestion(QUIZ_QUESTIONS, mode, askedIds)
+  }
+
+  private rulesChat(): { chatId: string; chatThreadId?: string } {
+    const { chatId, chatThreadId } = config.rulesQuiz
+    if (!chatId) throw new Error('RULES_CHAT_ID is not set')
+    return { chatId, chatThreadId }
+  }
+
+  findRulesQuestion(id: string): QuizQuestion | undefined {
+    return QUIZ_QUESTIONS.find(q => q.id === id)
+  }
+
+  async sendRulesQuiz(): Promise<void> {
+    if (!config.rulesQuiz.enabled) {
+      log.scheduler('Rules quiz disabled, skipping')
+      return
+    }
+
+    try {
+      await this.postNextRulesQuiz()
+    } catch (error) {
+      log.error('Sending rules quiz', error)
+    }
+  }
+
+  /** Posts the next question to the rules chat, even when the quiz is disabled (used by /send_rule). */
+  async postNextRulesQuiz(): Promise<QuizQuestion> {
+    const { chatId, chatThreadId } = this.rulesChat()
+    const question = await this.pickRulesQuestion()
+    await this.postRulesQuiz(chatId, chatThreadId, question)
+    log.scheduler(`❓ Rules quiz posted: ${question.id} (${question.difficulty})`)
+    return question
+  }
+
+  async postRulesQuiz(chatId: string, threadId: string | undefined, question: QuizQuestion): Promise<void> {
+    const { intro, poll, options } = buildQuizPost(question)
+    const thread = threadId ? { message_thread_id: parseInt(threadId) } : {}
+    let replyTo: number | undefined
+
+    if (question.image) {
+      const photo = await this.bot.sendPhoto(chatId, question.image, thread, { contentType: 'image/png' })
+      replyTo = photo.message_id
+    }
+
+    if (intro) {
+      const text = await this.bot.sendMessage(chatId, intro, {
+        ...thread,
+        ...(replyTo && { reply_to_message_id: replyTo })
+      })
+      replyTo = text.message_id
+    }
+
+    await this.bot.sendPoll(chatId, poll, options, {
+      ...thread,
+      ...(replyTo && { reply_to_message_id: replyTo }),
+      is_anonymous: true,
+      type: 'regular',
+      allows_multiple_answers: false
+    })
   }
 
   private async sendKeyMessage(seasonConfig: SeasonConfig): Promise<void> {

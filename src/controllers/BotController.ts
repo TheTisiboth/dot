@@ -51,6 +51,8 @@ export class BotController {
     this.bot.onText(/\/send_to_team/, (msg) => this.requireAdmin(msg, () => this.handleSendToTeam(msg)))
     this.bot.onText(/\/send_to_all/, (msg) => this.requireAdmin(msg, () => this.handleSendToAll(msg)))
     this.bot.onText(/\/attendance/, (msg) => this.requireAdmin(msg, () => this.handleAttendance(msg)))
+    this.bot.onText(/\/send_rule/, (msg) => this.requireAdmin(msg, () => this.handleSendRule(msg)))
+    this.bot.onText(/\/test_rule(?:@\w+)?(?:\s+(\S+))?/, (msg, match) => this.requireAdmin(msg, () => this.handleTestRule(msg, match?.[1])))
   }
 
     private async registerBotCommands() {
@@ -72,7 +74,9 @@ export class BotController {
             {command: 'preview_all', description: 'Preview both team and trainer messages'},
             {command: 'send_to_team', description: 'Send message to team chat'},
             {command: 'send_to_all', description: 'Send messages to team and trainer chats'},
-            {command: 'attendance', description: 'Show live 👍 count on the training post'}
+            {command: 'attendance', description: 'Show live 👍 count on the training post'},
+            {command: 'test_rule', description: 'Preview a rules quiz question here: /test_rule [id]'},
+            {command: 'send_rule', description: 'Post the next rules quiz question to the rules chat'}
         ]
 
         try {
@@ -301,6 +305,47 @@ ${EMOJIS.MEMO} Poll message id: \`${pollMessageId}\`
 ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHoursBefore}h before`
 
       await this.reply(msg, text, { parse_mode: 'Markdown' })
+    } catch (error) {
+      await this.reply(msg, `${EMOJIS.CROSS_MARK} Error: ${this.getErrorMessage(error)}`)
+    }
+  }
+
+  private async handleSendRule(msg: TelegramBot.Message): Promise<void> {
+    log.command('/send_rule', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
+
+    if (!this.schedulerService) {
+      await this.reply(msg, `${EMOJIS.CROSS_MARK} Scheduler service not available`)
+      return
+    }
+
+    try {
+      const question = await this.schedulerService.postNextRulesQuiz()
+      await this.reply(msg, `${EMOJIS.CHECK_MARK} Rules quiz posted: ${question.id} (${question.difficulty})`)
+    } catch (error) {
+      await this.reply(msg, `${EMOJIS.CROSS_MARK} Error: ${this.getErrorMessage(error)}`)
+    }
+  }
+
+  private async handleTestRule(msg: TelegramBot.Message, id?: string): Promise<void> {
+    log.command('/test_rule', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
+
+    if (!this.schedulerService) {
+      await this.reply(msg, `${EMOJIS.CROSS_MARK} Scheduler service not available`)
+      return
+    }
+
+    try {
+      const question = id
+        ? this.schedulerService.findRulesQuestion(id)
+        : await this.schedulerService.pickRulesQuestion()
+
+      if (!question) {
+        await this.reply(msg, `${EMOJIS.CROSS_MARK} Unknown question id: ${id}`)
+        return
+      }
+
+      const threadId = msg.is_topic_message ? msg.message_thread_id?.toString() : undefined
+      await this.schedulerService.postRulesQuiz(msg.chat.id.toString(), threadId, question)
     } catch (error) {
       await this.reply(msg, `${EMOJIS.CROSS_MARK} Error: ${this.getErrorMessage(error)}`)
     }
