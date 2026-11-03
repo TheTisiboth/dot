@@ -3,7 +3,7 @@ import { test, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import type TelegramBot from 'node-telegram-bot-api'
 import { config } from '../src/config'
-import { findQuizQuestion } from '../src/data/rules-quiz'
+import { findQuizQuestion, QUIZ_QUESTIONS } from '../src/data/rules-quiz'
 import { RulesQuizService } from '../src/services/RulesQuizService'
 import { type ReactionReader } from '../src/services/ReactionReader'
 import { type SeasonManager } from '../src/services/SeasonManager'
@@ -24,7 +24,7 @@ const RULES_CHAT = { chatId: '-400', threadId: '7' }
 let calls: Call[]
 let askedIds: string[]
 let historyError: Error | undefined
-let historyReads: Array<{ chatId: string; threadId?: string }>
+let historyReads: Array<{ chatId: string; threadId?: string; botUsername: string }>
 
 const bot = (() => {
   let nextId = 100
@@ -35,15 +35,20 @@ const bot = (() => {
     calls.push({ method, chatId, content, options, extra, messageId })
     return { message_id: messageId }
   }
-  return { sendPhoto: record('sendPhoto'), sendMessage: record('sendMessage'), sendPoll: record('sendPoll') }
+  return {
+    sendPhoto: record('sendPhoto'),
+    sendMessage: record('sendMessage'),
+    sendPoll: record('sendPoll'),
+    getMe: async () => ({ username: 'quiz_bot' })
+  }
 })() as unknown as TelegramBot
 
 const seasonOf = (season: SeasonType) =>
   ({ getNextTrainingInfo: () => ({ season }) }) as unknown as SeasonManager
 
 const reader = {
-  getAskedQuizIds: async (chatId: string, threadId?: string) => {
-    historyReads.push({ chatId, threadId })
+  getAskedQuizIds: async (chatId: string, threadId: string | undefined, botUsername: string) => {
+    historyReads.push({ chatId, threadId, botUsername })
     if (historyError) throw historyError
     return askedIds
   }
@@ -115,7 +120,7 @@ test('postNext reads the rules chat history and picks for the season mode', asyn
     assert.ok(!askedIds.includes(posted.id), `${posted.id} repeated`)
     askedIds.unshift(posted.id)
   }
-  assert.deepEqual(historyReads[0], RULES_CHAT)
+  assert.deepEqual(historyReads[0], { ...RULES_CHAT, botUsername: 'quiz_bot' })
   assert.ok(calls.every(c => c.chatId === RULES_CHAT.chatId))
 })
 
@@ -139,4 +144,44 @@ test('sendScheduled never throws, so the training post is never affected', async
   historyError = new Error('MTProto down')
   await service().sendScheduled()
   assert.equal(calls.length, 0)
+})
+
+test('overlapping posts run one after another, so they never read the same history', async () => {
+  // One indoor question left: without the queue both posts would read this history and pick it
+  const indoor = QUIZ_QUESTIONS.filter(q => q.modes.includes('indoor')).map(q => q.id)
+  const before = indoor.slice(1)
+  const quiz = new RulesQuizService(bot, seasonOf('winter'), {
+    getAskedQuizIds: async () => [
+      ...calls.filter(c => c.method === 'sendPoll').map(c => parseQuizTag(c.content as string) as string).reverse(),
+      ...before
+    ]
+  } as unknown as ReactionReader)
+
+  const [first, second] = await Promise.all([quiz.postNext(), quiz.postNext()])
+  assert.equal(first.id, indoor[0])
+  assert.notEqual(second.id, first.id)
+})
+
+test('a failed post does not block the next one', async () => {
+  historyError = new Error('MTProto down')
+  const quiz = service()
+  await assert.rejects(quiz.postNext(), /MTProto down/)
+  historyError = undefined
+  assert.ok(await quiz.postNext())
+})
+
+test('a failed bot username lookup is retried on the next post', async () => {
+  let attempts = 0
+  const flakyBot = Object.assign(Object.create(bot as object) as TelegramBot, {
+    getMe: async () => {
+      attempts++
+      if (attempts === 1) throw new Error('Bot API down')
+      return { username: 'quiz_bot' }
+    }
+  })
+  const quiz = new RulesQuizService(flakyBot, seasonOf('winter'), reader)
+
+  await assert.rejects(quiz.postNext(), /Bot API down/)
+  assert.ok(await quiz.postNext())
+  assert.equal(attempts, 2)
 })

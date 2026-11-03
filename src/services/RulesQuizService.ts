@@ -18,6 +18,9 @@ export class RulesQuizService {
   private readonly bot: TelegramBot
   private readonly seasonManager: SeasonManager
   private readonly reactionReader: ReactionReader
+  // Posts run one after another: two overlapping ones would read the same history and could post the same question
+  private queue: Promise<unknown> = Promise.resolve()
+  private botUsername?: Promise<string>
 
   constructor(bot: TelegramBot, seasonManager: SeasonManager, reactionReader: ReactionReader) {
     this.bot = bot
@@ -41,6 +44,13 @@ export class RulesQuizService {
 
   /** Posts the next question to the rules chat, even when the quiz is disabled (used by /send_rule). */
   async postNext(): Promise<QuizQuestion> {
+    const run = this.queue.then(() => this.pickAndPost())
+    // A failed post must not block the ones queued after it
+    this.queue = run.catch(() => undefined)
+    return await run
+  }
+
+  private async pickAndPost(): Promise<QuizQuestion> {
     const chat = this.rulesChat()
     const question = await this.pickNext(chat)
     await this.post(chat, question)
@@ -51,8 +61,23 @@ export class RulesQuizService {
   /** Picks the way the scheduler does: the next training's season mode, minus what the rules chat already got. */
   async pickNext(chat: Chat = this.rulesChat()): Promise<QuizQuestion> {
     const mode = modeFor(this.seasonManager.getNextTrainingInfo().season)
-    const askedIds = await this.reactionReader.getAskedQuizIds(chat.chatId, chat.threadId)
+    const askedIds = await this.reactionReader.getAskedQuizIds(chat.chatId, chat.threadId, await this.getBotUsername())
     return pickQuestion(QUIZ_QUESTIONS, mode, askedIds)
+  }
+
+  /** Fetched once; a failure is not cached, so the next post retries it. */
+  private async getBotUsername(): Promise<string> {
+    this.botUsername ??= this.bot.getMe().then(me => {
+      if (!me.username) throw new Error('The bot has no username')
+      return me.username
+    })
+
+    try {
+      return await this.botUsername
+    } catch (error) {
+      this.botUsername = undefined
+      throw error
+    }
   }
 
   /** Image, then the long question text if any, then the poll: each one replying to the previous. */
