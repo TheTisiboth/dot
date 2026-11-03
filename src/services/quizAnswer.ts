@@ -38,7 +38,7 @@ export function ruleLink(question: QuizQuestion, source: QuizBatch['source']): s
 /** HTML: explanations contain characters that Markdown would read as formatting. */
 export function buildAnswer(question: QuizQuestion, source: QuizBatch['source'], poll?: PollResult): string {
   return [
-    `💡 <b>Answer</b>\n✅ ${escapeHtml(question.answer)}`,
+    `<b>Answer</b>\n✅ ${escapeHtml(question.answer)}`,
     question.explanation && escapeHtml(question.explanation),
     [answerStats(question.answer, poll), ruleLink(question, source)].filter(Boolean).join('\n')
   ].filter(Boolean).join('\n\n')

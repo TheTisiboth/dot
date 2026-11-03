@@ -212,7 +212,7 @@ test('answer: closes the poll, then replies to it in the topic with the stats', 
   assert.equal(answer.options.reply_to_message_id, 50)
   assert.equal(answer.options.message_thread_id, 7)
   assert.equal(answer.options.parse_mode, 'HTML')
-  assert.match(answer.content as string, /^💡 <b>Answer<\/b>\n✅ /)
+  assert.match(answer.content as string, /^<b>Answer<\/b>\n✅ /)
   assert.match(answer.content as string, /📊 1\/4 got it right \(25%\)/)
 })
 
@@ -225,7 +225,7 @@ test('answer: "what is the signal?" questions answer with the signal photo', asy
   assert.equal(photo.content, 'assets/signals/01-foul.png')
   assert.equal(photo.options.reply_to_message_id, 50)
   assert.equal(photo.options.parse_mode, 'HTML')
-  assert.match(photo.options.caption as string, /^💡 <b>Answer<\/b>\n✅ /)
+  assert.match(photo.options.caption as string, /^<b>Answer<\/b>\n✅ /)
 })
 
 test('answer: skipped when already answered, none posted, or the question left the bank', async () => {
@@ -299,6 +299,6 @@ test('preview: the question, then its answer replying to the poll, without closi
   const [, poll, answer] = calls
   assert.ok(calls.every(c => c.chatId === admin.chatId))
   assert.equal(answer.options.reply_to_message_id, poll.messageId)
-  assert.match(answer.content as string, /^💡 <b>Answer<\/b>\n✅ Foul/)
+  assert.match(answer.content as string, /^<b>Answer<\/b>\n✅ Foul/)
   assert.ok(!(answer.content as string).includes('📊'))
 })

@@ -52,7 +52,7 @@ test('link: the source document when there is no rule ref', () => {
 
 test('answer: answer, explanation, stats and link, with HTML escaped', () => {
   const text = buildAnswer(question({ answer: 'In <bounds>', explanation: 'A & B' }), source, poll({ 'In <bounds>': 1 }))
-  assert.ok(text.startsWith('💡 <b>Answer</b>\n✅ In &lt;bounds&gt;\n\nA &amp; B\n\n📊 1/1 got it right (100%)\n📖 '), text)
+  assert.ok(text.startsWith('<b>Answer</b>\n✅ In &lt;bounds&gt;\n\nA &amp; B\n\n📊 1/1 got it right (100%)\n📖 '), text)
 })
 
 test('answer: without poll result, no stats line', () => {
@@ -60,5 +60,5 @@ test('answer: without poll result, no stats line', () => {
 })
 
 test('answer: no explanation, no empty paragraph', () => {
-  assert.ok(buildAnswer(question({ explanation: undefined }), source).startsWith('💡 <b>Answer</b>\n✅ Turnover\n\n📖 '))
+  assert.ok(buildAnswer(question({ explanation: undefined }), source).startsWith('<b>Answer</b>\n✅ Turnover\n\n📖 '))
 })
