@@ -5,7 +5,7 @@ import { buildQuizPost, modeFor, pickQuestion } from './quizPicker'
 import { answerTimeFor, buildAnswer, type PollResult } from './quizAnswer'
 import { config } from '../config'
 import { findQuizBatch, findQuizQuestion, QUIZ_QUESTIONS } from '../data/rules-quiz'
-import { type QuizQuestion } from '../types'
+import { type QuizBatch, type QuizQuestion } from '../types'
 import { getEffectiveDate } from '../utils/dateHelpers'
 import { formatDateTimeLocale } from '../utils/formatters'
 import { log } from '../utils/logger'
@@ -114,16 +114,21 @@ export class RulesQuizService {
     }
 
     const question = findQuizQuestion(latest.questionId)
-    const source = findQuizBatch(latest.questionId)?.source
-    if (!question || !source) {
+    if (!question) {
       log.warn('Rules quiz', `Question ${latest.questionId} is no longer in the bank - not answering`)
       return undefined
     }
 
     const poll = await this.closePoll(chat, latest.messageId)
-    await this.sendAnswer(chat, question, buildAnswer(question, source, poll), latest.messageId)
+    await this.sendAnswer(chat, question, buildAnswer(question, this.sourceOf(question), poll), latest.messageId)
     log.scheduler(`✅ Rules quiz answered: ${question.id}`)
     return question
+  }
+
+  private sourceOf(question: QuizQuestion): QuizBatch['source'] {
+    const batch = findQuizBatch(question.id)
+    if (!batch) throw new Error(`Question ${question.id} has no batch`)
+    return batch.source
   }
 
   private async findLatestQuiz(chat: Chat): Promise<LatestQuiz | undefined> {
@@ -172,12 +177,18 @@ export class RulesQuizService {
   }
 
   /** Image, then the long question text if any, then the poll: each one replying to the previous. */
-  async post(chat: Chat, question: QuizQuestion): Promise<void> {
+  async post(chat: Chat, question: QuizQuestion): Promise<number> {
     const { intro, poll, options } = buildQuizPost(question)
 
     let replyTo = question.image ? await this.sendImage(chat, question.image) : undefined
     if (intro) replyTo = await this.sendText(chat, intro, replyTo)
-    await this.sendPoll(chat, poll, options, replyTo)
+    return await this.sendPoll(chat, poll, options, replyTo)
+  }
+
+  /** The question and its answer right away, without closing the poll (used by /test_rule). */
+  async preview(chat: Chat, question: QuizQuestion): Promise<void> {
+    const pollMessageId = await this.post(chat, question)
+    await this.sendAnswer(chat, question, buildAnswer(question, this.sourceOf(question)), pollMessageId)
   }
 
   private async sendImage({ chatId, threadId }: Chat, image: string, replyTo?: number, htmlCaption?: string): Promise<number> {
@@ -200,14 +211,15 @@ export class RulesQuizService {
   }
 
   /** Anonymous regular poll, not quiz-type, so the answer stays hidden until it is posted. */
-  private async sendPoll({ chatId, threadId }: Chat, question: string, options: string[], replyTo?: number): Promise<void> {
-    await this.bot.sendPoll(chatId, question, options, {
+  private async sendPoll({ chatId, threadId }: Chat, question: string, options: string[], replyTo?: number): Promise<number> {
+    const sent = await this.bot.sendPoll(chatId, question, options, {
       ...threadOptions(threadId),
       ...replyOptions(replyTo),
       is_anonymous: true,
       type: 'regular',
       allows_multiple_answers: false
     })
+    return sent.message_id
   }
 
   private rulesChat(): Chat {

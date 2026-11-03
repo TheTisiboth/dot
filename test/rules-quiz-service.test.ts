@@ -290,3 +290,15 @@ test('arming: nothing when the latest poll is already answered, or the quiz is d
   await flush()
   assert.equal(calls.length, 0)
 })
+
+test('preview: the question, then its answer replying to the poll, without closing it', async () => {
+  const admin = { chatId: '-200' }
+  await service().preview(admin, question('sig_01'))
+
+  assert.deepEqual(calls.map(c => c.method), ['sendPhoto', 'sendPoll', 'sendMessage'])
+  const [, poll, answer] = calls
+  assert.ok(calls.every(c => c.chatId === admin.chatId))
+  assert.equal(answer.options.reply_to_message_id, poll.messageId)
+  assert.match(answer.content as string, /^✅ <b>Foul<\/b>/)
+  assert.ok(!(answer.content as string).includes('📊'))
+})

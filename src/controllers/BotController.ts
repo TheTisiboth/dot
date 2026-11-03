@@ -82,7 +82,7 @@ export class BotController {
             {command: 'send_to_team', description: 'Send message to team chat'},
             {command: 'send_to_all', description: 'Send messages to team and trainer chats'},
             {command: 'attendance', description: 'Show live 👍 count on the training post'},
-            {command: 'test_rule', description: 'Preview a rules quiz question here: /test_rule [id]'},
+            {command: 'test_rule', description: 'Preview a rules quiz question and its answer here: /test_rule [id]'},
             {command: 'send_rule', description: 'Post the next rules quiz question to the rules chat'},
             {command: 'answer_rule', description: 'Answer the latest rules quiz poll now'}
         ]
@@ -336,7 +336,7 @@ ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHo
       const question = await this.rulesQuiz.answerLatest()
       const text = question
         ? `${EMOJIS.CHECK_MARK} Rules quiz answered: ${question.id}`
-        : `${EMOJIS.WARNING} Nothing to answer: no quiz poll, or the latest one is already answered.`
+        : `${EMOJIS.WARNING} Nothing to answer in the rules chat: no quiz poll there, or the latest one is already answered. (/test_rule previews come with their answer.)`
       await this.reply(msg, text)
     } catch (error) {
       await this.reply(msg, `${EMOJIS.CROSS_MARK} Error: ${this.getErrorMessage(error)}`)
@@ -354,7 +354,7 @@ ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHo
         return
       }
 
-      await this.rulesQuiz.post({ chatId: msg.chat.id.toString(), threadId: this.topicId(msg)?.toString() }, question)
+      await this.rulesQuiz.preview({ chatId: msg.chat.id.toString(), threadId: this.topicId(msg)?.toString() }, question)
     } catch (error) {
       await this.reply(msg, `${EMOJIS.CROSS_MARK} Error: ${this.getErrorMessage(error)}`)
     }
