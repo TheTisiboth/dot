@@ -84,7 +84,9 @@ const exceptionalTrainingSchema = z.object({
 // Rules Quiz Config Schema
 const rulesQuizConfigSchema = z.object({
   enabled: z.boolean(),
-  chatId: z.string().optional(),
+  // The history is read through the MTProto user account, for which a private chat id with the
+  // bot is a different chat (its own Saved Messages): quizzes would never be found
+  chatId: z.string().startsWith('-', 'RULES_CHAT_ID must be a group or channel (its id starts with "-"), not a private chat with the bot').optional(),
   chatThreadId: z.string().optional(),
   answerTime: z.string().regex(/^\d{1,2}:\d{2}$/, 'RULES_ANSWER_TIME must be in HH:MM format')
 }).refine(({ enabled, chatId }) => !enabled || chatId, 'RULES_CHAT_ID is required when RULES_QUIZ_ENABLED=true')
