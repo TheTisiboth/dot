@@ -26,13 +26,15 @@ export function answerStats(answer: string, poll?: PollResult): string | undefin
   return `📊 ${right}/${poll.total_voter_count} got it right (${share}%)`
 }
 
+/** The rule's page on urules.org, opened on the rule itself. */
+export function ruleUrl(ref: string): string {
+  return `https://urules.org/ch${ref.split('.')[0]}.html#${ref}`
+}
+
 /** The rule on urules.org when the question has one, else the source document. */
 export function ruleLink(question: QuizQuestion, source: QuizBatch['source']): string {
   if (!question.ref) return `📖 ${link(source.url, source.title)}`
-
-  const chapter = question.ref.split('.')[0]
-  const rule = link(`https://www.urules.org/ch${chapter}.html#${question.ref}`, `Rule ${question.ref}`)
-  return `📖 ${rule} · ${link(source.url, source.title)}`
+  return `📖 ${link(ruleUrl(question.ref), `Rule ${question.ref}`)} · ${link(source.url, source.title)}`
 }
 
 /** HTML: explanations contain characters that Markdown would read as formatting. */

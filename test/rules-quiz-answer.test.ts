@@ -42,7 +42,7 @@ test('stats: no votes, and no poll result', () => {
 
 test('link: the rule on urules.org, plus the source', () => {
   const text = ruleLink(question({ ref: '9.5.1' }), source)
-  assert.ok(text.includes('<a href="https://www.urules.org/ch9.html#9.5.1">Rule 9.5.1</a>'), text)
+  assert.ok(text.includes('<a href="https://urules.org/ch9.html#9.5.1">Rule 9.5.1</a>'), text)
   assert.ok(text.includes(`<a href="${source.url}">${source.title}</a>`), text)
 })
 
