@@ -2,6 +2,7 @@ import { createInterface } from 'node:readline/promises'
 import { stdin, stdout } from 'node:process'
 import { Api, TelegramClient } from 'telegram'
 import { StringSession } from 'telegram/sessions/index.js'
+import QRCode from 'qrcode'
 import dotenv from 'dotenv'
 
 dotenv.config()
@@ -50,9 +51,14 @@ async function main(): Promise<void> {
 
   try {
     await client.connect()
-    const phoneNumber = await ask('Phone number (international format, e.g. +33...): ')
-    const code = await requestCode(client, phoneNumber, { apiId, apiHash }, ask)
-    await signIn(client, { phoneNumber, ...code }, { apiId, apiHash }, ask)
+    const phoneNumber = await ask('Phone number (international format, e.g. +33...), or press Enter to log in with a QR code: ')
+
+    if (phoneNumber) {
+      const code = await requestCode(client, phoneNumber, { apiId, apiHash }, ask)
+      await signIn(client, { phoneNumber, ...code }, { apiId, apiHash }, ask)
+    } else {
+      await signInWithQrCode(client, { apiId, apiHash }, ask)
+    }
 
     console.log('\n✅ Logged in. Add this line to your .env:\n')
     console.log(`TELEGRAM_SESSION=${client.session.save() as unknown as string}\n`)
@@ -90,6 +96,23 @@ async function requestCode(
 function asSentCode(reply: Api.auth.TypeSentCode): Api.auth.SentCode {
   if (!(reply instanceof Api.auth.SentCode)) throw new Error(`Unexpected reply to the code request: ${reply.className}`)
   return reply
+}
+
+/** No code to receive: a phone already logged in scans the QR (Settings → Devices → Link Desktop Device). */
+async function signInWithQrCode(
+  client: TelegramClient,
+  credentials: { apiId: number; apiHash: string },
+  ask: (question: string) => Promise<string>
+): Promise<void> {
+  await client.signInUserWithQrCode(credentials, {
+    // Called again with a fresh token each time the previous one expires (about every 30s)
+    qrCode: async ({ token }) => {
+      const qr = await QRCode.toString(`tg://login?token=${token.toString('base64url')}`, { type: 'terminal', small: true })
+      console.log(`\n${qr}\nScan it in the Telegram app: Settings → Devices → Link Desktop Device. It refreshes on its own.`)
+    },
+    password: async (hint) => await ask(`2FA password${hint ? ` (hint: ${hint})` : ''}: `),
+    onError: (err) => { console.error(err) }
+  })
 }
 
 async function signIn(
