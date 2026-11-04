@@ -26,7 +26,7 @@ export function answerStats(answer: string, poll?: PollResult): string | undefin
   return `📊 ${right}/${poll.total_voter_count} got it right (${share}%)`
 }
 
-/** The rule's page on urules.org, opened on the rule itself. Telegram has no link preview for it. */
+/** The rule's page on urules.org, opened on the rule itself. */
 const ruleUrl = (ref: string): string => `https://urules.org/ch${ref.split('.')[0]}.html#${ref}`
 
 /** The rule on urules.org when the question has one, else the source document. */
