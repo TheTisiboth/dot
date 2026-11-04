@@ -49,11 +49,13 @@ const byNumber = (n: number): Signal => {
 
 const pad = (n: number): string => String(n).padStart(2, '0')
 
-const explain = (s: Signal): string =>
-  `${s.name}: ${s.description.charAt(0).toLowerCase()}${s.description.slice(1)}.${s.calls ? ` Calls: ${s.calls.toLowerCase()}.` : ''}`
+// The photo and the description already show the signal: only the calls it covers add something
+const explain = (s: Signal): Pick<QuizQuestion, 'explanation'> =>
+  s.calls ? { explanation: `Calls: ${s.calls.toLowerCase()}.` } : {}
 
 const toQuestions = (s: Signal): QuizQuestion[] => {
   const lookalikes = s.lookalikes.map(byNumber)
+  const image = `assets/signals/${pad(s.n)}-${s.slug}.png`
 
   return [
     {
@@ -63,8 +65,8 @@ const toQuestions = (s: Signal): QuizQuestion[] => {
       question: 'Which call does this hand signal show?',
       answer: s.name,
       wrong: lookalikes.map(l => l.name),
-      explanation: explain(s),
-      image: `assets/signals/${pad(s.n)}-${s.slug}.png`
+      ...explain(s),
+      image
     },
     {
       id: `sig_${pad(s.n)}_r`,
@@ -73,7 +75,8 @@ const toQuestions = (s: Signal): QuizQuestion[] => {
       question: `What is the hand signal for "${s.name}"?`,
       answer: s.description,
       wrong: lookalikes.map(l => l.description),
-      explanation: explain(s)
+      ...explain(s),
+      answerImage: image
     }
   ]
 }

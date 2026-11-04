@@ -58,6 +58,7 @@ export class BotController {
     this.bot.onText(/\/send_to_all/, (msg) => this.requireAdmin(msg, () => this.handleSendToAll(msg)))
     this.bot.onText(/\/attendance/, (msg) => this.requireAdmin(msg, () => this.handleAttendance(msg)))
     this.bot.onText(/\/send_rule/, (msg) => this.requireAdmin(msg, () => this.handleSendRule(msg)))
+    this.bot.onText(/\/answer_rule/, (msg) => this.requireAdmin(msg, () => this.handleAnswerRule(msg)))
     this.bot.onText(/\/test_rule(?:@\w+)?(?:\s+(\S+))?/, (msg, match) => this.requireAdmin(msg, () => this.handleTestRule(msg, match?.[1])))
   }
 
@@ -81,8 +82,9 @@ export class BotController {
             {command: 'send_to_team', description: 'Send message to team chat'},
             {command: 'send_to_all', description: 'Send messages to team and trainer chats'},
             {command: 'attendance', description: 'Show live 👍 count on the training post'},
-            {command: 'test_rule', description: 'Preview a rules quiz question here: /test_rule [id]'},
-            {command: 'send_rule', description: 'Post the next rules quiz question to the rules chat'}
+            {command: 'test_rule', description: 'Preview a rules quiz question and its answer here: /test_rule [id]'},
+            {command: 'send_rule', description: 'Post the next rules quiz question to the rules chat'},
+            {command: 'answer_rule', description: 'Answer the latest rules quiz poll now'}
         ]
 
         try {
@@ -327,6 +329,20 @@ ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHo
     }
   }
 
+  private async handleAnswerRule(msg: TelegramBot.Message): Promise<void> {
+    log.command('/answer_rule', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
+
+    try {
+      const question = await this.rulesQuiz.answerLatest()
+      const text = question
+        ? `${EMOJIS.CHECK_MARK} Rules quiz answered: ${question.id}`
+        : `${EMOJIS.WARNING} Nothing to answer in the rules chat: no quiz poll there, or the latest one is already answered. (/test_rule previews come with their answer.)`
+      await this.reply(msg, text)
+    } catch (error) {
+      await this.reply(msg, `${EMOJIS.CROSS_MARK} Error: ${this.getErrorMessage(error)}`)
+    }
+  }
+
   private async handleTestRule(msg: TelegramBot.Message, id?: string): Promise<void> {
     log.command('/test_rule', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
 
@@ -338,7 +354,7 @@ ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHo
         return
       }
 
-      await this.rulesQuiz.post({ chatId: msg.chat.id.toString(), threadId: this.topicId(msg)?.toString() }, question)
+      await this.rulesQuiz.preview({ chatId: msg.chat.id.toString(), threadId: this.topicId(msg)?.toString() }, question)
     } catch (error) {
       await this.reply(msg, `${EMOJIS.CROSS_MARK} Error: ${this.getErrorMessage(error)}`)
     }

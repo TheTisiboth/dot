@@ -1,12 +1,15 @@
 import type TelegramBot from 'node-telegram-bot-api'
 import { type SeasonManager } from './SeasonManager'
-import { type ReactionReader } from './ReactionReader'
+import { type LatestQuiz, type ReactionReader } from './ReactionReader'
 import { buildQuizPost, modeFor, pickQuestion } from './quizPicker'
+import { answerTimeFor, buildAnswer, type PollResult } from './quizAnswer'
 import { config } from '../config'
-import { QUIZ_QUESTIONS } from '../data/rules-quiz'
-import { type QuizQuestion } from '../types'
+import { findQuizBatch, findQuizQuestion, QUIZ_QUESTIONS } from '../data/rules-quiz'
+import { type QuizBatch, type QuizQuestion } from '../types'
+import { getEffectiveDate } from '../utils/dateHelpers'
+import { formatDateTimeLocale } from '../utils/formatters'
 import { log } from '../utils/logger'
-import { replyOptions, threadOptions } from '../utils/telegram'
+import { noLinkPreview, replyOptions, threadOptions } from '../utils/telegram'
 
 interface Chat {
   chatId: string;
@@ -18,9 +21,11 @@ export class RulesQuizService {
   private readonly bot: TelegramBot
   private readonly seasonManager: SeasonManager
   private readonly reactionReader: ReactionReader
-  // Posts run one after another: two overlapping ones would read the same history and could post the same question
+  // Posts and answers run one after another: two overlapping ones would read the same history,
+  // and could post the same question or answer the same poll twice
   private queue: Promise<unknown> = Promise.resolve()
   private botUsername?: Promise<string>
+  private answerTimer?: NodeJS.Timeout
 
   constructor(bot: TelegramBot, seasonManager: SeasonManager, reactionReader: ReactionReader) {
     this.bot = bot
@@ -44,8 +49,53 @@ export class RulesQuizService {
 
   /** Posts the next question to the rules chat, even when the quiz is disabled (used by /send_rule). */
   async postNext(): Promise<QuizQuestion> {
-    const run = this.queue.then(() => this.pickAndPost())
-    // A failed post must not block the ones queued after it
+    const question = await this.enqueue(() => this.pickAndPost())
+    await this.armAnswer()
+    return question
+  }
+
+  /** Answers the newest poll now, unless it already was (used by /answer_rule and the answer timer). */
+  async answerLatest(): Promise<QuizQuestion | undefined> {
+    return await this.enqueue(() => this.answerLatestPoll())
+  }
+
+  /**
+   * Arms the answer for the newest poll, on startup and after each post. A time already passed
+   * fires at once (catch-up); the history check keeps it from answering twice. Never throws.
+   */
+  async armAnswer(): Promise<void> {
+    if (!config.rulesQuiz.enabled) return
+
+    try {
+      const latest = await this.findLatestQuiz(this.rulesChat())
+      clearTimeout(this.answerTimer)
+      if (!latest || latest.answered) return
+
+      const answerAt = answerTimeFor(latest.postedAt, config.rulesQuiz.answerTime)
+      const delay = Math.max(0, answerAt.getTime() - getEffectiveDate(new Date()).getTime())
+      log.scheduler(`⏰ Rules quiz answer armed for ${delay === 0 ? 'now (catch-up)' : formatDateTimeLocale(answerAt)}`)
+
+      this.answerTimer = setTimeout(() => { void this.answerOnTimer(latest.messageId) }, delay)
+    } catch (error) {
+      log.error('Arming rules quiz answer', error)
+    }
+  }
+
+  /**
+   * Answers only the poll the timer was armed for: a post queued just before it fires makes a
+   * newer poll the latest, and that one's answer is not due yet.
+   */
+  private async answerOnTimer(pollMessageId: number): Promise<void> {
+    try {
+      await this.enqueue(() => this.answerLatestPoll(pollMessageId))
+    } catch (error) {
+      log.error('Answering rules quiz', error)
+    }
+  }
+
+  /** A failed task must not block the ones queued after it. */
+  private async enqueue<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(task)
     this.queue = run.catch(() => undefined)
     return await run
   }
@@ -56,6 +106,64 @@ export class RulesQuizService {
     await this.post(chat, question)
     log.scheduler(`❓ Rules quiz posted: ${question.id} (${question.difficulty})`)
     return question
+  }
+
+  private async answerLatestPoll(onlyPollMessageId?: number): Promise<QuizQuestion | undefined> {
+    const chat = this.rulesChat()
+    const latest = await this.findLatestQuiz(chat)
+    const skipReason = this.answerSkipReason(latest, onlyPollMessageId)
+
+    if (!latest || skipReason) {
+      log.scheduler(`⏭️  Rules quiz answer skipped - ${skipReason}`)
+      return undefined
+    }
+
+    const question = findQuizQuestion(latest.questionId)
+    if (!question) {
+      log.warn('Rules quiz', `Question ${latest.questionId} is no longer in the bank - not answering`)
+      return undefined
+    }
+
+    const poll = await this.closePoll(chat, latest.messageId)
+    await this.sendAnswer(chat, question, buildAnswer(question, this.sourceOf(question), poll), latest.messageId)
+    log.scheduler(`✅ Rules quiz answered: ${question.id}`)
+    return question
+  }
+
+  private sourceOf(question: QuizQuestion): QuizBatch['source'] {
+    const batch = findQuizBatch(question.id)
+    if (!batch) throw new Error(`Question ${question.id} has no batch`)
+    return batch.source
+  }
+
+  private answerSkipReason(latest: LatestQuiz | undefined, onlyPollMessageId?: number): string | undefined {
+    if (!latest) return 'no quiz posted'
+    if (onlyPollMessageId !== undefined && latest.messageId !== onlyPollMessageId) return 'a newer quiz was posted'
+    if (latest.answered) return 'already answered'
+    return undefined
+  }
+
+  private async findLatestQuiz(chat: Chat): Promise<LatestQuiz | undefined> {
+    return await this.reactionReader.getLatestQuiz(chat.chatId, chat.threadId, await this.getBotUsername())
+  }
+
+  /** Closes the poll and returns its votes; none if it was already closed. */
+  private async closePoll({ chatId }: Chat, messageId: number): Promise<PollResult | undefined> {
+    try {
+      return await this.bot.stopPoll(chatId, messageId)
+    } catch (error) {
+      // shortcut: a crash between closing and replying loses the stats; reading them over MTProto would keep them
+      if (error instanceof Error && error.message.includes('already been closed')) return undefined
+      throw error
+    }
+  }
+
+  private async sendAnswer(chat: Chat, question: QuizQuestion, text: string, pollMessageId: number): Promise<void> {
+    if (question.answerImage) {
+      await this.sendImage(chat, question.answerImage, pollMessageId, text)
+    } else {
+      await this.sendText(chat, text, pollMessageId, { parse_mode: 'HTML', ...noLinkPreview() })
+    }
   }
 
   /** Picks the way the scheduler does: the next training's season mode, minus what the rules chat already got. */
@@ -81,33 +189,45 @@ export class RulesQuizService {
   }
 
   /** Image, then the long question text if any, then the poll: each one replying to the previous. */
-  async post(chat: Chat, question: QuizQuestion): Promise<void> {
+  async post(chat: Chat, question: QuizQuestion): Promise<number> {
     const { intro, poll, options } = buildQuizPost(question)
 
     let replyTo = question.image ? await this.sendImage(chat, question.image) : undefined
     if (intro) replyTo = await this.sendText(chat, intro, replyTo)
-    await this.sendPoll(chat, poll, options, replyTo)
+    return await this.sendPoll(chat, poll, options, replyTo)
   }
 
-  private async sendImage({ chatId, threadId }: Chat, image: string): Promise<number> {
-    const sent = await this.bot.sendPhoto(chatId, image, threadOptions(threadId), { contentType: 'image/png' })
+  /** The question and its answer right away, without closing the poll (used by /test_rule). */
+  async preview(chat: Chat, question: QuizQuestion): Promise<void> {
+    const pollMessageId = await this.post(chat, question)
+    await this.sendAnswer(chat, question, buildAnswer(question, this.sourceOf(question)), pollMessageId)
+  }
+
+  private async sendImage({ chatId, threadId }: Chat, image: string, replyTo?: number, htmlCaption?: string): Promise<number> {
+    const sent = await this.bot.sendPhoto(
+      chatId,
+      image,
+      { ...threadOptions(threadId), ...replyOptions(replyTo), ...(htmlCaption && { caption: htmlCaption, parse_mode: 'HTML' }) },
+      { contentType: 'image/png' }
+    )
     return sent.message_id
   }
 
-  private async sendText({ chatId, threadId }: Chat, text: string, replyTo?: number): Promise<number> {
-    const sent = await this.bot.sendMessage(chatId, text, { ...threadOptions(threadId), ...replyOptions(replyTo) })
+  private async sendText({ chatId, threadId }: Chat, text: string, replyTo?: number, options?: TelegramBot.SendMessageOptions): Promise<number> {
+    const sent = await this.bot.sendMessage(chatId, text, { ...threadOptions(threadId), ...replyOptions(replyTo), ...options })
     return sent.message_id
   }
 
   /** Anonymous regular poll, not quiz-type, so the answer stays hidden until it is posted. */
-  private async sendPoll({ chatId, threadId }: Chat, question: string, options: string[], replyTo?: number): Promise<void> {
-    await this.bot.sendPoll(chatId, question, options, {
+  private async sendPoll({ chatId, threadId }: Chat, question: string, options: string[], replyTo?: number): Promise<number> {
+    const sent = await this.bot.sendPoll(chatId, question, options, {
       ...threadOptions(threadId),
       ...replyOptions(replyTo),
       is_anonymous: true,
       type: 'regular',
       allows_multiple_answers: false
     })
+    return sent.message_id
   }
 
   private rulesChat(): Chat {

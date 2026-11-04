@@ -17,6 +17,13 @@ const HISTORY_LIMIT = 100
 const CONNECT_TIMEOUT_MS = 20_000
 const SEARCH_PAGE_SIZE = 100
 
+export interface LatestQuiz {
+  messageId: number;
+  questionId: string;
+  postedAt: Date;
+  answered: boolean;
+}
+
 /**
  * Reads message reactions through a user account (MTProto).
  *
@@ -36,7 +43,8 @@ export class ReactionReader {
       config.mtproto.apiHash,
       // GramJS prints raw stack traces for routine keep-alive timeouts it recovers from on its own.
       // Real failures still reach us as rejected calls.
-      { connectionRetries: 5, baseLogger: new Logger('none' as LogLevel) }
+      // WebSocket on 443: networks that filter MTProto's raw TCP still let HTTPS through
+      { connectionRetries: 5, useWSS: true, baseLogger: new Logger('none' as LogLevel) }
     )
     this.client.onError = async (error) => {
       // GramJS's idle update loop throws TIMEOUT routinely and reconnects itself
@@ -131,11 +139,7 @@ export class ReactionReader {
   async hasBotReplyTo(chatId: string, threadId: string | undefined, replyToId: number): Promise<boolean> {
     const messages = await this.fetchMessages(chatId, { limit: HISTORY_LIMIT }, threadId)
 
-    return messages.some(message => {
-      if (!this.isFromBot(message)) return false
-      const { replyTo } = message
-      return replyTo instanceof Api.MessageReplyHeader && replyTo.replyToMsgId === replyToId
-    })
+    return messages.some(message => this.isFromBot(message) && this.repliesTo(message, replyToId))
   }
 
   /** Whether the bot already posted a message containing `needle`, used for the template-only cancellation. */
@@ -164,17 +168,49 @@ export class ReactionReader {
     })
   }
 
+  /**
+   * The newest quiz poll, and whether the bot already replied to it (the answer). Found from the
+   * history, so a restart loses neither the poll nor the fact it was answered.
+   */
+  async getLatestQuiz(chatId: string, threadId: string | undefined, botUsername: string): Promise<LatestQuiz | undefined> {
+    // Recent enough: the poll is the newest quiz, and its answer comes right after it
+    const messages = await this.searchBotMessages(chatId, threadId, botUsername, SEARCH_PAGE_SIZE)
+    for (const message of messages) {
+      const questionId = this.quizIdOf(message)
+      if (!questionId) continue
+
+      return {
+        messageId: message.id,
+        questionId,
+        postedAt: this.sentAt(message),
+        answered: messages.some(reply => this.repliesTo(reply, message.id))
+      }
+    }
+
+    return undefined
+  }
+
+  private repliesTo(message: Api.Message, messageId: number): boolean {
+    const { replyTo } = message
+    return replyTo instanceof Api.MessageReplyHeader && replyTo.replyToMsgId === messageId
+  }
+
   private quizIdOf(message: Api.Message): string | undefined {
     if (!(message.media instanceof Api.MessageMediaPoll)) return undefined
     return parseQuizTag(message.media.poll.question.text)
   }
 
   /**
-   * Every message the bot sent in the chat, newest first. Filtered on the sender server-side, so
-   * discussion in the chat is never read, and paged to the end. Built on messages.search directly:
+   * The messages the bot sent in the chat, newest first, up to `maxMessages`. Filtered on the sender
+   * server-side, so discussion in the chat is never read, and paged until done. Built on messages.search directly:
    * GramJS's getMessages ignores the sender filter inside a forum topic.
    */
-  private async searchBotMessages(chatId: string, threadId: string | undefined, botUsername: string): Promise<Api.Message[]> {
+  private async searchBotMessages(
+    chatId: string,
+    threadId: string | undefined,
+    botUsername: string,
+    maxMessages = Infinity
+  ): Promise<Api.Message[]> {
     if (!this.connected) await this.connect()
 
     const peer = await this.client.getInputEntity(Number(chatId))
@@ -186,7 +222,7 @@ export class ReactionReader {
     do {
       page = await this.searchPage(peer, bot, threadId, messages.at(-1)?.id ?? 0)
       messages.push(...page)
-    } while (page.length > 0)
+    } while (page.length > 0 && messages.length < maxMessages)
 
     return messages
   }

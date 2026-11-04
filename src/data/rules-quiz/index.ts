@@ -12,3 +12,6 @@ export const QUIZ_BATCHES: QuizBatch[] = [signals, rulesCh01to08, rulesCh09to14,
 export const QUIZ_QUESTIONS: QuizQuestion[] = QUIZ_BATCHES.flatMap(batch => batch.questions)
 
 export const findQuizQuestion = (id: string): QuizQuestion | undefined => QUIZ_QUESTIONS.find(q => q.id === id)
+
+export const findQuizBatch = (id: string): QuizBatch | undefined =>
+  QUIZ_BATCHES.find(batch => batch.questions.some(q => q.id === id))

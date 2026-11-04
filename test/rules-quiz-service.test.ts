@@ -5,13 +5,14 @@ import type TelegramBot from 'node-telegram-bot-api'
 import { config } from '../src/config'
 import { findQuizQuestion, QUIZ_QUESTIONS } from '../src/data/rules-quiz'
 import { RulesQuizService } from '../src/services/RulesQuizService'
-import { type ReactionReader } from '../src/services/ReactionReader'
+import { answerTimeFor } from '../src/services/quizAnswer'
+import { type LatestQuiz, type ReactionReader } from '../src/services/ReactionReader'
 import { type SeasonManager } from '../src/services/SeasonManager'
 import { type QuizQuestion, type SeasonType } from '../src/types'
 import { parseQuizTag } from '../src/utils/quizTag'
 
 interface Call {
-  method: 'sendPhoto' | 'sendMessage' | 'sendPoll';
+  method: 'sendPhoto' | 'sendMessage' | 'sendPoll' | 'stopPoll';
   chatId: string;
   content: unknown;
   options: Record<string, unknown>;
@@ -25,6 +26,9 @@ let calls: Call[]
 let askedIds: string[]
 let historyError: Error | undefined
 let historyReads: Array<{ chatId: string; threadId?: string; botUsername: string }>
+let latestQuiz: LatestQuiz | undefined
+let stopPollError: Error | undefined
+const POLL_RESULT = { options: [{ text: 'x', voter_count: 1 }], total_voter_count: 4 }
 
 const bot = (() => {
   let nextId = 100
@@ -39,7 +43,12 @@ const bot = (() => {
     sendPhoto: record('sendPhoto'),
     sendMessage: record('sendMessage'),
     sendPoll: record('sendPoll'),
-    getMe: async () => ({ username: 'quiz_bot' })
+    getMe: async () => ({ username: 'quiz_bot' }),
+    stopPoll: async (chatId: string, messageId: number) => {
+      calls.push({ method: 'stopPoll', chatId, content: messageId, options: {}, messageId })
+      if (stopPollError) throw stopPollError
+      return { ...POLL_RESULT, options: [{ text: findQuizQuestion(latestQuiz?.questionId ?? '')?.answer, voter_count: 1 }] }
+    }
   }
 })() as unknown as TelegramBot
 
@@ -51,7 +60,8 @@ const reader = {
     historyReads.push({ chatId, threadId, botUsername })
     if (historyError) throw historyError
     return askedIds
-  }
+  },
+  getLatestQuiz: async () => latestQuiz
 } as unknown as ReactionReader
 
 const service = (season: SeasonType = 'winter') => new RulesQuizService(bot, seasonOf(season), reader)
@@ -67,6 +77,8 @@ beforeEach(() => {
   askedIds = []
   historyError = undefined
   historyReads = []
+  latestQuiz = undefined
+  stopPollError = undefined
   config.rulesQuiz.enabled = true
   config.rulesQuiz.chatId = RULES_CHAT.chatId
   config.rulesQuiz.chatThreadId = RULES_CHAT.threadId
@@ -184,4 +196,133 @@ test('a failed bot username lookup is retried on the next post', async () => {
   await assert.rejects(quiz.postNext(), /Bot API down/)
   assert.ok(await quiz.postNext())
   assert.equal(attempts, 2)
+})
+
+const latest = (fields: Partial<LatestQuiz> = {}): LatestQuiz =>
+  ({ messageId: 50, questionId: 'r1_01', postedAt: new Date(), answered: false, ...fields })
+
+test('answer: closes the poll, then replies to it in the topic with the stats', async () => {
+  latestQuiz = latest()
+  const answered = await service().answerLatest()
+
+  assert.equal(answered?.id, 'r1_01')
+  assert.deepEqual(calls.map(c => c.method), ['stopPoll', 'sendMessage'])
+  const [stop, answer] = calls
+  assert.equal(stop.content, 50)
+  assert.equal(answer.options.reply_to_message_id, 50)
+  assert.equal(answer.options.message_thread_id, 7)
+  assert.equal(answer.options.parse_mode, 'HTML')
+  assert.match(answer.content as string, /^<b>Answer<\/b>\n✅ /)
+  assert.match(answer.content as string, /📊 1\/4 got it right \(25%\)/)
+})
+
+test('answer: "what is the signal?" questions answer with the signal photo', async () => {
+  latestQuiz = latest({ questionId: 'sig_01_r' })
+  await service().answerLatest()
+
+  assert.deepEqual(calls.map(c => c.method), ['stopPoll', 'sendPhoto'])
+  const photo = calls[1]
+  assert.equal(photo.content, 'assets/signals/01-foul.png')
+  assert.equal(photo.options.reply_to_message_id, 50)
+  assert.equal(photo.options.parse_mode, 'HTML')
+  assert.match(photo.options.caption as string, /^<b>Answer<\/b>\n✅ /)
+})
+
+test('answer: skipped when already answered, none posted, or the question left the bank', async () => {
+  for (const quiz of [latest({ answered: true }), undefined, latest({ questionId: 'removed_question' })]) {
+    latestQuiz = quiz
+    assert.equal(await service().answerLatest(), undefined)
+  }
+  assert.equal(calls.length, 0)
+})
+
+test('answer: a poll already closed is still answered, without stats', async () => {
+  latestQuiz = latest()
+  stopPollError = new Error('ETELEGRAM: 400 Bad Request: poll has already been closed')
+  await service().answerLatest()
+
+  assert.deepEqual(calls.map(c => c.method), ['stopPoll', 'sendMessage'])
+  assert.ok(!(calls[1].content as string).includes('📊'))
+})
+
+test('answer: other stopPoll errors are not swallowed', async () => {
+  latestQuiz = latest()
+  stopPollError = new Error('ETELEGRAM: 400 Bad Request: message to stop not found')
+  await assert.rejects(service().answerLatest(), /not found/)
+  assert.deepEqual(calls.map(c => c.method), ['stopPoll'])
+})
+
+const DAY = 24 * 60 * 60 * 1000
+const flush = async () => await new Promise(resolve => setImmediate(resolve))
+
+test('arming: a passed answer time fires at once (catch-up)', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  latestQuiz = latest({ postedAt: new Date(Date.now() - 3 * DAY) })
+  await service().armAnswer()
+  t.mock.timers.tick(0)
+  await flush()
+  assert.deepEqual(calls.map(c => c.method), ['stopPoll', 'sendMessage'])
+})
+
+test('arming: a future answer time waits for it', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const postedAt = new Date(Date.now() + DAY) // answer due in two days, at 22:00
+  latestQuiz = latest({ postedAt })
+  await service().armAnswer()
+
+  const delay = answerTimeFor(postedAt, config.rulesQuiz.answerTime).getTime() - Date.now()
+  t.mock.timers.tick(delay - 1000)
+  await flush()
+  assert.equal(calls.length, 0, 'not before the answer time')
+  t.mock.timers.tick(2000)
+  await flush()
+  assert.deepEqual(calls.map(c => c.method), ['stopPoll', 'sendMessage'])
+})
+
+test('arming: nothing when the latest poll is already answered, or the quiz is disabled', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  latestQuiz = latest({ answered: true, postedAt: new Date(0) })
+  await service().armAnswer()
+  config.rulesQuiz.enabled = false
+  latestQuiz = latest({ postedAt: new Date(0) })
+  await service().armAnswer()
+  t.mock.timers.tick(0)
+  await flush()
+  assert.equal(calls.length, 0)
+})
+
+test('preview: the question, then its answer replying to the poll, without closing it', async () => {
+  const admin = { chatId: '-200' }
+  await service().preview(admin, question('sig_01'))
+
+  assert.deepEqual(calls.map(c => c.method), ['sendPhoto', 'sendPoll', 'sendMessage'])
+  const [, poll, answer] = calls
+  assert.ok(calls.every(c => c.chatId === admin.chatId))
+  assert.equal(answer.options.reply_to_message_id, poll.messageId)
+  assert.match(answer.content as string, /^<b>Answer<\/b>\n✅ Foul/)
+  assert.ok(!(answer.content as string).includes('📊'))
+})
+
+test('answer: no link preview card', async () => {
+  latestQuiz = latest({ questionId: 'r9_01' })
+  await service().answerLatest()
+  assert.equal(calls[1].options.link_preview_options, JSON.stringify({ is_disabled: true }))
+})
+
+test('timer: a poll posted just before it fires is not answered early', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const quiz = service()
+  latestQuiz = latest({ messageId: 50, postedAt: new Date(Date.now() - 3 * DAY) })
+  await quiz.armAnswer()
+
+  latestQuiz = latest({ messageId: 60, postedAt: new Date() }) // /send_rule landed first
+  t.mock.timers.tick(0)
+  await flush()
+  assert.equal(calls.length, 0)
+})
+
+test('/answer_rule still answers the newest poll', async () => {
+  latestQuiz = latest({ messageId: 60 })
+  assert.ok(await service().answerLatest())
+  assert.equal(calls[0].content, 60)
 })

@@ -49,9 +49,12 @@ export interface QuizQuestion {
   answer: string;
   /** Options are shuffled when posting */
   wrong: string[];
-  explanation: string;
+  /** Left out when the answer speaks for itself (hand signals) */
+  explanation?: string;
   /** Sent as a photo before the poll, relative to the app root */
   image?: string;
+  /** Sent as a photo with the answer, relative to the app root */
+  answerImage?: string;
 }
 
 export interface QuizBatch {

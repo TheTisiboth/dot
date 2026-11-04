@@ -27,3 +27,8 @@ Object.assign(process.env, {
   RULES_CHAT_THREAD_ID: '7',
   RULES_ANSWER_TIME: '22:00'
 })
+
+// Service logs written while the runner streams results can garble its messages ("Unable to deserialize cloned data")
+console.log = () => undefined
+console.warn = () => undefined
+console.error = () => undefined

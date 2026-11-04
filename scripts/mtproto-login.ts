@@ -23,7 +23,7 @@ async function main(): Promise<void> {
   const rl = createInterface({ input: stdin, output: stdout })
   const ask = async (question: string): Promise<string> => (await rl.question(question)).trim()
 
-  const client = new TelegramClient(new StringSession(''), apiId, apiHash, { connectionRetries: 5 })
+  const client = new TelegramClient(new StringSession(''), apiId, apiHash, { connectionRetries: 5, useWSS: true })
 
   try {
     await client.start({

@@ -81,8 +81,9 @@ export class SchedulerService {
       })
     })
 
-    // Re-arm on startup: a restart must not silently drop an attendance check
+    // Re-arm on startup: a restart must not silently drop an attendance check or a quiz answer
     this.armAttendanceTimers()
+    void this.rulesQuiz.armAnswer()
     this.logNextScheduledMessage()
   }
 

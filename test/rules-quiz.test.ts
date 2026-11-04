@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import { QUIZ_BATCHES, QUIZ_QUESTIONS } from '../src/data/rules-quiz'
 import { type QuizDifficulty } from '../src/types'
 import { ALL_MODES } from '../src/data/rules-quiz/modes'
+import { signals } from '../src/data/rules-quiz/signals'
 import { POLL_LIMITS } from '../src/utils/telegram'
 
 const questions = QUIZ_QUESTIONS
@@ -22,8 +23,12 @@ test('questions fit Telegram poll limits', () => {
     assert.equal(new Set(options).size, options.length, `${q.id} has duplicate options`)
     options.forEach(option => assert.ok(option.length > 0 && option.length <= POLL_LIMITS.option, `${q.id}: ${option}`))
     assert.ok(q.modes.length > 0, q.id)
-    assert.ok(q.explanation.length > 0, q.id)
   })
+})
+
+test('every question explains its answer, except hand signals', () => {
+  QUIZ_BATCHES.filter(batch => batch !== signals).flatMap(batch => batch.questions)
+    .forEach(q => assert.ok(q.explanation && q.explanation.length > 0, q.id))
 })
 
 test('rule refs are WFDF rule numbers', () => {
@@ -32,7 +37,9 @@ test('rule refs are WFDF rule numbers', () => {
 })
 
 test('images exist', () => {
-  questions.filter(q => q.image).forEach(q => assert.ok(existsSync(q.image as string), `${q.id}: ${q.image}`))
+  questions.forEach(q => [q.image, q.answerImage].filter(Boolean).forEach(image =>
+    assert.ok(existsSync(image as string), `${q.id}: ${image}`)
+  ))
 })
 
 test('every mode has questions at every difficulty', () => {
