@@ -49,8 +49,10 @@ export class RulesQuizService {
 
   /** Posts the next question to the rules chat, even when the quiz is disabled (used by /send_rule). */
   async postNext(): Promise<QuizQuestion> {
-    const question = await this.enqueue(() => this.pickAndPost())
-    await this.armAnswer()
+    const { question, pollMessageId } = await this.enqueue(() => this.pickAndPost())
+    // Armed from the post itself: search only sees a message seconds after it is sent, so a lookup
+    // right now would miss this poll and leave it unanswered
+    if (config.rulesQuiz.enabled) this.armAnswerFor(pollMessageId, new Date())
     return question
   }
 
@@ -60,7 +62,7 @@ export class RulesQuizService {
   }
 
   /**
-   * Arms the answer for the newest poll, on startup and after each post. A time already passed
+   * Arms the answer for the newest poll found in the history, on startup. A time already passed
    * fires at once (catch-up); the history check keeps it from answering twice. Never throws.
    */
   async armAnswer(): Promise<void> {
@@ -68,17 +70,20 @@ export class RulesQuizService {
 
     try {
       const latest = await this.findLatestQuiz(this.rulesChat())
-      clearTimeout(this.answerTimer)
-      if (!latest || latest.answered) return
-
-      const answerAt = answerTimeFor(latest.postedAt, config.rulesQuiz.answerTime)
-      const delay = Math.max(0, answerAt.getTime() - getEffectiveDate(new Date()).getTime())
-      log.scheduler(`⏰ Rules quiz answer armed for ${delay === 0 ? 'now (catch-up)' : formatDateTimeLocale(answerAt)}`)
-
-      this.answerTimer = setTimeout(() => { void this.answerOnTimer(latest.messageId) }, delay)
+      if (latest && !latest.answered) this.armAnswerFor(latest.messageId, latest.postedAt)
     } catch (error) {
       log.error('Arming rules quiz answer', error)
     }
+  }
+
+  private armAnswerFor(pollMessageId: number, postedAt: Date): void {
+    clearTimeout(this.answerTimer)
+
+    const answerAt = answerTimeFor(postedAt, config.rulesQuiz.answerTime)
+    const delay = Math.max(0, answerAt.getTime() - getEffectiveDate(new Date()).getTime())
+    log.scheduler(`⏰ Rules quiz answer armed for ${delay === 0 ? 'now (catch-up)' : formatDateTimeLocale(answerAt)}`)
+
+    this.answerTimer = setTimeout(() => { void this.answerOnTimer(pollMessageId) }, delay)
   }
 
   /**
@@ -100,12 +105,12 @@ export class RulesQuizService {
     return await run
   }
 
-  private async pickAndPost(): Promise<QuizQuestion> {
+  private async pickAndPost(): Promise<{ question: QuizQuestion; pollMessageId: number }> {
     const chat = this.rulesChat()
     const question = await this.pickNext(chat)
-    await this.post(chat, question)
+    const pollMessageId = await this.post(chat, question)
     log.scheduler(`❓ Rules quiz posted: ${question.id} (${question.difficulty})`)
-    return question
+    return { question, pollMessageId }
   }
 
   private async answerLatestPoll(onlyPollMessageId?: number): Promise<QuizQuestion | undefined> {

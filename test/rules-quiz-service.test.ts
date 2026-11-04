@@ -1,5 +1,5 @@
 import './helpers/testEnv'
-import { test, beforeEach } from 'node:test'
+import { test, beforeEach, afterEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import type TelegramBot from 'node-telegram-bot-api'
 import { config } from '../src/config'
@@ -71,6 +71,10 @@ const question = (id: string): QuizQuestion => {
   assert.ok(q, id)
   return q
 }
+
+// Posting arms a real answer timer, a day away: left real, it would keep the test process alive
+beforeEach(() => { mock.timers.enable({ apis: ['setTimeout'] }) })
+afterEach(() => { mock.timers.reset() })
 
 beforeEach(() => {
   calls = []
@@ -255,38 +259,35 @@ test('answer: other stopPoll errors are not swallowed', async () => {
 const DAY = 24 * 60 * 60 * 1000
 const flush = async () => await new Promise(resolve => setImmediate(resolve))
 
-test('arming: a passed answer time fires at once (catch-up)', async (t) => {
-  t.mock.timers.enable({ apis: ['setTimeout'] })
+test('arming: a passed answer time fires at once (catch-up)', async () => {
   latestQuiz = latest({ postedAt: new Date(Date.now() - 3 * DAY) })
   await service().armAnswer()
-  t.mock.timers.tick(0)
+  mock.timers.tick(0)
   await flush()
   assert.deepEqual(calls.map(c => c.method), ['stopPoll', 'sendMessage'])
 })
 
-test('arming: a future answer time waits for it', async (t) => {
-  t.mock.timers.enable({ apis: ['setTimeout'] })
+test('arming: a future answer time waits for it', async () => {
   const postedAt = new Date(Date.now() + DAY) // answer due in two days, at 22:00
   latestQuiz = latest({ postedAt })
   await service().armAnswer()
 
   const delay = answerTimeFor(postedAt, config.rulesQuiz.answerTime).getTime() - Date.now()
-  t.mock.timers.tick(delay - 1000)
+  mock.timers.tick(delay - 1000)
   await flush()
   assert.equal(calls.length, 0, 'not before the answer time')
-  t.mock.timers.tick(2000)
+  mock.timers.tick(2000)
   await flush()
   assert.deepEqual(calls.map(c => c.method), ['stopPoll', 'sendMessage'])
 })
 
-test('arming: nothing when the latest poll is already answered, or the quiz is disabled', async (t) => {
-  t.mock.timers.enable({ apis: ['setTimeout'] })
+test('arming: nothing when the latest poll is already answered, or the quiz is disabled', async () => {
   latestQuiz = latest({ answered: true, postedAt: new Date(0) })
   await service().armAnswer()
   config.rulesQuiz.enabled = false
   latestQuiz = latest({ postedAt: new Date(0) })
   await service().armAnswer()
-  t.mock.timers.tick(0)
+  mock.timers.tick(0)
   await flush()
   assert.equal(calls.length, 0)
 })
@@ -309,14 +310,13 @@ test('answer: no link preview card', async () => {
   assert.equal(calls[1].options.link_preview_options, JSON.stringify({ is_disabled: true }))
 })
 
-test('timer: a poll posted just before it fires is not answered early', async (t) => {
-  t.mock.timers.enable({ apis: ['setTimeout'] })
+test('timer: a poll posted just before it fires is not answered early', async () => {
   const quiz = service()
   latestQuiz = latest({ messageId: 50, postedAt: new Date(Date.now() - 3 * DAY) })
   await quiz.armAnswer()
 
   latestQuiz = latest({ messageId: 60, postedAt: new Date() }) // /send_rule landed first
-  t.mock.timers.tick(0)
+  mock.timers.tick(0)
   await flush()
   assert.equal(calls.length, 0)
 })
@@ -325,4 +325,19 @@ test('/answer_rule still answers the newest poll', async () => {
   latestQuiz = latest({ messageId: 60 })
   assert.ok(await service().answerLatest())
   assert.equal(calls[0].content, 60)
+})
+
+test('posting arms the answer from the post itself, before search can see the new poll', async () => {
+  latestQuiz = undefined // search has not indexed the poll yet
+  const quiz = service()
+  const posted = await quiz.postNext()
+  const pollMessageId = calls.find(c => c.method === 'sendPoll')?.messageId
+  assert.ok(pollMessageId)
+
+  latestQuiz = latest({ messageId: pollMessageId, questionId: posted.id }) // indexed by answer time
+  calls = []
+  mock.timers.tick(2 * DAY)
+  await flush()
+  assert.deepEqual(calls.map(c => c.method).slice(0, 1), ['stopPoll'])
+  assert.equal(calls[0].content, pollMessageId)
 })
