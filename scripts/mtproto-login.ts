@@ -28,7 +28,9 @@ async function main(): Promise<void> {
   try {
     await client.start({
       phoneNumber: async () => await ask('Phone number (international format, e.g. +33...): '),
-      phoneCode: async () => await ask('Login code (Telegram sends it inside the app, not by SMS): '),
+      phoneCode: async (isCodeViaApp) => await ask(isCodeViaApp
+        ? 'Login code (sent inside the Telegram app, in the "Telegram" chat): '
+        : 'Login code (not sent in the app: check your SMS, or your login email): '),
       password: async () => await ask('2FA password (press Enter if you have none): '),
       onError: (err) => console.error(err)
     })
