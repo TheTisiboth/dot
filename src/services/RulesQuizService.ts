@@ -75,15 +75,19 @@ export class RulesQuizService {
       const delay = Math.max(0, answerAt.getTime() - getEffectiveDate(new Date()).getTime())
       log.scheduler(`⏰ Rules quiz answer armed for ${delay === 0 ? 'now (catch-up)' : formatDateTimeLocale(answerAt)}`)
 
-      this.answerTimer = setTimeout(() => { void this.answerOnTimer() }, delay)
+      this.answerTimer = setTimeout(() => { void this.answerOnTimer(latest.messageId) }, delay)
     } catch (error) {
       log.error('Arming rules quiz answer', error)
     }
   }
 
-  private async answerOnTimer(): Promise<void> {
+  /**
+   * Answers only the poll the timer was armed for: a post queued just before it fires makes a
+   * newer poll the latest, and that one's answer is not due yet.
+   */
+  private async answerOnTimer(pollMessageId: number): Promise<void> {
     try {
-      await this.answerLatest()
+      await this.enqueue(() => this.answerLatestPoll(pollMessageId))
     } catch (error) {
       log.error('Answering rules quiz', error)
     }
@@ -104,12 +108,13 @@ export class RulesQuizService {
     return question
   }
 
-  private async answerLatestPoll(): Promise<QuizQuestion | undefined> {
+  private async answerLatestPoll(onlyPollMessageId?: number): Promise<QuizQuestion | undefined> {
     const chat = this.rulesChat()
     const latest = await this.findLatestQuiz(chat)
+    const skipReason = this.answerSkipReason(latest, onlyPollMessageId)
 
-    if (!latest || latest.answered) {
-      log.scheduler(`⏭️  Rules quiz answer skipped - ${latest ? 'already answered' : 'no quiz posted'}`)
+    if (!latest || skipReason) {
+      log.scheduler(`⏭️  Rules quiz answer skipped - ${skipReason}`)
       return undefined
     }
 
@@ -129,6 +134,13 @@ export class RulesQuizService {
     const batch = findQuizBatch(question.id)
     if (!batch) throw new Error(`Question ${question.id} has no batch`)
     return batch.source
+  }
+
+  private answerSkipReason(latest: LatestQuiz | undefined, onlyPollMessageId?: number): string | undefined {
+    if (!latest) return 'no quiz posted'
+    if (onlyPollMessageId !== undefined && latest.messageId !== onlyPollMessageId) return 'a newer quiz was posted'
+    if (latest.answered) return 'already answered'
+    return undefined
   }
 
   private async findLatestQuiz(chat: Chat): Promise<LatestQuiz | undefined> {

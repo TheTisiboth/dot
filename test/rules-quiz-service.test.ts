@@ -308,3 +308,21 @@ test('answer: no link preview card', async () => {
   await service().answerLatest()
   assert.equal(calls[1].options.link_preview_options, JSON.stringify({ is_disabled: true }))
 })
+
+test('timer: a poll posted just before it fires is not answered early', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const quiz = service()
+  latestQuiz = latest({ messageId: 50, postedAt: new Date(Date.now() - 3 * DAY) })
+  await quiz.armAnswer()
+
+  latestQuiz = latest({ messageId: 60, postedAt: new Date() }) // /send_rule landed first
+  t.mock.timers.tick(0)
+  await flush()
+  assert.equal(calls.length, 0)
+})
+
+test('/answer_rule still answers the newest poll', async () => {
+  latestQuiz = latest({ messageId: 60 })
+  assert.ok(await service().answerLatest())
+  assert.equal(calls[0].content, 60)
+})
