@@ -9,7 +9,7 @@ import { type QuizBatch, type QuizQuestion } from '../types'
 import { getEffectiveDate } from '../utils/dateHelpers'
 import { formatDateTimeLocale } from '../utils/formatters'
 import { log } from '../utils/logger'
-import { replyOptions, threadOptions } from '../utils/telegram'
+import { linkPreviewOptions, replyOptions, threadOptions } from '../utils/telegram'
 
 interface Chat {
   chatId: string;
@@ -150,7 +150,9 @@ export class RulesQuizService {
     if (question.answerImage) {
       await this.sendImage(chat, question.answerImage, pollMessageId, text)
     } else {
-      await this.sendText(chat, text, pollMessageId, { parse_mode: 'HTML' })
+      // The rule link comes first but urules.org has no preview: the source document does
+      const preview = linkPreviewOptions(this.sourceOf(question).url)
+      await this.sendText(chat, text, pollMessageId, { parse_mode: 'HTML', ...preview })
     }
   }
 

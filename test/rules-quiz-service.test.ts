@@ -302,3 +302,10 @@ test('preview: the question, then its answer replying to the poll, without closi
   assert.match(answer.content as string, /^<b>Answer<\/b>\n✅ Foul/)
   assert.ok(!(answer.content as string).includes('📊'))
 })
+
+test('answer: the preview card shows the source document, not the rule link before it', async () => {
+  latestQuiz = latest({ questionId: 'r9_01' })
+  await service().answerLatest()
+  const url = 'https://rules.wfdf.sport/wp-content/uploads/2024/12/WFDF-Rules-of-Ultimate-2025-2028.pdf'
+  assert.equal(calls[1].options.link_preview_options, JSON.stringify({ url }))
+})
