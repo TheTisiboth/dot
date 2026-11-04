@@ -302,15 +302,3 @@ test('preview: the question, then its answer replying to the poll, without closi
   assert.match(answer.content as string, /^<b>Answer<\/b>\n✅ Foul/)
   assert.ok(!(answer.content as string).includes('📊'))
 })
-
-test('answer: the preview card shows the rule on urules.org', async () => {
-  latestQuiz = latest({ questionId: 'r9_01' })
-  await service().answerLatest()
-  assert.equal(calls[1].options.link_preview_options, JSON.stringify({ url: 'https://urules.org/ch9.html#9.1' }))
-})
-
-test('answer: without a rule, Telegram previews the source as usual', async () => {
-  latestQuiz = latest({ questionId: 'in_01' })
-  await service().answerLatest()
-  assert.equal(calls[1].options.link_preview_options, undefined)
-})

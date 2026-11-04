@@ -2,14 +2,14 @@ import type TelegramBot from 'node-telegram-bot-api'
 import { type SeasonManager } from './SeasonManager'
 import { type LatestQuiz, type ReactionReader } from './ReactionReader'
 import { buildQuizPost, modeFor, pickQuestion } from './quizPicker'
-import { answerTimeFor, buildAnswer, ruleUrl, type PollResult } from './quizAnswer'
+import { answerTimeFor, buildAnswer, type PollResult } from './quizAnswer'
 import { config } from '../config'
 import { findQuizBatch, findQuizQuestion, QUIZ_QUESTIONS } from '../data/rules-quiz'
 import { type QuizBatch, type QuizQuestion } from '../types'
 import { getEffectiveDate } from '../utils/dateHelpers'
 import { formatDateTimeLocale } from '../utils/formatters'
 import { log } from '../utils/logger'
-import { linkPreviewOptions, replyOptions, threadOptions } from '../utils/telegram'
+import { replyOptions, threadOptions } from '../utils/telegram'
 
 interface Chat {
   chatId: string;
@@ -150,8 +150,7 @@ export class RulesQuizService {
     if (question.answerImage) {
       await this.sendImage(chat, question.answerImage, pollMessageId, text)
     } else {
-      const preview = question.ref ? linkPreviewOptions(ruleUrl(question.ref)) : {}
-      await this.sendText(chat, text, pollMessageId, { parse_mode: 'HTML', ...preview })
+      await this.sendText(chat, text, pollMessageId, { parse_mode: 'HTML' })
     }
   }
 
