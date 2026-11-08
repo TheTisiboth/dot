@@ -54,16 +54,16 @@ test('hidden tag round-trips every id and stays invisible', () => {
 
 test('post: hidden-tagged header, answer once among shuffled options', () => {
   const post = buildQuizPost(q('sig_01', 'medium'))
-  assert.equal(post.poll, `🟡 Medium${quizTag('sig_01')}\n\nQ?`)
+  assert.equal(post.poll, `🟡 Medium · 🌳 Outdoor & 🏢 Indoor${quizTag('sig_01')}\n\nQ?`)
   assert.equal(parseQuizTag(post.poll), 'sig_01')
   assert.equal(post.intro, undefined)
   assert.deepEqual([...post.options].sort(), ['maybe', 'no', 'yes'])
 })
 
-test('post: mode shown only for mode-specific questions', () => {
+test('post: modes always shown', () => {
   assert.ok(buildQuizPost(q('o', 'hard', ['outdoor'])).poll.startsWith('🔴 Hard · 🌳 Outdoor'))
   assert.ok(buildQuizPost(q('i', 'easy', ['indoor'])).poll.startsWith('🟢 Easy · 🏢 Indoor'))
-  assert.ok(!buildQuizPost(q('a', 'easy')).poll.includes('·'))
+  assert.ok(buildQuizPost(q('a', 'easy')).poll.startsWith('🟢 Easy · 🌳 Outdoor & 🏢 Indoor'))
 })
 
 test('post: long question goes in an intro message', () => {
