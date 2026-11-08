@@ -21,6 +21,7 @@ interface Call {
 }
 
 const RULES_CHAT = { chatId: '-400', threadId: '7' }
+const flush = async () => await new Promise(resolve => setImmediate(resolve))
 
 let calls: Call[]
 let askedIds: string[]
@@ -162,6 +163,53 @@ test('sendScheduled never throws, so the training post is never affected', async
   assert.equal(calls.length, 0)
 })
 
+test('a hung history read ends in an error, then one retry later posts the quiz', async () => {
+  let hang = true
+  const quiz = new RulesQuizService(bot, seasonOf('winter'), {
+    // Like a request on a dead MTProto connection: never settles
+    getAskedQuizIds: async () => hang ? await new Promise<string[]>(() => undefined) : []
+  } as unknown as ReactionReader)
+
+  const sent = quiz.sendScheduled()
+  await flush()
+  mock.timers.tick(3 * 60_000)
+  await sent
+  assert.equal(calls.length, 0)
+
+  hang = false
+  mock.timers.tick(10 * 60_000)
+  await flush()
+  await flush()
+  assert.deepEqual(calls.map(c => c.method).at(-1), 'sendPoll')
+})
+
+test('a hung post does not block the next one', async () => {
+  let hang = true
+  const quiz = new RulesQuizService(bot, seasonOf('winter'), {
+    getAskedQuizIds: async () => hang ? await new Promise<string[]>(() => undefined) : []
+  } as unknown as ReactionReader)
+
+  const stuck = assert.rejects(quiz.postNext(), /timed out/)
+  await flush()
+  mock.timers.tick(3 * 60_000)
+  await stuck
+
+  hang = false
+  assert.ok(await quiz.postNext())
+})
+
+test('the retry gives up after one more failure', async () => {
+  historyError = new Error('MTProto down')
+  await service().sendScheduled()
+  mock.timers.tick(10 * 60_000)
+  await flush()
+  assert.equal(historyReads.length, 2)
+  mock.timers.tick(60 * 60_000)
+  await flush()
+  assert.equal(historyReads.length, 2)
+  assert.equal(calls.length, 0)
+})
+
 test('overlapping posts run one after another, so they never read the same history', async () => {
   // One indoor question left: without the queue both posts would read this history and pick it
   const indoor = QUIZ_QUESTIONS.filter(q => q.modes.includes('indoor')).map(q => q.id)
@@ -257,7 +305,6 @@ test('answer: other stopPoll errors are not swallowed', async () => {
 })
 
 const DAY = 24 * 60 * 60 * 1000
-const flush = async () => await new Promise(resolve => setImmediate(resolve))
 
 test('arming: a passed answer time fires at once (catch-up)', async () => {
   latestQuiz = latest({ postedAt: new Date(Date.now() - 3 * DAY) })

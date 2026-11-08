@@ -5,7 +5,7 @@ import type { LogLevel } from 'telegram/extensions/Logger'
 import { config } from '../config'
 import { EMOJIS, isKeyMessage } from '../utils/constants'
 import { hoursBefore } from '../utils/dateHelpers'
-import { withTimeout } from '../utils/async'
+import { TimeoutError, withTimeout } from '../utils/async'
 import { log } from '../utils/logger'
 import { parseQuizTag } from '../utils/quizTag'
 
@@ -15,6 +15,8 @@ import { parseQuizTag } from '../utils/quizTag'
 const POLL_LOOKBACK_HOURS = 48
 const HISTORY_LIMIT = 100
 const CONNECT_TIMEOUT_MS = 20_000
+// A request on a connection that died silently never settles: GramJS has no request timeout
+const REQUEST_TIMEOUT_MS = 30_000
 const SEARCH_PAGE_SIZE = 100
 
 export interface LatestQuiz {
@@ -35,6 +37,7 @@ export class ReactionReader {
   private readonly client: TelegramClient
   private readonly botId: string
   private connected = false
+  private connecting?: Promise<void>
 
   constructor() {
     this.client = new TelegramClient(
@@ -43,8 +46,10 @@ export class ReactionReader {
       config.mtproto.apiHash,
       // GramJS prints raw stack traces for routine keep-alive timeouts it recovers from on its own.
       // Real failures still reach us as rejected calls.
-      // WebSocket on 443: networks that filter MTProto's raw TCP still let HTTPS through
-      { connectionRetries: 5, useWSS: true, baseLogger: new Logger('none' as LogLevel) }
+      // WebSocket on 443: networks that filter MTProto's raw TCP still let HTTPS through.
+      // Retries without limit (GramJS's default): after a capped number of failed reconnects, GramJS
+      // gives up for good and every later request waits forever - a few minutes offline was enough
+      { connectionRetries: Infinity, useWSS: true, baseLogger: new Logger('none' as LogLevel) }
     )
     this.client.onError = async (error) => {
       // GramJS's idle update loop throws TIMEOUT routinely and reconnects itself
@@ -58,6 +63,12 @@ export class ReactionReader {
   async connect(): Promise<void> {
     if (this.connected) return
 
+    // Shared: requests that time out together must not open two connections at once
+    this.connecting ??= this.open().finally(() => { this.connecting = undefined })
+    await this.connecting
+  }
+
+  private async open(): Promise<void> {
     // GramJS retries a failed handshake forever rather than throwing, so an unreachable
     // endpoint or a revoked session would otherwise hang the caller indefinitely
     try {
@@ -88,6 +99,37 @@ export class ReactionReader {
     } catch (error) {
       log.warn('MTProto', `Failed to stop client after connection error: ${String(error)}`)
     }
+  }
+
+  /**
+   * Runs one MTProto request, bounded in time. A timeout or a dropped connection resets the client
+   * and retries once on a fresh connection; a second failure, or a Telegram error, reaches the caller.
+   */
+  private async request<T>(label: string, run: () => Promise<T>): Promise<T> {
+    try {
+      return await this.attempt(label, run)
+    } catch (error) {
+      // A Telegram error (no access, flood wait...) would fail again the same way on a new connection
+      if (!(error instanceof TimeoutError) && this.client.connected) throw error
+
+      log.warn('MTProto', `${label} failed, reconnecting and retrying once: ${error instanceof Error ? error.message : String(error)}`)
+      await this.reset()
+      return await this.attempt(label, run)
+    }
+  }
+
+  private async attempt<T>(label: string, run: () => Promise<T>): Promise<T> {
+    // GramJS clears its own flag when it gives up reconnecting, while ours would still say connected
+    if (!this.client.connected) this.connected = false
+    if (!this.connected) await this.connect()
+
+    return await withTimeout(run(), REQUEST_TIMEOUT_MS, `MTProto ${label} timed out after ${REQUEST_TIMEOUT_MS / 1000}s`)
+  }
+
+  /** Drops the connection, so the next request opens a fresh one. */
+  private async reset(): Promise<void> {
+    this.connected = false
+    await this.stopClient()
   }
 
   async disconnect(): Promise<void> {
@@ -211,11 +253,9 @@ export class ReactionReader {
     botUsername: string,
     maxMessages = Infinity
   ): Promise<Api.Message[]> {
-    if (!this.connected) await this.connect()
-
-    const peer = await this.client.getInputEntity(Number(chatId))
+    const peer = await this.request('chat lookup', () => this.client.getInputEntity(Number(chatId)))
     // By username: the account may never have seen the bot's access hash, which the search needs
-    const bot = await this.client.getInputEntity(botUsername)
+    const bot = await this.request('bot lookup', () => this.client.getInputEntity(botUsername))
     const messages: Api.Message[] = []
     let page: Api.Message[]
 
@@ -233,7 +273,7 @@ export class ReactionReader {
     threadId: string | undefined,
     offsetId: number
   ): Promise<Api.Message[]> {
-    const result = await this.client.invoke(new Api.messages.Search({
+    const result = await this.request('history search', () => this.client.invoke(new Api.messages.Search({
       peer,
       fromId,
       ...(threadId && { topMsgId: Number(threadId) }),
@@ -247,7 +287,7 @@ export class ReactionReader {
       maxId: 0,
       minId: 0,
       hash: helpers.returnBigInt(0)
-    }))
+    })))
 
     if (result instanceof Api.messages.MessagesNotModified) return []
     return result.messages.filter((message): message is Api.Message => message instanceof Api.Message)
@@ -258,12 +298,12 @@ export class ReactionReader {
     params: { ids?: number[]; limit?: number },
     threadId?: string
   ): Promise<Api.Message[]> {
-    if (!this.connected) await this.connect()
-
-    const entity = await this.client.getInputEntity(Number(chatId))
-    return await this.client.getMessages(entity, {
-      ...params,
-      ...(threadId && { replyTo: Number(threadId) })
+    return await this.request('history read', async () => {
+      const entity = await this.client.getInputEntity(Number(chatId))
+      return await this.client.getMessages(entity, {
+        ...params,
+        ...(threadId && { replyTo: Number(threadId) })
+      })
     })
   }
 

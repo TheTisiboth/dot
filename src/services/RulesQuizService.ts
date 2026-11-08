@@ -6,10 +6,16 @@ import { answerTimeFor, buildAnswer, type PollResult } from './quizAnswer'
 import { config } from '../config'
 import { findQuizBatch, findQuizQuestion, QUIZ_QUESTIONS } from '../data/rules-quiz'
 import { type QuizBatch, type QuizQuestion } from '../types'
+import { withTimeout } from '../utils/async'
 import { getEffectiveDate } from '../utils/dateHelpers'
 import { formatDateTimeLocale } from '../utils/formatters'
 import { log } from '../utils/logger'
 import { noLinkPreview, replyOptions, threadOptions } from '../utils/telegram'
+
+// Above the history read's own bound (each MTProto request times out and retries once), so a stuck
+// post always ends in a logged error rather than silence. It also frees the queue for the next post.
+const POST_TIMEOUT_MS = 3 * 60_000
+const RETRY_DELAY_MS = 10 * 60_000
 
 interface Chat {
   chatId: string;
@@ -26,6 +32,7 @@ export class RulesQuizService {
   private queue: Promise<unknown> = Promise.resolve()
   private botUsername?: Promise<string>
   private answerTimer?: NodeJS.Timeout
+  private retryTimer?: NodeJS.Timeout
 
   constructor(bot: TelegramBot, seasonManager: SeasonManager, reactionReader: ReactionReader) {
     this.bot = bot
@@ -33,23 +40,41 @@ export class RulesQuizService {
     this.reactionReader = reactionReader
   }
 
-  /** Called by the training job: never throws, so a quiz failure never affects the training post. */
+  /**
+   * Called by the training job: never throws, so a quiz failure never affects the training post.
+   * A failed post is retried once, later: a network blip at send time must not cost the quiz.
+   */
   async sendScheduled(): Promise<void> {
     if (!config.rulesQuiz.enabled) {
       log.scheduler('Rules quiz disabled, skipping')
       return
     }
 
+    clearTimeout(this.retryTimer)
+    log.scheduler('❓ Sending rules quiz')
+
     try {
       await this.postNext()
     } catch (error) {
       log.error('Sending rules quiz', error)
+      log.scheduler(`🔁 Rules quiz retry in ${RETRY_DELAY_MS / 60_000} min`)
+      this.retryTimer = setTimeout(() => { void this.retryScheduled() }, RETRY_DELAY_MS)
+    }
+  }
+
+  private async retryScheduled(): Promise<void> {
+    try {
+      await this.postNext()
+    } catch (error) {
+      log.error('Retrying rules quiz (giving up until the next training)', error)
     }
   }
 
   /** Posts the next question to the rules chat, even when the quiz is disabled (used by /send_rule). */
   async postNext(): Promise<QuizQuestion> {
-    const { question, pollMessageId } = await this.enqueue(() => this.pickAndPost())
+    const { question, pollMessageId } = await this.enqueue(() =>
+      withTimeout(this.pickAndPost(), POST_TIMEOUT_MS, `Rules quiz post timed out after ${POST_TIMEOUT_MS / 60_000} min`)
+    )
     // Armed from the post itself: search only sees a message seconds after it is sent, so a lookup
     // right now would miss this poll and leave it unanswered
     if (config.rulesQuiz.enabled) this.armAnswerFor(pollMessageId, new Date())
