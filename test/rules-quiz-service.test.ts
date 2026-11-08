@@ -371,3 +371,32 @@ test('posting arms the answer from the post itself, before search can see the ne
   assert.equal(calls.length, 1)
   assert.equal(calls[0].options.reply_to_message_id, pollMessageId)
 })
+
+test('/answer_rule right after /send_rule answers the new poll, before search can see it', async () => {
+  const quiz = service()
+  const posted = await quiz.postNext()
+  const pollMessageId = calls.find(c => c.method === 'sendPoll')?.messageId
+
+  // Search lags: the newest poll it sees is an older /test_rule preview, answered with it
+  latestQuiz = latest({ messageId: 10, answered: true })
+  calls = []
+  const answered = await quiz.answerLatest()
+
+  assert.equal(answered?.id, posted.id)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].options.reply_to_message_id, pollMessageId)
+})
+
+test('an answered poll is not answered again, even before search sees the answer', async () => {
+  const quiz = service()
+  const posted = await quiz.postNext()
+  const pollMessageId = calls.find(c => c.method === 'sendPoll')?.messageId
+  assert.ok(await quiz.answerLatest())
+
+  latestQuiz = latest({ messageId: pollMessageId, questionId: posted.id }) // search: no answer yet
+  calls = []
+  assert.equal(await quiz.answerLatest(), undefined)
+  mock.timers.tick(60 * 60_000) // the timer then fires
+  await flush()
+  assert.equal(calls.length, 0)
+})

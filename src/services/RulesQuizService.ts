@@ -36,6 +36,10 @@ export class RulesQuizService {
   private botUsername?: Promise<string>
   private answerTimer?: NodeJS.Timeout
   private retryTimer?: NodeJS.Timeout
+  // What this process posted and answered. Search only sees a message seconds after it is sent, so
+  // right after /send_rule it would miss the new poll, and right after an answer, the answer
+  private lastPosted?: LatestQuiz
+  private readonly answeredIds = new Set<number>()
 
   constructor(bot: TelegramBot, seasonManager: SeasonManager, reactionReader: ReactionReader) {
     this.bot = bot
@@ -78,9 +82,10 @@ export class RulesQuizService {
     const { question, pollMessageId } = await this.enqueue(() =>
       withTimeout(this.pickAndPost(), POST_TIMEOUT_MS, `Rules quiz post timed out after ${POST_TIMEOUT_MS / 60_000} min`)
     )
-    // Armed from the post itself: search only sees a message seconds after it is sent, so a lookup
-    // right now would miss this poll and leave it unanswered
-    if (config.rulesQuiz.enabled) this.armAnswerFor(pollMessageId, new Date())
+    const postedAt = new Date()
+    this.lastPosted = { messageId: pollMessageId, questionId: question.id, postedAt, answered: false }
+    // Armed from the post itself, not a history lookup that would not see this poll yet
+    if (config.rulesQuiz.enabled) this.armAnswerFor(pollMessageId, postedAt)
     return question
   }
 
@@ -143,7 +148,7 @@ export class RulesQuizService {
 
   private async answerLatestPoll(onlyPollMessageId?: number): Promise<QuizQuestion | undefined> {
     const chat = this.rulesChat()
-    const latest = await this.findLatestQuiz(chat)
+    const latest = this.unansweredPost(onlyPollMessageId) ?? await this.findLatestQuiz(chat)
     const skipReason = this.answerSkipReason(latest, onlyPollMessageId)
 
     if (!latest || skipReason) {
@@ -159,6 +164,7 @@ export class RulesQuizService {
 
     // The poll stays open: whoever reads the chat later can still vote
     await this.sendAnswer(chat, question, buildAnswer(question, this.sourceOf(question)), latest.messageId)
+    this.answeredIds.add(latest.messageId)
     log.scheduler(`✅ Rules quiz answered: ${question.id}`)
     return question
   }
@@ -172,8 +178,19 @@ export class RulesQuizService {
   private answerSkipReason(latest: LatestQuiz | undefined, onlyPollMessageId?: number): string | undefined {
     if (!latest) return 'no quiz posted'
     if (onlyPollMessageId !== undefined && latest.messageId !== onlyPollMessageId) return 'a newer quiz was posted'
-    if (latest.answered) return 'already answered'
+    if (latest.answered || this.answeredIds.has(latest.messageId)) return 'already answered'
     return undefined
+  }
+
+  /**
+   * The poll this process posted, while it is unanswered: it is the quiz to answer even when
+   * search does not see it yet, or sees a newer /test_rule preview (answered with it) first.
+   */
+  private unansweredPost(onlyPollMessageId?: number): LatestQuiz | undefined {
+    const post = this.lastPosted
+    if (!post || this.answeredIds.has(post.messageId)) return undefined
+    if (onlyPollMessageId !== undefined && post.messageId !== onlyPollMessageId) return undefined
+    return post
   }
 
   private async findLatestQuiz(chat: Chat): Promise<LatestQuiz | undefined> {
