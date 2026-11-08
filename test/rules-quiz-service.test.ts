@@ -12,7 +12,7 @@ import { type QuizQuestion, type SeasonType } from '../src/types'
 import { parseQuizTag } from '../src/utils/quizTag'
 
 interface Call {
-  method: 'sendPhoto' | 'sendMessage' | 'sendPoll' | 'stopPoll';
+  method: 'sendPhoto' | 'sendMessage' | 'sendPoll';
   chatId: string;
   content: unknown;
   options: Record<string, unknown>;
@@ -28,8 +28,6 @@ let askedIds: string[]
 let historyError: Error | undefined
 let historyReads: Array<{ chatId: string; threadId?: string; botUsername: string }>
 let latestQuiz: LatestQuiz | undefined
-let stopPollError: Error | undefined
-const POLL_RESULT = { options: [{ text: 'x', voter_count: 1 }], total_voter_count: 4 }
 
 const bot = (() => {
   let nextId = 100
@@ -45,11 +43,7 @@ const bot = (() => {
     sendMessage: record('sendMessage'),
     sendPoll: record('sendPoll'),
     getMe: async () => ({ username: 'quiz_bot' }),
-    stopPoll: async (chatId: string, messageId: number) => {
-      calls.push({ method: 'stopPoll', chatId, content: messageId, options: {}, messageId })
-      if (stopPollError) throw stopPollError
-      return { ...POLL_RESULT, options: [{ text: findQuizQuestion(latestQuiz?.questionId ?? '')?.answer, voter_count: 1 }] }
-    }
+    stopPoll: async () => { throw new Error('the poll must stay open') }
   }
 })() as unknown as TelegramBot
 
@@ -83,7 +77,6 @@ beforeEach(() => {
   historyError = undefined
   historyReads = []
   latestQuiz = undefined
-  stopPollError = undefined
   config.rulesQuiz.enabled = true
   config.rulesQuiz.chatId = RULES_CHAT.chatId
   config.rulesQuiz.chatThreadId = RULES_CHAT.threadId
@@ -101,17 +94,21 @@ test('signal question: photo, then the poll replying to it, in the topic', async
   assert.equal(poll.options.message_thread_id, 7)
 })
 
-test('poll is anonymous, single answer, not quiz-type, and carries the hidden id', async () => {
-  await service().post(RULES_CHAT, question('r1_01'))
+test('poll is an anonymous quiz pointing at the right answer, and carries the hidden id', async () => {
+  for (let i = 0; i < 10; i++) {
+    calls = []
+    await service().post(RULES_CHAT, question('r1_01'))
 
-  assert.deepEqual(calls.map(c => c.method), ['sendPoll'])
-  const [poll] = calls
-  assert.equal(parseQuizTag(poll.content as string), 'r1_01')
-  assert.equal(poll.options.is_anonymous, true)
-  assert.equal(poll.options.type, 'regular')
-  assert.equal(poll.options.allows_multiple_answers, false)
-  assert.equal(poll.options.reply_to_message_id, undefined)
-  assert.deepEqual([...(poll.extra as string[])].sort(), [question('r1_01').answer, ...question('r1_01').wrong].sort())
+    assert.deepEqual(calls.map(c => c.method), ['sendPoll'])
+    const [poll] = calls
+    const options = poll.extra as string[]
+    assert.equal(parseQuizTag(poll.content as string), 'r1_01')
+    assert.equal(poll.options.is_anonymous, true)
+    assert.equal(poll.options.type, 'quiz')
+    assert.equal(options[poll.options.correct_option_id as number], question('r1_01').answer)
+    assert.equal(poll.options.reply_to_message_id, undefined)
+    assert.deepEqual([...options].sort(), [question('r1_01').answer, ...question('r1_01').wrong].sort())
+  }
 })
 
 test('long question: text first, then a short poll replying to it', async () => {
@@ -253,31 +250,30 @@ test('a failed bot username lookup is retried on the next post', async () => {
 const latest = (fields: Partial<LatestQuiz> = {}): LatestQuiz =>
   ({ messageId: 50, questionId: 'r1_01', postedAt: new Date(), answered: false, ...fields })
 
-test('answer: closes the poll, then replies to it in the topic with the stats', async () => {
+test('answer: replies to the poll in the topic, behind a spoiler, leaving the poll open', async () => {
   latestQuiz = latest()
   const answered = await service().answerLatest()
 
   assert.equal(answered?.id, 'r1_01')
-  assert.deepEqual(calls.map(c => c.method), ['stopPoll', 'sendMessage'])
-  const [stop, answer] = calls
-  assert.equal(stop.content, 50)
+  assert.deepEqual(calls.map(c => c.method), ['sendMessage'])
+  const [answer] = calls
   assert.equal(answer.options.reply_to_message_id, 50)
   assert.equal(answer.options.message_thread_id, 7)
   assert.equal(answer.options.parse_mode, 'HTML')
-  assert.match(answer.content as string, /^<b>Answer<\/b>\n✅ /)
-  assert.match(answer.content as string, /📊 1\/4 got it right \(25%\)/)
+  assert.match(answer.content as string, /^<b>Answer<\/b>\n<tg-spoiler>✅ /)
 })
 
 test('answer: "what is the signal?" questions answer with the signal photo', async () => {
   latestQuiz = latest({ questionId: 'sig_01_r' })
   await service().answerLatest()
 
-  assert.deepEqual(calls.map(c => c.method), ['stopPoll', 'sendPhoto'])
-  const photo = calls[1]
+  assert.deepEqual(calls.map(c => c.method), ['sendPhoto'])
+  const [photo] = calls
   assert.equal(photo.content, 'assets/signals/01-foul.png')
   assert.equal(photo.options.reply_to_message_id, 50)
+  assert.equal(photo.options.has_spoiler, true)
   assert.equal(photo.options.parse_mode, 'HTML')
-  assert.match(photo.options.caption as string, /^<b>Answer<\/b>\n✅ /)
+  assert.match(photo.options.caption as string, /^<b>Answer<\/b>\n<tg-spoiler>✅ /)
 })
 
 test('answer: skipped when already answered, none posted, or the question left the bank', async () => {
@@ -288,22 +284,6 @@ test('answer: skipped when already answered, none posted, or the question left t
   assert.equal(calls.length, 0)
 })
 
-test('answer: a poll already closed is still answered, without stats', async () => {
-  latestQuiz = latest()
-  stopPollError = new Error('ETELEGRAM: 400 Bad Request: poll has already been closed')
-  await service().answerLatest()
-
-  assert.deepEqual(calls.map(c => c.method), ['stopPoll', 'sendMessage'])
-  assert.ok(!(calls[1].content as string).includes('📊'))
-})
-
-test('answer: other stopPoll errors are not swallowed', async () => {
-  latestQuiz = latest()
-  stopPollError = new Error('ETELEGRAM: 400 Bad Request: message to stop not found')
-  await assert.rejects(service().answerLatest(), /not found/)
-  assert.deepEqual(calls.map(c => c.method), ['stopPoll'])
-})
-
 const DAY = 24 * 60 * 60 * 1000
 
 test('arming: a passed answer time fires at once (catch-up)', async () => {
@@ -311,21 +291,22 @@ test('arming: a passed answer time fires at once (catch-up)', async () => {
   await service().armAnswer()
   mock.timers.tick(0)
   await flush()
-  assert.deepEqual(calls.map(c => c.method), ['stopPoll', 'sendMessage'])
+  assert.deepEqual(calls.map(c => c.method), ['sendMessage'])
 })
 
 test('arming: a future answer time waits for it', async () => {
-  const postedAt = new Date(Date.now() + DAY) // answer due in two days, at 22:00
+  const postedAt = new Date(Date.now() - 10 * 60_000) // answer due in 50 min
   latestQuiz = latest({ postedAt })
   await service().armAnswer()
 
-  const delay = answerTimeFor(postedAt, config.rulesQuiz.answerTime).getTime() - Date.now()
+  const delay = answerTimeFor(postedAt, config.rulesQuiz.answerDelayMinutes).getTime() - Date.now()
+  assert.ok(delay > 0)
   mock.timers.tick(delay - 1000)
   await flush()
   assert.equal(calls.length, 0, 'not before the answer time')
   mock.timers.tick(2000)
   await flush()
-  assert.deepEqual(calls.map(c => c.method), ['stopPoll', 'sendMessage'])
+  assert.deepEqual(calls.map(c => c.method), ['sendMessage'])
 })
 
 test('arming: nothing when the latest poll is already answered, or the quiz is disabled', async () => {
@@ -339,7 +320,7 @@ test('arming: nothing when the latest poll is already answered, or the quiz is d
   assert.equal(calls.length, 0)
 })
 
-test('preview: the question, then its answer replying to the poll, without closing it', async () => {
+test('preview: the question, then its spoiler answer replying to the poll', async () => {
   const admin = { chatId: '-200' }
   await service().preview(admin, question('sig_01'))
 
@@ -347,14 +328,13 @@ test('preview: the question, then its answer replying to the poll, without closi
   const [, poll, answer] = calls
   assert.ok(calls.every(c => c.chatId === admin.chatId))
   assert.equal(answer.options.reply_to_message_id, poll.messageId)
-  assert.match(answer.content as string, /^<b>Answer<\/b>\n✅ Foul/)
-  assert.ok(!(answer.content as string).includes('📊'))
+  assert.match(answer.content as string, /^<b>Answer<\/b>\n<tg-spoiler>✅ Foul/)
 })
 
 test('answer: no link preview card', async () => {
   latestQuiz = latest({ questionId: 'r9_01' })
   await service().answerLatest()
-  assert.equal(calls[1].options.link_preview_options, JSON.stringify({ is_disabled: true }))
+  assert.equal(calls[0].options.link_preview_options, JSON.stringify({ is_disabled: true }))
 })
 
 test('timer: a poll posted just before it fires is not answered early', async () => {
@@ -371,7 +351,7 @@ test('timer: a poll posted just before it fires is not answered early', async ()
 test('/answer_rule still answers the newest poll', async () => {
   latestQuiz = latest({ messageId: 60 })
   assert.ok(await service().answerLatest())
-  assert.equal(calls[0].content, 60)
+  assert.equal(calls[0].options.reply_to_message_id, 60)
 })
 
 test('posting arms the answer from the post itself, before search can see the new poll', async () => {
@@ -383,8 +363,11 @@ test('posting arms the answer from the post itself, before search can see the ne
 
   latestQuiz = latest({ messageId: pollMessageId, questionId: posted.id }) // indexed by answer time
   calls = []
-  mock.timers.tick(2 * DAY)
+  mock.timers.tick(59 * 60_000)
   await flush()
-  assert.deepEqual(calls.map(c => c.method).slice(0, 1), ['stopPoll'])
-  assert.equal(calls[0].content, pollMessageId)
+  assert.equal(calls.length, 0, 'not before the delay')
+  mock.timers.tick(60_000)
+  await flush()
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].options.reply_to_message_id, pollMessageId)
 })

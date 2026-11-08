@@ -2,7 +2,7 @@ import type TelegramBot from 'node-telegram-bot-api'
 import { type SeasonManager } from './SeasonManager'
 import { type LatestQuiz, type ReactionReader } from './ReactionReader'
 import { buildQuizPost, modeFor, pickQuestion } from './quizPicker'
-import { answerTimeFor, buildAnswer, type PollResult } from './quizAnswer'
+import { answerTimeFor, buildAnswer } from './quizAnswer'
 import { config } from '../config'
 import { findQuizBatch, findQuizQuestion, QUIZ_QUESTIONS } from '../data/rules-quiz'
 import { type QuizBatch, type QuizQuestion } from '../types'
@@ -22,7 +22,10 @@ interface Chat {
   threadId?: string;
 }
 
-/** Posts the rules quiz: one poll the day before each training, picked from the rules chat history. */
+/**
+ * Posts the rules quiz: one poll the day before each training, picked from the rules chat history,
+ * then its answer behind a spoiler, RULES_ANSWER_DELAY_MINUTES later.
+ */
 export class RulesQuizService {
   private readonly bot: TelegramBot
   private readonly seasonManager: SeasonManager
@@ -104,7 +107,7 @@ export class RulesQuizService {
   private armAnswerFor(pollMessageId: number, postedAt: Date): void {
     clearTimeout(this.answerTimer)
 
-    const answerAt = answerTimeFor(postedAt, config.rulesQuiz.answerTime)
+    const answerAt = answerTimeFor(postedAt, config.rulesQuiz.answerDelayMinutes)
     const delay = Math.max(0, answerAt.getTime() - getEffectiveDate(new Date()).getTime())
     log.scheduler(`⏰ Rules quiz answer armed for ${delay === 0 ? 'now (catch-up)' : formatDateTimeLocale(answerAt)}`)
 
@@ -154,8 +157,8 @@ export class RulesQuizService {
       return undefined
     }
 
-    const poll = await this.closePoll(chat, latest.messageId)
-    await this.sendAnswer(chat, question, buildAnswer(question, this.sourceOf(question), poll), latest.messageId)
+    // The poll stays open: whoever reads the chat later can still vote
+    await this.sendAnswer(chat, question, buildAnswer(question, this.sourceOf(question)), latest.messageId)
     log.scheduler(`✅ Rules quiz answered: ${question.id}`)
     return question
   }
@@ -177,20 +180,9 @@ export class RulesQuizService {
     return await this.reactionReader.getLatestQuiz(chat.chatId, chat.threadId, await this.getBotUsername())
   }
 
-  /** Closes the poll and returns its votes; none if it was already closed. */
-  private async closePoll({ chatId }: Chat, messageId: number): Promise<PollResult | undefined> {
-    try {
-      return await this.bot.stopPoll(chatId, messageId)
-    } catch (error) {
-      // shortcut: a crash between closing and replying loses the stats; reading them over MTProto would keep them
-      if (error instanceof Error && error.message.includes('already been closed')) return undefined
-      throw error
-    }
-  }
-
   private async sendAnswer(chat: Chat, question: QuizQuestion, text: string, pollMessageId: number): Promise<void> {
     if (question.answerImage) {
-      await this.sendImage(chat, question.answerImage, pollMessageId, text)
+      await this.sendImage(chat, question.answerImage, pollMessageId, { htmlCaption: text, spoiler: true })
     } else {
       await this.sendText(chat, text, pollMessageId, { parse_mode: 'HTML', ...noLinkPreview() })
     }
@@ -220,24 +212,34 @@ export class RulesQuizService {
 
   /** Image, then the long question text if any, then the poll: each one replying to the previous. */
   async post(chat: Chat, question: QuizQuestion): Promise<number> {
-    const { intro, poll, options } = buildQuizPost(question)
+    const { intro, poll, options, correctOptionId } = buildQuizPost(question)
 
     let replyTo = question.image ? await this.sendImage(chat, question.image) : undefined
     if (intro) replyTo = await this.sendText(chat, intro, replyTo)
-    return await this.sendPoll(chat, poll, options, replyTo)
+    return await this.sendPoll(chat, poll, options, correctOptionId, replyTo)
   }
 
-  /** The question and its answer right away, without closing the poll (used by /test_rule). */
+  /** The question and its answer right away (used by /test_rule). */
   async preview(chat: Chat, question: QuizQuestion): Promise<void> {
     const pollMessageId = await this.post(chat, question)
     await this.sendAnswer(chat, question, buildAnswer(question, this.sourceOf(question)), pollMessageId)
   }
 
-  private async sendImage({ chatId, threadId }: Chat, image: string, replyTo?: number, htmlCaption?: string): Promise<number> {
+  private async sendImage(
+    { chatId, threadId }: Chat,
+    image: string,
+    replyTo?: number,
+    { htmlCaption, spoiler }: { htmlCaption?: string; spoiler?: boolean } = {}
+  ): Promise<number> {
     const sent = await this.bot.sendPhoto(
       chatId,
       image,
-      { ...threadOptions(threadId), ...replyOptions(replyTo), ...(htmlCaption && { caption: htmlCaption, parse_mode: 'HTML' }) },
+      {
+        ...threadOptions(threadId),
+        ...replyOptions(replyTo),
+        ...(htmlCaption && { caption: htmlCaption, parse_mode: 'HTML' }),
+        ...(spoiler && { has_spoiler: true })
+      },
       { contentType: 'image/png' }
     )
     return sent.message_id
@@ -248,14 +250,20 @@ export class RulesQuizService {
     return sent.message_id
   }
 
-  /** Anonymous regular poll, not quiz-type, so the answer stays hidden until it is posted. */
-  private async sendPoll({ chatId, threadId }: Chat, question: string, options: string[], replyTo?: number): Promise<number> {
+  /** Anonymous quiz-type poll: each voter sees the right option as soon as they vote. */
+  private async sendPoll(
+    { chatId, threadId }: Chat,
+    question: string,
+    options: string[],
+    correctOptionId: number,
+    replyTo?: number
+  ): Promise<number> {
     const sent = await this.bot.sendPoll(chatId, question, options, {
       ...threadOptions(threadId),
       ...replyOptions(replyTo),
       is_anonymous: true,
-      type: 'regular',
-      allows_multiple_answers: false
+      type: 'quiz',
+      correct_option_id: correctOptionId
     })
     return sent.message_id
   }

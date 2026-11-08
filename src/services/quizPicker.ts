@@ -10,6 +10,8 @@ export interface QuizPost {
   intro?: string;
   poll: string;
   options: string[];
+  /** Index of the right answer in `options`, for the quiz-type poll */
+  correctOptionId: number;
 }
 
 type Random = () => number
@@ -71,9 +73,10 @@ const quizHeader = (q: QuizQuestion): string => {
 export function buildQuizPost(q: QuizQuestion, random: Random = Math.random): QuizPost {
   const header = quizHeader(q)
   const options = shuffle([q.answer, ...q.wrong], random)
+  const correctOptionId = options.indexOf(q.answer)
   const full = `${header}\n\n${q.question}`
 
   return full.length <= POLL_LIMITS.question
-    ? { poll: full, options }
-    : { intro: full, poll: `${header}\n\n👆 Your answer?`, options }
+    ? { poll: full, options, correctOptionId }
+    : { intro: full, poll: `${header}\n\n👆 Your answer?`, options, correctOptionId }
 }
