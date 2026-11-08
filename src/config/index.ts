@@ -69,7 +69,7 @@ function loadAndValidateConfig(): BotConfig {
             enabled: process.env.RULES_QUIZ_ENABLED === 'true',
             chatId: process.env.RULES_CHAT_ID || undefined,
             chatThreadId: process.env.RULES_CHAT_THREAD_ID || undefined,
-            answerTime: process.env.RULES_ANSWER_TIME || '22:00'
+            answerDelayMinutes: Number(process.env.RULES_ANSWER_DELAY_MINUTES || 60)
         }
     }
 

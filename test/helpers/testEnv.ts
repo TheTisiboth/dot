@@ -25,7 +25,7 @@ Object.assign(process.env, {
   RULES_QUIZ_ENABLED: 'true',
   RULES_CHAT_ID: '-400',
   RULES_CHAT_THREAD_ID: '7',
-  RULES_ANSWER_TIME: '22:00'
+  RULES_ANSWER_DELAY_MINUTES: '60'
 })
 
 // Service logs written while the runner streams results can garble its messages ("Unable to deserialize cloned data")

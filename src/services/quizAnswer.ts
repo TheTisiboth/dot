@@ -1,29 +1,11 @@
 import { type QuizBatch, type QuizQuestion } from '../types'
-import { atTime } from '../utils/dateHelpers'
 import { escapeHtml } from '../utils/formatters'
-
-export interface PollResult {
-  options: Array<{ text: string; voter_count: number }>;
-  total_voter_count: number;
-}
 
 const link = (url: string, text: string): string => `<a href="${escapeHtml(url)}">${escapeHtml(text)}</a>`
 
-/** The poll goes out the day before training; the answer follows on training day. */
-export function answerTimeFor(postedAt: Date, answerTime: string): Date {
-  const trainingDay = new Date(postedAt)
-  trainingDay.setDate(trainingDay.getDate() + 1)
-  return atTime(trainingDay, answerTime)
-}
-
-/** Without a poll result (it was already closed), the stats line is left out. */
-export function answerStats(answer: string, poll?: PollResult): string | undefined {
-  if (!poll) return undefined
-  if (poll.total_voter_count === 0) return '📊 No votes'
-
-  const right = poll.options.find(option => option.text === answer)?.voter_count ?? 0
-  const share = Math.round((right / poll.total_voter_count) * 100)
-  return `📊 ${right}/${poll.total_voter_count} got it right (${share}%)`
+/** The answer follows the poll after a delay, so early voters get to think before it shows up. */
+export function answerTimeFor(postedAt: Date, delayMinutes: number): Date {
+  return new Date(postedAt.getTime() + delayMinutes * 60_000)
 }
 
 /** The rule's page on urules.org, opened on the rule itself. */
@@ -35,11 +17,16 @@ export function ruleLink(question: QuizQuestion, source: QuizBatch['source']): s
   return `📖 ${link(ruleUrl(question.ref), `Rule ${question.ref}`)} · ${link(source.url, source.title)}`
 }
 
-/** HTML: explanations contain characters that Markdown would read as formatting. */
-export function buildAnswer(question: QuizQuestion, source: QuizBatch['source'], poll?: PollResult): string {
-  return [
-    `<b>Answer</b>\n✅ ${escapeHtml(question.answer)}`,
+/**
+ * HTML: explanations contain characters that Markdown would read as formatting.
+ * Everything but the title is a spoiler, so whoever has not voted yet is not shown the answer.
+ */
+export function buildAnswer(question: QuizQuestion, source: QuizBatch['source']): string {
+  const body = [
+    `✅ ${escapeHtml(question.answer)}`,
     question.explanation && escapeHtml(question.explanation),
-    [answerStats(question.answer, poll), ruleLink(question, source)].filter(Boolean).join('\n')
+    ruleLink(question, source)
   ].filter(Boolean).join('\n\n')
+
+  return `<b>Answer</b>\n<tg-spoiler>${body}</tg-spoiler>`
 }
