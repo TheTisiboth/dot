@@ -64,11 +64,9 @@ export function pickQuestion(
   return randomItem(pool.filter(q => q.difficulty === level), random)
 }
 
-/** Level, plus the mode for mode-specific questions (their answer depends on it), plus the hidden id. */
-const quizHeader = (q: QuizQuestion): string => {
-  const mode = q.modes.length === 1 ? ` · ${MODES[q.modes[0]]}` : ''
-  return `${LEVELS[q.difficulty]}${mode}${quizTag(q.id)}`
-}
+/** Level, the modes the answer holds for (the group trains both), plus the hidden id. */
+const quizHeader = (q: QuizQuestion): string =>
+  `${LEVELS[q.difficulty]} · ${q.modes.map(m => MODES[m]).join(' & ')}${quizTag(q.id)}`
 
 export function buildQuizPost(q: QuizQuestion, random: Random = Math.random): QuizPost {
   const header = quizHeader(q)
