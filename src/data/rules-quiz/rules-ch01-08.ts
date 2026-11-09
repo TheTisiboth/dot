@@ -38,7 +38,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '1.6.6',
       question: 'Which of these is listed in the rules as a clear violation of the Spirit of the Game?',
       answer: 'Calling for a pass from an opposition player',
-      wrong: ['Celebrating with your team after scoring', 'Asking an opponent to explain their call', 'Retracting a call you no longer believe in'],
+      wrong: ['Celebrating with your team after scoring', 'Asking an opponent to explain their call or a rule', 'Retracting a call you no longer believe in'],
       explanation: 'Calling for a pass from an opponent (e.g. a defender shouting "yes!" to trick the thrower) is a clear Spirit violation. Retracting a wrong call is an example of good Spirit.'
     },
     {
@@ -53,7 +53,7 @@ export const rulesCh01to08: QuizBatch = {
     },
     {
       id: 'r1_05',
-      difficulty: 'medium',
+      difficulty: 'easy',
       modes: ALL_MODES,
       ref: '1.3.10',
       question: 'When should a player make a call?',
@@ -78,7 +78,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '1.10.2',
       question: 'Without being asked by a player, which non-player may get involved in resolving a call?',
       answer: 'The captains',
-      wrong: ['The coaches', 'The team manager', 'The tournament director'],
+      wrong: ['The coaches', 'The first dog you see', 'The tournament director'],
       explanation: 'Non-players, apart from the captains, should refrain from getting involved. Others (e.g. people on the sideline) may only give their perspective when a player involved asks them.'
     },
     {
@@ -164,6 +164,21 @@ export const rulesCh01to08: QuizBatch = {
       explanation: 'Eight brightly-coloured, flexible objects (such as cones) mark the corners of the central zone and the end zones.'
     },
 
+	{	
+  id: 'r2_06',
+  difficulty: 'easy',
+  modes: OUTDOOR_ONLY,
+  ref: '2.1',
+  question: 'What are the dimensions of the outdoor playing field, including the end zones according to WFDF Rules?',
+  answer: '100 m long and 37 m wide, with two end zones of 18 m each.',
+  wrong: [
+    '100 m long and 37 m wide, with two end zones of at least 18 m each.',
+    '100 m long and 40 m wide, with two end zones of maximum 20 m each.',
+    'twice as Long as wide, with two end zones of 18 m each.'
+  ],
+  explanation: 'The playing field is 100 m long and 37 m wide. Each end zone is 18 m deep, leaving a central zone of 64 m (100 − 2 × 18 m).'
+},
+
     // 3. Equipment
     {
       id: 'r3_01',
@@ -182,7 +197,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '3.3',
       question: "What must a player's uniform do?",
       answer: 'Distinguish their team',
-      wrong: ['Show a player number', 'Be approved by WFDF', 'Have long sleeves'],
+      wrong: ['Show a player number', 'Be approved by WFDF', 'Contain at least one political statement'],
       explanation: 'Each player must wear a uniform that distinguishes their team.'
     },
 
@@ -246,7 +261,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '5.1',
       question: 'What is the minimum number of players a team must have on the field to play a point?',
       answer: '5',
-      wrong: ['4', '6', '7'],
+      wrong: ['6', '4', '7'],
       explanation: 'Each team puts a maximum of 7 and a minimum of 5 players on the field during each point.'
     },
     {
@@ -256,7 +271,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '5.3',
       question: 'When may a team make unlimited substitutions?',
       answer: 'After a goal, before signalling readiness for the pull',
-      wrong: ['Any time play is dead', 'During a time-out', 'Only at half time'],
+      wrong: ['Any time play is dead', 'During a time-out', 'When there is one Injury-Call'],
       explanation: 'A team may make unlimited substitutions after a goal is scored and before it signals readiness for the pull. Outside that, a player can only be substituted for an injury or faulty equipment.'
     },
     {
@@ -295,17 +310,17 @@ export const rulesCh01to08: QuizBatch = {
     // 7. The Pull
     {
       id: 'r7_01',
-      difficulty: 'easy',
+      difficulty: 'medium',
       modes: ALL_MODES,
       ref: '7.2',
       question: 'How do the teams signal they are ready for the pull?',
       answer: 'The puller and an offensive player each raise a hand above their head',
-      wrong: ['The captains shout "ready"', 'The puller holds the disc above their head', 'Both teams line up and wait 5 seconds'],
+      wrong: ['A defense Player and an offensive player each raise a Hand Above their head', 'The puller holds the disc above their head', 'Bark aggressively across the field'],
       explanation: 'The pull may only be made after both teams have signalled readiness: the puller and a player on offence raise a hand above their head.'
     },
     {
       id: 'r7_02',
-      difficulty: 'medium',
+      difficulty: 'easy',
       modes: ALL_MODES,
       ref: '7.3',
       question: 'After signalling readiness, where must the receiving team stand until the pull is released?',
@@ -340,7 +355,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '7.5.2',
       question: 'The offence calls offside on the pull. What must they do with the disc?',
       answer: 'Let it land untouched, then play as if a brick was called',
-      wrong: ['Catch it and restart with a check', 'Ask for the pull to be thrown again', 'Take it to the centre of the goal line'],
+      wrong: ['Catch it and restart with a check', 'Ask for the pull to be thrown again', 'Catch it and walk with it to the brick point'],
       explanation: 'If the offence calls offside, they must let the disc hit the ground untouched, then resume play as if a brick had been called, with no check needed.'
     },
     {
@@ -360,7 +375,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '7.8',
       question: 'A receiver touches the pull in the air but drops it. What happens?',
       answer: 'Turnover (dropped pull)',
-      wrong: ['The pull is thrown again', 'The offence plays it where it stops', 'The offence takes a brick'],
+      wrong: ['The pull is thrown again', 'The offence plays it where it lands', 'The offence takes a brick'],
       explanation: 'If an offensive player touches the pull before it hits the ground and the offence fails to establish possession, it is a turnover ("dropped pull").'
     },
     {
@@ -370,7 +385,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '7.12',
       question: 'The pull lands out-of-bounds without touching the field or a player. Where may the offence put the disc into play?',
       answer: 'At the brick mark, or where it went out-of-bounds',
-      wrong: ['The pull is thrown again', 'At the centre of their goal line', 'Where the disc landed'],
+      wrong: ['The spot on the central zone closest to where the disc stopped', 'At the centre of their goal line', 'Where the disc landed'],
       explanation: 'The thrower may choose the brick mark closest to their defending end zone, or the spot on the central zone closest to where the disc went out-of-bounds.'
     },
     {
@@ -379,8 +394,8 @@ export const rulesCh01to08: QuizBatch = {
       modes: ALL_MODES,
       ref: '7.12',
       question: 'How does the offence signal that they want a brick?',
-      answer: 'One player fully extends an arm overhead, before the disc is picked up',
-      wrong: ['Pointing at the brick mark', 'Calling "brick" after picking up the disc', 'Crossing both arms overhead'],
+      answer: 'Any offensive player fully extends an arm overhead, before the disc is picked up',
+      wrong: ['Pointing at the brick mark', 'Calling "brick" after picking up the disc', 'The Player who picks up the disc fully extends an arm overhead, before the disc is picked up'],
       explanation: 'The brick option must be signalled before the disc is picked up, by any offensive player fully extending one arm overhead, and they should call "brick".'
     },
     {
@@ -390,7 +405,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '7.10',
       question: "The pull lands in-bounds, rolls into the offence's own end zone and stops there, without going out. Where is the pivot?",
       answer: 'Where the disc stopped, in the end zone',
-      wrong: ['On the goal line, nearest to where it stopped', AT_BRICK_MARK, 'Where the disc first landed'],
+      wrong: ['On the goal line, nearest to where it stopped', 'At the brick point', 'Where the disc first landed'],
       explanation: 'If the pull lands in-bounds and never goes out-of-bounds, the thrower establishes a pivot where the disc stops, even in their defending end zone.'
     },
     {
@@ -400,7 +415,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '7.11',
       question: "The pull lands in-bounds, then rolls untouched out of the back of the offence's own end zone. Where is the pivot?",
       answer: 'On the central zone, nearest to where it went out',
-      wrong: ['Where it crossed the end line', AT_BRICK_MARK, 'At the centre of the goal line'],
+      wrong: ['Where it crossed the end line', 'On the central zone, nearest to where it stopped', 'At the centre of the goal line'],
       explanation: 'The pivot is where the disc first crossed the perimeter line, or the nearest point in the central zone if that would be in the defending end zone. No brick: the pull touched the field first.'
     },
     {
@@ -410,7 +425,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '7.11.1',
       question: 'The pull lands in-bounds, a receiver touches it on the ground, and it then rolls out of their own end zone. Where is the pivot?',
       answer: 'Where it crossed the perimeter line, even in the end zone',
-      wrong: ['On the central zone, nearest to where it went out', AT_BRICK_MARK, 'Turnover: the defence takes it'],
+      wrong: ['On the central zone, nearest to where it went out', 'At the brick point', 'Turnover: the defence takes it'],
       explanation: 'If an offensive player touched the disc before it went out-of-bounds, the pivot is where it crossed the perimeter line, even in the defending end zone. Not a turnover: it had already hit the ground.'
     },
     {
@@ -420,19 +435,19 @@ export const rulesCh01to08: QuizBatch = {
       ref: '7.9',
       question: 'A receiver catches the pull while standing in their own end zone. Where is their pivot?',
       answer: 'Where they caught it, even in the end zone',
-      wrong: [ON_GOAL_LINE, AT_BRICK_MARK, 'Anywhere they choose in the end zone'],
+      wrong: ['One the goal line closest to where they caught it', 'At the brick point', 'Anywhere they choose in the end zone'],
       explanation: 'After catching the pull, the pivot is at the spot on the field nearest to where possession was established, even in the defending end zone.'
     },
 
     // 8. State of Play
     {
       id: 'r8_01',
-      difficulty: 'medium',
+      difficulty: 'easy',
       modes: ALL_MODES,
       ref: '8.1.3',
       question: 'Which of these is a moment when play is dead?',
       answer: 'After a call that stops play, until the disc is checked in',
-      wrong: ['While a pass is in the air', 'While the thrower is being stalled', 'Right after a catch in the central zone'],
+      wrong: ['While a pass is in the air', 'While the thrower is being stalled', 'When the spirit of the game is extremely low'],
       explanation: 'Play is dead after the start of a point until the pull, while the disc is carried to the pivot, after a call or stoppage until the check, and after the disc hits the ground until possession.'
     },
     {
@@ -442,7 +457,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '8.1.5',
       question: 'Can players move during dead play?',
       answer: 'Yes, unless a rule says otherwise',
-      wrong: ['No, everyone must stay still', 'Only the thrower', 'Only the defence'],
+      wrong: ['No, everyone must freeze', 'Only the thrower', 'Only the defence'],
       explanation: 'Players are allowed to move during dead play, unless specified otherwise (e.g. before the pull, or after some calls).'
     },
     {
@@ -482,7 +497,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '8.5',
       question: 'After a turnover or a pull, how must the offence get to the disc?',
       answer: 'Directly, at walking pace or faster',
-      wrong: ['At any pace, as long as they get there', 'Running only', 'Only once the defence has set up'],
+      wrong: ['At any pace, as long as they get there', 'Walking only', 'Only once the defence has set up'],
       explanation: 'After a turnover or a pull, an offensive player must move at walking pace or faster to directly retrieve the disc and establish a pivot. The defence may warn ("delay of game") or call a violation.'
     },
     {
@@ -502,7 +517,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '8.4.1',
       question: 'A pull is rolling. A defender stops it, but kicks it far up the field. What may the offence request?',
       answer: 'To put the disc into play where the defender touched it',
-      wrong: ['A re-pull', 'A brick', 'To take the disc to the goal line'],
+      wrong: ['Nothing', 'A brick', 'To take the disc to the goal line'],
       explanation: 'Any player may stop a rolling disc (8.4). If they significantly alter its position, the opposition may ask for the pivot where the disc was contacted.'
     }
   ]
