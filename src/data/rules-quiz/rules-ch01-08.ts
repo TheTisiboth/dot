@@ -2,7 +2,6 @@ import { type QuizBatch } from '../../types'
 import { ALL_MODES, OUTDOOR_ONLY } from './modes'
 
 const AT_BRICK_MARK = 'At the brick mark'
-const ON_GOAL_LINE = 'On the goal line'
 
 export const rulesCh01to08: QuizBatch = {
   source: {
@@ -405,7 +404,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '7.10',
       question: "The pull lands in-bounds, rolls into the offence's own end zone and stops there, without going out. Where is the pivot?",
       answer: 'Where the disc stopped, in the end zone',
-      wrong: ['On the goal line, nearest to where it stopped', 'At the brick point', 'Where the disc first landed'],
+      wrong: ['On the goal line, nearest to where it stopped', AT_BRICK_MARK, 'Where the disc first landed'],
       explanation: 'If the pull lands in-bounds and never goes out-of-bounds, the thrower establishes a pivot where the disc stops, even in their defending end zone.'
     },
     {
@@ -425,7 +424,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '7.11.1',
       question: 'The pull lands in-bounds, a receiver touches it on the ground, and it then rolls out of their own end zone. Where is the pivot?',
       answer: 'Where it crossed the perimeter line, even in the end zone',
-      wrong: ['On the central zone, nearest to where it went out', 'At the brick point', 'Turnover: the defence takes it'],
+      wrong: ['On the central zone, nearest to where it went out', AT_BRICK_MARK, 'Turnover: the defence takes it'],
       explanation: 'If an offensive player touched the disc before it went out-of-bounds, the pivot is where it crossed the perimeter line, even in the defending end zone. Not a turnover: it had already hit the ground.'
     },
     {
@@ -435,7 +434,7 @@ export const rulesCh01to08: QuizBatch = {
       ref: '7.9',
       question: 'A receiver catches the pull while standing in their own end zone. Where is their pivot?',
       answer: 'Where they caught it, even in the end zone',
-      wrong: ['One the goal line closest to where they caught it', 'At the brick point', 'Anywhere they choose in the end zone'],
+      wrong: ['On the goal line closest to where they caught it', AT_BRICK_MARK, 'Anywhere they choose in the end zone'],
       explanation: 'After catching the pull, the pivot is at the spot on the field nearest to where possession was established, even in the defending end zone.'
     },
 

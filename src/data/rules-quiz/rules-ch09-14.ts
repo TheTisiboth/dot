@@ -65,7 +65,7 @@ export const rulesCh09to14: QuizBatch = {
       ref: '9.5.1',
       question: 'The thrower calls a marking foul and the marker accepts it. Where does the stall count restart?',
       answer: STALLING_ONE,
-      wrong: ['Where it stopped', 'Where it stopped plus one', MINUS_TWO],
+      wrong: ['Where it stopped', MAX_NINE, MINUS_TWO],
       explanation: 'After an accepted breach by the defence, the stall count restarts at "Stalling one".'
     },
     {
@@ -167,7 +167,7 @@ export const rulesCh09to14: QuizBatch = {
       ref: '10.6.1.2',
       question: 'Play restarts with no defender within reach of the thrower. How is the disc checked in?',
       answer: 'The thrower touches the disc to the ground',
-      wrong: ['The nearest defender calls "disc in"', 'The thrower waits for a defender to come', 'Play restarts after 5 seconds'],
+      wrong: ['The nearest defender calls "disc in"', 'The thrower waits for a defender to come', 'The thrower calls "disc in" without touching the ground'],
       explanation: 'If no defender is within reach, the thrower must touch the disc to the ground, and may call "disc in".'
     },
     {
@@ -227,7 +227,7 @@ export const rulesCh09to14: QuizBatch = {
       ref: '10.3',
       question: 'Your shoelace comes undone. When may you stop play to fix it?',
       answer: 'Only by briefly extending an existing stoppage',
-      wrong: ['Any time, by calling "equipment"', 'Only after a time-out', 'Never'],
+      wrong: ['Any time, by calling "equipment"', 'Any time, by calling "technical"', 'Only during a time-out'],
       explanation: 'Any player may briefly extend a stoppage to fix faulty equipment ("equipment"), but active play may not be stopped for this.'
     },
 
@@ -332,6 +332,16 @@ export const rulesCh09to14: QuizBatch = {
       wrong: [OB_TURNOVER, 'Travel', 'They must step back before the stall continues'],
       explanation: 'A thrower who contacts an out-of-bounds area is considered in-bounds until they make a pass.'
     },
+    {
+      id: 'r11_11',
+      difficulty: 'hard',
+      modes: ALL_MODES,
+      ref: '11.6',
+      question: 'Two offensive players catch the disc at the same time, one in-bounds and one with a foot out-of-bounds. What happens?',
+      answer: OB_TURNOVER,
+      wrong: ['Catch: the in-bounds player keeps it', PASS_REPLAYED, 'Catch, with a pivot where they crossed the line'],
+      explanation: 'If the disc is simultaneously caught by more than one offensive player, one of them being out-of-bounds, the disc is out-of-bounds.'
+    },
 
     // 12. Receivers and Positioning
     {
@@ -341,12 +351,12 @@ export const rulesCh09to14: QuizBatch = {
       ref: '12.1',
       question: 'What counts as a catch?',
       answer: 'A non-spinning disc trapped between at least two body parts',
-      wrong: ['Any touch with both hands', 'A spinning disc held in one hand', 'Holding the disc for 3 seconds'],
+      wrong: ['Any touch with both hands', 'A spinning disc held in one hand', 'A disc held in the mouth, like a good dog'],
       explanation: 'A catch occurs when a player has a non-spinning disc trapped between at least two body parts.'
     },
     {
       id: 'r12_02',
-      difficulty: 'medium',
+      difficulty: 'easy',
       modes: ALL_MODES,
       ref: '12.3',
       question: 'An offensive and a defensive player catch the disc at the same time. Who gets it?',
@@ -420,9 +430,9 @@ export const rulesCh09to14: QuizBatch = {
       modes: ALL_MODES,
       ref: '12.10',
       question: 'A defender throws their hat and knocks down a pass. What happens?',
-      answer: 'Violation: the intended receiver gets the disc',
-      wrong: ['Turnover: it counts as a block', PASS_REPLAYED, 'Foul: the disc goes back to the thrower'],
-      explanation: 'No player may use an item of equipment or object to contact the disc. For a defender this is a violation, and the intended receiver is awarded possession.'
+      answer: 'Violation: the disc goes back to the thrower',
+      wrong: ['Turnover: it counts as a block', 'Violation: the intended receiver gets the disc', 'Goal, if the pass was going to the end zone'],
+      explanation: 'No player may use an item of equipment or object to contact the disc (12.10). The offence calls a violation; as it lost possession, the disc goes back to the thrower (16.2.4.2.1).'
     },
 
     // 13. Turnovers
@@ -528,7 +538,7 @@ export const rulesCh09to14: QuizBatch = {
     },
     {
       id: 'r13_11',
-      difficulty: 'hard',
+      difficulty: 'medium',
       modes: OUTDOOR_ONLY,
       ref: '13.8',
       question: 'A pass sails out-of-bounds over the sideline. Where is the new pivot?',
@@ -545,6 +555,16 @@ export const rulesCh09to14: QuizBatch = {
       answer: 'They must pick it up again and restart with a check',
       wrong: ['Turnover', 'Play on', 'Any team-mate may pick it up and play on'],
       explanation: 'If the player in possession after a turnover intentionally drops or places the disc on the ground, they must re-establish possession and restart play with a check.'
+    },
+    {
+      id: 'r13_13',
+      difficulty: 'hard',
+      modes: ALL_MODES,
+      ref: '13.4.3',
+      question: 'The thrower contests a stall-out call but still throws, and the pass is incomplete. What happens?',
+      answer: 'The turnover stands, and play restarts with a check',
+      wrong: ['The disc goes back to the thrower at "Stalling eight"', 'Play on: the turnover stands without a stoppage', 'The disc goes back to the thrower at "Stalling one"'],
+      explanation: 'If the thrower contests a stall-out but also attempts a pass, and the pass is incomplete, the turnover stands and play restarts with a check.'
     },
 
     // 14. Scoring
