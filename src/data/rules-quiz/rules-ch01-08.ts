@@ -166,7 +166,7 @@ export const rulesCh01to08: QuizBatch = {
 
 	{	
   id: 'r2_06',
-  difficulty: 'easy',
+  difficulty: 'medium',
   modes: OUTDOOR_ONLY,
   ref: '2.1',
   question: 'What are the dimensions of the outdoor playing field, including the end zones according to WFDF Rules?',
@@ -261,12 +261,12 @@ export const rulesCh01to08: QuizBatch = {
       ref: '5.1',
       question: 'What is the minimum number of players a team must have on the field to play a point?',
       answer: '5',
-      wrong: ['6', '4', '7'],
+      wrong: ['4', '6', '7'],
       explanation: 'Each team puts a maximum of 7 and a minimum of 5 players on the field during each point.'
     },
     {
       id: 'r5_03',
-      difficulty: 'medium',
+      difficulty: 'hard',
       modes: ALL_MODES,
       ref: '5.3',
       question: 'When may a team make unlimited substitutions?',
@@ -320,7 +320,7 @@ export const rulesCh01to08: QuizBatch = {
     },
     {
       id: 'r7_02',
-      difficulty: 'easy',
+      difficulty: 'medium',
       modes: ALL_MODES,
       ref: '7.3',
       question: 'After signalling readiness, where must the receiving team stand until the pull is released?',
