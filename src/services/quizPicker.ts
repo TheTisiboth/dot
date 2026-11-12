@@ -47,15 +47,27 @@ const nextLevel = (pool: QuizQuestion[], previous: QuizDifficulty | undefined, r
   return randomItem(otherLevels.length > 0 ? otherLevels : levels, random)
 }
 
-/** Picks the next question for `mode`, given the ids already posted (newest first). */
+/** The side `isFocus` does not hold for the previous question, or all of them when that side is empty. */
+const alternatingSide = (eligible: QuizQuestion[], previousId: string | undefined, isFocus: (id: string) => boolean): QuizQuestion[] => {
+  const wantFocus = previousId === undefined || !isFocus(previousId)
+  const side = eligible.filter(q => isFocus(q.id) === wantFocus)
+  return side.length > 0 ? side : eligible
+}
+
+/**
+ * Picks the next question for `mode`, given the ids already posted (newest first).
+ * With `isFocus`, every other question is a focus one.
+ */
 export function pickQuestion(
   questions: QuizQuestion[],
   mode: QuizMode,
   askedIds: string[],
-  random: Random = Math.random
+  random: Random = Math.random,
+  isFocus?: (id: string) => boolean
 ): QuizQuestion {
-  const eligible = questions.filter(q => q.modes.includes(mode))
-  if (eligible.length === 0) throw new Error(`No quiz question for mode ${mode}`)
+  const allEligible = questions.filter(q => q.modes.includes(mode))
+  if (allEligible.length === 0) throw new Error(`No quiz question for mode ${mode}`)
+  const eligible = isFocus ? alternatingSide(allEligible, askedIds[0], isFocus) : allEligible
 
   const pool = leastAsked(eligible, askedIds)
   const previousLevel = questions.find(q => q.id === askedIds[0])?.difficulty
