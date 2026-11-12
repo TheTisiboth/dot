@@ -15,3 +15,7 @@ export const findQuizQuestion = (id: string): QuizQuestion | undefined => QUIZ_Q
 
 export const findQuizBatch = (id: string): QuizBatch | undefined =>
   QUIZ_BATCHES.find(batch => batch.questions.some(q => q.id === id))
+
+const SIGNAL_IDS = new Set(signals.questions.map(q => q.id))
+
+export const isSignalQuestion = (id: string): boolean => SIGNAL_IDS.has(id)

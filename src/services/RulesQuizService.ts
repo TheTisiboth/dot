@@ -4,7 +4,7 @@ import { type LatestQuiz, type ReactionReader } from './ReactionReader'
 import { buildQuizPost, modeFor, pickQuestion } from './quizPicker'
 import { answerTimeFor, buildAnswer } from './quizAnswer'
 import { config } from '../config'
-import { findQuizBatch, findQuizQuestion, QUIZ_QUESTIONS } from '../data/rules-quiz'
+import { findQuizBatch, findQuizQuestion, isSignalQuestion, QUIZ_QUESTIONS } from '../data/rules-quiz'
 import { type QuizBatch, type QuizQuestion } from '../types'
 import { withTimeout } from '../utils/async'
 import { getEffectiveDate } from '../utils/dateHelpers'
@@ -205,11 +205,12 @@ export class RulesQuizService {
     }
   }
 
-  /** Picks the way the scheduler does: the next training's season mode, minus what the rules chat already got. */
+  /** Picks the way the scheduler does: the next training's season mode, minus what the rules chat already got (hand signals every other one with RULES_SIGNALS_EVERY_OTHER). */
   async pickNext(chat: Chat = this.rulesChat()): Promise<QuizQuestion> {
     const mode = modeFor(this.seasonManager.getNextTrainingInfo().season)
     const askedIds = await this.reactionReader.getAskedQuizIds(chat.chatId, chat.threadId, await this.getBotUsername())
-    return pickQuestion(QUIZ_QUESTIONS, mode, askedIds)
+    const isFocus = config.rulesQuiz.signalsEveryOther ? isSignalQuestion : undefined
+    return pickQuestion(QUIZ_QUESTIONS, mode, askedIds, Math.random, isFocus)
   }
 
   /** Fetched once; a failure is not cached, so the next post retries it. */

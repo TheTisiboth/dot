@@ -256,6 +256,9 @@ and must never be renamed once posted: the bot remembers which questions it aske
 
 Hand-signal images in `assets/signals/` are cropped from the WFDF Hand Signals PDF.
 
+With `RULES_SIGNALS_EVERY_OTHER=true`, every other quiz is a hand signal (50%); otherwise
+questions are picked at random from the whole bank.
+
 **Sources and licence.** Questions are adapted from the
 [WFDF Rules of Ultimate 2025-2028](https://rules.wfdf.sport/) and related WFDF rules
 documents, © World Flying Disc Federation, licensed under

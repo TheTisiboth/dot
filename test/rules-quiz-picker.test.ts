@@ -44,6 +44,28 @@ test('ignores ids no longer in the bank', () => {
   assert.ok(['e2', 'm1', 'h1'].includes(picked.id), picked.id)
 })
 
+const signalBank = [
+  q('sig_01', 'easy'), q('sig_02', 'medium'), q('sig_03', 'hard'),
+  q('r1', 'easy'), q('r2', 'medium'), q('r3', 'hard'), q('r_out', 'hard', ['outdoor'])
+]
+const isSig = (id: string): boolean => id.startsWith('sig_')
+
+test('signals every other: strict alternation, starting with a signal', () => {
+  const asked: string[] = []
+  for (let i = 0; i < 12; i++) asked.unshift(pickQuestion(signalBank, 'indoor', asked, Math.random, isSig).id)
+  asked.reverse().forEach((id, i) => { assert.equal(isSig(id), i % 2 === 0, `pick ${i}: ${id}`) })
+})
+
+test('signals every other: side follows the previous question', () => {
+  assert.ok(isSig(pickQuestion(signalBank, 'indoor', ['r1'], Math.random, isSig).id))
+  assert.ok(!isSig(pickQuestion(signalBank, 'indoor', ['sig_01'], Math.random, isSig).id))
+})
+
+test('signals every other: falls back to the whole bank when a side is empty', () => {
+  const rulesOnly = [q('r1', 'easy'), q('r2', 'hard')]
+  assert.ok(['r1', 'r2'].includes(pickQuestion(rulesOnly, 'indoor', ['r1'], Math.random, isSig).id))
+})
+
 test('hidden tag round-trips every id and stays invisible', () => {
   QUIZ_QUESTIONS.forEach(({ id }) => {
     assert.equal(parseQuizTag(`text${quizTag(id)}\n\nmore`), id)
