@@ -82,7 +82,7 @@ test('/training shows the next training from the season config', async () => {
   await bot.command('/training', PLAYER)
 
   const [reply] = bot.sentTo(PLAYER.chatId)
-  assert.ok(reply.text.includes(config.seasons.summer.location))
+  assert.ok(reply.text.includes(config.seasons.summer.location.name))
   assert.ok(reply.text.includes(SUMMER_TRAINING.time))
   assert.ok(reply.text.includes(formatDate(SUMMER_TRAINING.at)))
 })
@@ -104,7 +104,7 @@ test('/info lists both seasons with their locations and practice times', async (
 
   const [reply] = bot.sentTo(PLAYER.chatId)
   for (const season of [config.seasons.winter, config.seasons.summer]) {
-    assert.ok(reply.text.includes(season.location))
+    assert.ok(reply.text.includes(season.location.name))
     for (const { time } of season.practices) assert.ok(reply.text.includes(time))
   }
 })

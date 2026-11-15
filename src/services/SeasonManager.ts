@@ -97,7 +97,7 @@ export class SeasonManager {
 
     return {
       date: nextDate,
-      location: exceptionalTraining.location || seasonConfig.location,
+      location: exceptionalTraining.location ?? seasonConfig.location,
       time,
       throwingTime: getThrowingTime(time, seasonConfig.throwingMinutesBefore),
       season: seasonConfig.season,

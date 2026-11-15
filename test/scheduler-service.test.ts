@@ -11,7 +11,7 @@ import { CANCELLATION_SIGNATURE, EMOJIS, isKeyMessage } from '../src/utils/const
 import { makeFakeBot } from './fakes/bot'
 import { makeFakeReader, TRAINING_POST_ID, type ChatHistory } from './fakes/reactionReader'
 import { makeFakeRulesQuiz } from './fakes/rulesQuiz'
-import { beforeTraining } from './fixtures/dates'
+import { SUMMER_TRAINING, beforeTraining } from './fixtures/dates'
 import { HOUR_MS, MINUTE_MS, advance, startAt } from './helpers/clock'
 import { restoreConfigAfterEach } from './helpers/config'
 
@@ -141,6 +141,21 @@ test('a failed trainer request alerts about it alone, and the attendance check i
   const [announcement] = bot.sentTo(TEAM_CHAT)
   await advance(21 * HOUR_MS)
   assert.ok(bot.sentTo(TEAM_CHAT).some(message => message.options.reply_to_message_id === announcement.messageId))
+})
+
+test('an announcement Telegram cannot parse is sent again as the template', async () => {
+  startAt(beforeTraining(24 * HOUR_MS))
+  const { scheduler, bot } = build()
+  bot.rejectNextParse = true
+
+  const report = await scheduler.sendScheduledMessage()
+
+  const [announcement] = bot.sentTo(TEAM_CHAT)
+  assert.equal(report.announcement.status, 'sent')
+  const summer = { season: 'summer' as const, ...config.seasons.summer }
+  const wednesday = summer.practices.find(({ time }) => time === SUMMER_TRAINING.time)!
+  assert.equal(announcement.text, new MessageGenerator().generateTemplateMessage(summer, wednesday))
+  assert.equal(announcement.options.parse_mode, 'HTML')
 })
 
 test('the announcement arms the attendance check on the post it just sent', async () => {

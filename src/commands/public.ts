@@ -3,7 +3,7 @@ import { type SeasonConfigBase, type DateConfig } from '../types'
 import { config } from '../config'
 import { EMOJIS } from '../utils/constants'
 import { getDateBefore } from '../utils/dateHelpers'
-import { capitalize, formatDateShort, formatDate, formatPracticeDays } from '../utils/formatters'
+import { capitalize, formatDateShort, formatDate, formatPracticeDays, locationLink } from '../utils/formatters'
 import { type Command } from './registry'
 
 const START_TEXT = `${EMOJIS.FRISBEE} Welcome to Ultimate Frisbee Training Bot!
@@ -31,12 +31,12 @@ export const publicCommands = (seasonManager: SeasonManager): Command[] => [
   {
     name: 'info',
     description: 'Show training schedule',
-    run: ({ reply }) => reply(scheduleText(), { parse_mode: 'Markdown' })
+    run: ({ reply }) => reply(scheduleText(), { parse_mode: 'HTML' })
   },
   {
     name: 'training',
     description: 'Show next training',
-    run: ({ reply }) => reply(nextTrainingText(seasonManager), { parse_mode: 'Markdown' })
+    run: ({ reply }) => reply(nextTrainingText(seasonManager), { parse_mode: 'HTML' })
   }
 ]
 
@@ -56,7 +56,7 @@ const seasonText = (season: 'winter' | 'summer', seasonConfig: SeasonConfigBase,
 
   return `${emoji} ${capitalize(season)} (${start} - ${end}):
 ${formatPracticeDays(seasonConfig.practices)}
-   ${EMOJIS.LOCATION} ${seasonConfig.location}`
+   ${EMOJIS.LOCATION} ${locationLink(seasonConfig.location)}`
 }
 
 const nextTrainingText = (seasonManager: SeasonManager): string => {
@@ -69,5 +69,5 @@ const nextTrainingText = (seasonManager: SeasonManager): string => {
 
 ${EMOJIS.CALENDAR} ${formatDate(training.date)}
 ${timeLines}
-${EMOJIS.LOCATION} ${training.location}`
+${EMOJIS.LOCATION} ${locationLink(training.location)}`
 }

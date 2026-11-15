@@ -1,7 +1,5 @@
 import { type QuizBatch, type QuizQuestion } from '../types'
-import { escapeHtml } from '../utils/formatters'
-
-const link = (url: string, text: string): string => `<a href="${escapeHtml(url)}">${escapeHtml(text)}</a>`
+import { escapeHtml, link } from '../utils/formatters'
 
 /** The answer follows the poll after a delay, so early voters get to think before it shows up. */
 export function answerTimeFor(postedAt: Date, delayMinutes: number): Date {

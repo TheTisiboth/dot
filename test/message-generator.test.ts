@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { type AddressInfo } from 'node:net'
 import { CANCELLATION_SIGNATURE, EMOJIS, MARKERS, isKeyMessage } from '../src/utils/constants'
+import { parseLocation } from '../src/utils/configParsers'
 
 // Fake Ollama over HTTP, the real client's boundary; config is read on import, so it is loaded after
 let reply: { status: number; content: string }
@@ -30,7 +31,7 @@ test('the announcement asks for a 👍 and names location and time', async () =>
   const message = await generator.generateMessage(season, { useLLM: false }, practiceDay)
 
   assert.ok(message.includes(EMOJIS.THUMBS_UP))
-  assert.ok(message.includes(season.location))
+  assert.ok(message.includes(season.location.name))
   assert.ok(message.includes(practiceDay.time))
 })
 
@@ -62,8 +63,8 @@ test('the cancellation carries the signature, count and threshold', () => {
   const message = generator.generateCancellationMessage(season, practiceDay, attendance)
 
   assert.ok(message.includes(CANCELLATION_SIGNATURE))
-  assert.ok(message.includes(`*${attendance.count}*`))
-  assert.ok(message.includes(`*${attendance.threshold}*`))
+  assert.ok(message.includes(`<b>${attendance.count}</b>`))
+  assert.ok(message.includes(`<b>${attendance.threshold}</b>`))
 })
 
 test('the template reminder carries the marker, count and threshold', async () => {
@@ -106,11 +107,26 @@ test('an empty LLM reply falls back to the template', async () => {
   assert.ok(message.includes(EMOJIS.THUMBS_UP))
 })
 
-test('a markdown location link survives the LLM announcement', async () => {
-  reply.content = 'Training at Hall tomorrow, react 👍'
-  const linked = { ...season, location: '[Hall](https://maps.example/hall)' }
+const stPauli = { ...season, location: parseLocation('[St. Pauli (Halle 2)](https://maps.example/st-pauli?a=1&b=2)') }
+const stPauliLink = '<a href="https://maps.example/st-pauli?a=1&amp;b=2">St. Pauli (Halle 2)</a>'
 
-  const message = await generator.generateMessage(linked, { useLLM: true }, practiceDay)
+test('a location link with pattern characters is linked in the template announcement', async () => {
+  const message = await generator.generateMessage(stPauli, { useLLM: false }, practiceDay)
+  assert.ok(message.includes(stPauliLink))
+})
 
-  assert.ok(message.includes(linked.location))
+test('a location link with pattern characters is linked in the LLM announcement', async () => {
+  reply.content = 'Training at St. Pauli (Halle 2) tomorrow, react 👍'
+  const message = await generator.generateMessage(stPauli, { useLLM: true }, practiceDay)
+  assert.ok(message.includes(stPauliLink))
+})
+
+test('LLM text with markup characters reaches the announcement escaped and intact', async () => {
+  reply.content = 'Sky_plastic time * <3 & [go'
+  const message = await generator.generateMessage(season, { useLLM: true }, practiceDay)
+  assert.ok(message.includes('Sky_plastic time * &lt;3 &amp; [go'))
+})
+
+test('a location without a link is the plain name', () => {
+  assert.deepEqual(parseLocation('Hall'), { name: 'Hall' })
 })

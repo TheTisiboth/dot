@@ -1,4 +1,4 @@
-import { type PracticeDay, type DateConfig } from '../types'
+import { type PracticeDay, type DateConfig, type TrainingLocation } from '../types'
 
 const MONTH_NAMES_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec']
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -31,12 +31,6 @@ export function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
-export function extractLocationName(location: string): string {
-  // Extract name from markdown format [Name](url)
-  const match = location.match(/^\[([^\]]+)\]/)
-  return match ? match[1] : location
-}
-
 export function formatDateLocale(date: Date): string {
   // Format as DD/MM/YYYY using French locale
   return date.toLocaleDateString('fr-FR')
@@ -58,3 +52,8 @@ const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '
 export function escapeHtml(text: string): string {
   return text.replace(/[&<>"]/g, char => HTML_ESCAPES[char])
 }
+
+export const link = (url: string, text: string): string => `<a href="${escapeHtml(url)}">${escapeHtml(text)}</a>`
+
+/** The location as HTML: linked when it has a URL. */
+export const locationLink = ({ name, url }: TrainingLocation): string => url ? link(url, name) : escapeHtml(name)
