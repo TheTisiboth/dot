@@ -322,3 +322,16 @@ test('the attendance inspection reports count, threshold and post', async () => 
   assert.equal(attendance?.threshold, threshold())
   assert.equal(attendance?.pollMessageId, TRAINING_POST_ID)
 })
+
+test('once the training started, the inspection finds no post until the next announcement', async () => {
+  startAt(beforeTraining(24 * HOUR_MS))
+  const { scheduler, bot } = build({ history: { postId: undefined } })
+  await scheduler.sendScheduledMessage()
+  assert.equal((await scheduler.inspectAttendance())?.pollMessageId, bot.sentTo(TEAM_CHAT)[0].messageId)
+
+  await advance(25 * HOUR_MS)
+  assert.equal(await scheduler.inspectAttendance(), null)
+
+  await scheduler.sendScheduledMessage()
+  assert.equal((await scheduler.inspectAttendance())?.pollMessageId, bot.sentTo(TEAM_CHAT).at(-2)?.messageId)
+})

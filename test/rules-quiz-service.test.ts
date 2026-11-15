@@ -26,7 +26,7 @@ const flush = async () => await new Promise(resolve => setImmediate(resolve))
 let calls: Call[]
 let askedIds: string[]
 let historyError: Error | undefined
-let historyReads: Array<{ chatId: string; threadId?: string; botUsername: string }>
+let historyReads: Array<{ chatId: string; threadId?: string }>
 let latestQuiz: LatestQuiz | undefined
 
 const bot = (() => {
@@ -42,7 +42,6 @@ const bot = (() => {
     sendPhoto: record('sendPhoto'),
     sendMessage: record('sendMessage'),
     sendPoll: record('sendPoll'),
-    getMe: async () => ({ username: 'quiz_bot' }),
     stopPoll: async () => { throw new Error('the poll must stay open') }
   }
 })() as unknown as Api
@@ -51,8 +50,8 @@ const seasonOf = (season: SeasonType) =>
   ({ getNextTrainingInfo: () => ({ season }) }) as unknown as SeasonManager
 
 const reader = {
-  getAskedQuizIds: async (chatId: string, threadId: string | undefined, botUsername: string) => {
-    historyReads.push({ chatId, threadId, botUsername })
+  getAskedQuizIds: async (chatId: string, threadId: string | undefined) => {
+    historyReads.push({ chatId, threadId })
     if (historyError) throw historyError
     return askedIds
   },
@@ -134,7 +133,7 @@ test('postNext reads the rules chat history and picks for the season mode', asyn
     assert.ok(!askedIds.includes(posted.id), `${posted.id} repeated`)
     askedIds.unshift(posted.id)
   }
-  assert.deepEqual(historyReads[0], { ...RULES_CHAT, botUsername: 'quiz_bot' })
+  assert.deepEqual(historyReads[0], RULES_CHAT)
   assert.ok(calls.every(c => c.chatId === RULES_CHAT.chatId))
 })
 
@@ -229,22 +228,6 @@ test('a failed post does not block the next one', async () => {
   await assert.rejects(quiz.postNext(), /MTProto down/)
   historyError = undefined
   assert.ok(await quiz.postNext())
-})
-
-test('a failed bot username lookup is retried on the next post', async () => {
-  let attempts = 0
-  const flakyBot = Object.assign(Object.create(bot as object) as Api, {
-    getMe: async () => {
-      attempts++
-      if (attempts === 1) throw new Error('Bot API down')
-      return { username: 'quiz_bot' }
-    }
-  })
-  const quiz = new RulesQuizService(flakyBot, seasonOf('winter'), reader)
-
-  await assert.rejects(quiz.postNext(), /Bot API down/)
-  assert.ok(await quiz.postNext())
-  assert.equal(attempts, 2)
 })
 
 const latest = (fields: Partial<LatestQuiz> = {}): LatestQuiz =>

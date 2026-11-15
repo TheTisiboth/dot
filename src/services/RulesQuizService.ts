@@ -28,7 +28,6 @@ export class RulesQuizService {
   // Posts and answers run one after another: two overlapping ones would read the same history,
   // and could post the same question or answer the same poll twice
   private queue: Promise<unknown> = Promise.resolve()
-  private botUsername?: Promise<string>
   private answerTimer?: NodeJS.Timeout
   private retryTimer?: NodeJS.Timeout
   // What this process posted and answered. Search only sees a message seconds after it is sent, so
@@ -191,7 +190,7 @@ export class RulesQuizService {
   }
 
   private async findLatestQuiz(chat: ChatTarget): Promise<LatestQuiz | undefined> {
-    return await this.reactionReader.getLatestQuiz(chat.chatId, chat.threadId, await this.getBotUsername())
+    return await this.reactionReader.getLatestQuiz(chat.chatId, chat.threadId)
   }
 
   private async sendAnswer(chat: ChatTarget, question: QuizQuestion, text: string, pollMessageId: number): Promise<void> {
@@ -205,24 +204,9 @@ export class RulesQuizService {
   /** Picks the way the scheduler does: the next training's season mode, minus what the rules chat already got (hand signals every other one with RULES_SIGNALS_EVERY_OTHER). */
   async pickNext(chat: ChatTarget = this.rulesChat()): Promise<QuizQuestion> {
     const mode = modeFor(this.seasonManager.getNextTrainingInfo().season)
-    const askedIds = await this.reactionReader.getAskedQuizIds(chat.chatId, chat.threadId, await this.getBotUsername())
+    const askedIds = await this.reactionReader.getAskedQuizIds(chat.chatId, chat.threadId)
     const isFocus = config.rulesQuiz.signalsEveryOther ? isSignalQuestion : undefined
     return pickQuestion(QUIZ_QUESTIONS, mode, askedIds, Math.random, isFocus)
-  }
-
-  /** Fetched once; a failure is not cached, so the next post retries it. */
-  private async getBotUsername(): Promise<string> {
-    this.botUsername ??= this.bot.getMe().then(me => {
-      if (!me.username) throw new Error('The bot has no username')
-      return me.username
-    })
-
-    try {
-      return await this.botUsername
-    } catch (error) {
-      this.botUsername = undefined
-      throw error
-    }
   }
 
   /** Image, then the long question text if any, then the poll: each one replying to the previous. */
