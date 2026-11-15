@@ -1,5 +1,6 @@
 {
   "root": true,
+  "noInlineConfig": true,
   "env": {
     "es2022": true,
     "node": true
