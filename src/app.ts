@@ -12,7 +12,6 @@ import { trainingCommands } from './commands/training'
 import { quizCommands } from './commands/quiz'
 import { MESSAGES, EMOJIS } from './utils/constants'
 import { log } from './utils/logger'
-import { extractLocationName } from './utils/formatters'
 
 class UltimateFrisbeeBot {
   private readonly bot: Bot
@@ -83,7 +82,7 @@ class UltimateFrisbeeBot {
     const seasonConfig = this.seasonManager.getCurrentSeasonConfig()
 
     log.bot(`${EMOJIS.FRISBEE} ${MESSAGES.BOT_STARTED}`)
-    log.bot(`${EMOJIS.CALENDAR} Season: ${currentSeason} | ${EMOJIS.LOCATION} Location: ${extractLocationName(seasonConfig.location)}`)
+    log.bot(`${EMOJIS.CALENDAR} Season: ${currentSeason} | ${EMOJIS.LOCATION} Location: ${seasonConfig.location.name}`)
     log.bot(`${EMOJIS.RUNNER} Training days: ${trainingDays}`)
     log.bot(`${EMOJIS.ROBOT} LLM: ${this.messageGenerator.getLLMProvider()}`)
     log.bot(`${EMOJIS.THUMBS_UP} Min attendance: ${seasonConfig.minAttendance}`)

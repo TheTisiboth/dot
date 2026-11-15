@@ -21,7 +21,7 @@ test('the season switches exactly on each start date', () => {
 test('winter spans the new year', () => {
   assert.equal(seasons.getCurrentSeason(SEASON_DATES.newYearsEve), 'winter')
   assert.equal(seasons.getCurrentSeason(SEASON_DATES.newYearsDay), 'winter')
-  assert.equal(seasons.getCurrentSeasonConfig(SEASON_DATES.newYearsDay).location, config.seasons.winter.location)
+  assert.deepEqual(seasons.getCurrentSeasonConfig(SEASON_DATES.newYearsDay).location, config.seasons.winter.location)
 })
 
 test('the next training is the next practice of the current season', () => {
@@ -41,7 +41,7 @@ test('the next training across a season switch uses the new season weekdays', ()
 
   assert.deepEqual(next.date, at(2027, 5, 23, 19, 0))
   assert.equal(next.season, 'summer')
-  assert.equal(next.location, config.seasons.summer.location)
+  assert.deepEqual(next.location, config.seasons.summer.location)
   assert.equal(next.time, '19:00')
 })
 
@@ -64,11 +64,11 @@ test('every practice time of both seasons gets a check', () => {
 })
 
 test('an exceptional training overrides location and time but keeps the date', () => {
-  config.exceptionalTraining = { location: 'Beach', time: '18:00', isCancelled: true }
+  config.exceptionalTraining = { location: { name: 'Beach' }, time: '18:00', isCancelled: true }
   const next = seasons.getNextTrainingInfo(at(2027, 6, 9, 10))
 
   assert.deepEqual(next.date, SUMMER_TRAINING.at)
-  assert.equal(next.location, 'Beach')
+  assert.equal(next.location.name, 'Beach')
   assert.equal(next.time, '18:00')
   assert.equal(next.isCancelled, true)
 })

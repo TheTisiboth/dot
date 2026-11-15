@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { parseLocation } from '../utils/configParsers'
 
 // Practice Day Schema
 export const practiceDaySchema = z.object({
@@ -52,10 +53,13 @@ const attendanceConfigSchema = z.object({
   'CANCEL_HOURS_BEFORE must be smaller than REMINDER_HOURS_BEFORE (the cancellation comes after the reminder)'
 )
 
+const locationSchema = (required: string) => z.string().trim().min(1, required).transform(parseLocation)
+  .refine(({ url }) => url === undefined || URL.canParse(url), 'A location link [Name](url) needs a valid URL')
+
 // Season Config Base Schema
 const seasonConfigBaseSchema = z.object({
   startDate: dateConfigSchema,
-  location: z.string().trim().min(1, 'WINTER_LOCATION and SUMMER_LOCATION is required'),
+  location: locationSchema('WINTER_LOCATION and SUMMER_LOCATION is required'),
   practices: z.array(practiceDaySchema).length(2, 'WINTER_PRACTICE_DAYS and SUMMER_PRACTICE_DAYS must have exactly 2 practice days'),
   minAttendance: z.number().int().min(1, 'WINTER_MIN_ATTENDANCE and SUMMER_MIN_ATTENDANCE must be at least 1'),
   keyMessageEnabled: z.boolean(),
@@ -76,7 +80,7 @@ const testingConfigSchema = z.object({
 
 // Exceptional Training Schema
 const exceptionalTrainingSchema = z.object({
-  location: z.string().optional(),
+  location: locationSchema('EXCEPTIONAL_LOCATION must not be blank').optional(),
   time: z.string().regex(/^\d{1,2}:\d{2}$/, 'Time must be in HH:MM format').optional(),
   isCancelled: z.boolean().optional()
 })

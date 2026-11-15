@@ -1,4 +1,4 @@
-import type { Bot } from 'grammy'
+import { type Bot, GrammyError } from 'grammy'
 import type { BotCommand, BotCommandScope, Message } from 'grammy/types'
 
 interface SentMessage {
@@ -20,13 +20,14 @@ export const BOT_USERNAME = 'dot_bot'
 /** Where a command is typed: a chat, optionally a forum topic in it. */
 interface CommandOrigin { chatId: number; topicId?: number }
 
-/** A Bot API stand-in recording what is sent where. Sends to `failingChat` throw, as a Telegram outage would; set it to undefined to recover. */
+/** A Bot API stand-in recording what is sent where. Sends to `failingChat` throw, as a Telegram outage would; set it to undefined to recover. `rejectNextParse` makes the next send fail as unparsable HTML. */
 export const makeFakeBot = ({ failingChat }: { failingChat?: string } = {}) => {
   let nextMessageId = 1
   const middlewares: Middleware[] = []
 
   const fake = {
     failingChat,
+    rejectNextParse: false,
     sent: [] as SentMessage[],
     menus: [] as CommandMenu[],
 
@@ -35,6 +36,11 @@ export const makeFakeBot = ({ failingChat }: { failingChat?: string } = {}) => {
     api: {
       sendMessage: async (chatId: string | number, text: string, options: Record<string, unknown> = {}) => {
         if (String(chatId) === fake.failingChat) throw new Error('Telegram is down')
+        if (fake.rejectNextParse) {
+          fake.rejectNextParse = false
+          const description = "Bad Request: can't parse entities: can't find end of the entity"
+          throw new GrammyError(description, { ok: false, error_code: 400, description }, 'sendMessage', {})
+        }
         const messageId = nextMessageId++
         fake.sent.push({ chatId: String(chatId), text, options, messageId })
         return { message_id: messageId }

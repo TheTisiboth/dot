@@ -1,9 +1,9 @@
 import { Ollama } from 'ollama'
 import { config } from '../config'
-import { type SeasonConfig, type MessageGenerationOptions, type PracticeDay, type Attendance } from '../types'
+import { type SeasonConfig, type MessageGenerationOptions, type PracticeDay, type Attendance, type TrainingLocation } from '../types'
 import { EMOJIS, MARKERS, CANCELLATION_SIGNATURE } from '../utils/constants'
 import { log } from '../utils/logger'
-import { extractLocationName, formatStartTime } from '../utils/formatters'
+import { escapeHtml, formatStartTime, locationLink } from '../utils/formatters'
 import { getThrowingTime } from '../utils/dateHelpers'
 
 export class MessageGenerator {
@@ -17,7 +17,7 @@ export class MessageGenerator {
       : null
   }
 
-  private getLocationAndTime(seasonConfig: SeasonConfig, practiceDay: PracticeDay): { location: string; time: string; startTime: string } {
+  private getLocationAndTime(seasonConfig: SeasonConfig, practiceDay: PracticeDay): { location: TrainingLocation; time: string; startTime: string } {
     return {
       location: seasonConfig.location,
       time: practiceDay.time,
@@ -27,12 +27,11 @@ export class MessageGenerator {
 
   generateTemplateMessage(seasonConfig: SeasonConfig, practiceDay: PracticeDay): string {
     const { location, time, startTime } = this.getLocationAndTime(seasonConfig, practiceDay)
-    const locationName = extractLocationName(location)
 
-    log.messageGen(`Template message generated for ${seasonConfig.season} at ${locationName} (${time})`)
+    log.messageGen(`Template message generated for ${seasonConfig.season} at ${location.name} (${time})`)
     return `${EMOJIS.ROCKET} Hey team!
 
-Tomorrow we're planning an Ultimate Frisbee training at ${location} ${startTime}.
+Tomorrow we're planning an Ultimate Frisbee training at ${locationLink(location)} ${startTime}.
 
 ${EMOJIS.BULB} If you're in, just drop a ${EMOJIS.THUMBS_UP} on this message so we know how many are coming.
 
@@ -41,9 +40,8 @@ The more the merrier! ${EMOJIS.FRISBEE}`
 
   generateTrainerTemplateMessage(seasonConfig: SeasonConfig, practiceDay: PracticeDay): string {
     const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
-    const locationName = extractLocationName(location)
 
-    log.messageGen(`Trainer template message generated for ${seasonConfig.season} at ${locationName} (${time})`)
+    log.messageGen(`Trainer template message generated for ${seasonConfig.season} at ${location.name} (${time})`)
     return `${EMOJIS.COACH} Trainers needed! We have training tomorrow starting at ${time}.
 
 ${EMOJIS.BULB} Can you lead the session? React with ${EMOJIS.THUMBS_UP} if you're available to coach.
@@ -61,26 +59,16 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     return lines.join('\n\n')
   }
 
-  private injectLocationLink(message: string, location: string): string {
-    // If location contains a markdown link, inject it into the message
-    const markdownLinkMatch = location.match(/\[([^\]]+)]\(([^)]+)\)/)
-    if (markdownLinkMatch) {
-      const locationName = markdownLinkMatch[1]
-
-      // Replace plain text location name with markdown link
-      return message.replace(
-        new RegExp(`\\b${locationName}\\b`, 'g'),
-        location
-      )
-    }
-    return message
+  /** LLM text is untrusted: escaped whole, then the location name is linked. */
+  private toHtml(message: string, location: TrainingLocation): string {
+    return escapeHtml(message).replaceAll(escapeHtml(location.name), locationLink(location))
   }
 
   private async runOllama(
     prompt: string,
     fallback: () => string,
     label: string,
-    location: string
+    location: TrainingLocation
   ): Promise<string> {
     const model = config.ollama.model
 
@@ -104,7 +92,7 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
       }
 
       generatedMessage = this.normalizeWhitespace(generatedMessage)
-      generatedMessage = this.injectLocationLink(generatedMessage, location)
+      generatedMessage = this.toHtml(generatedMessage, location)
 
       log.messageGen(`${label} message generated (${generatedMessage.length} chars) using ${model}`)
       return generatedMessage
@@ -122,11 +110,10 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
   ): Promise<string> {
     const { location, time, startTime } = this.getLocationAndTime(seasonConfig, practiceDay)
     const { season } = seasonConfig
-    const locationForPrompt = extractLocationName(location)
 
     const prompt = isTrainerMessage
       ? this.createTrainerLLMPrompt(time, season)
-      : this.createLLMPrompt(locationForPrompt, time, startTime, season)
+      : this.createLLMPrompt(location.name, time, startTime, season)
 
     const fallback = isTrainerMessage
       ? () => this.generateTrainerTemplateMessage(seasonConfig, practiceDay)
@@ -206,13 +193,12 @@ ${EMOJIS.WARNING} If we don't reach ${threshold}, the training might have to be 
   ): string {
     const { count, threshold } = attendance
     const { cancelHoursBefore } = config.attendance
-    const locationName = extractLocationName(seasonConfig.location)
 
     log.messageGen(`Cancellation message generated (${count}/${threshold})`)
-    return `${MARKERS.CANCELLATION} *${CANCELLATION_SIGNATURE} - not enough attendance.*
+    return `${MARKERS.CANCELLATION} <b>${CANCELLATION_SIGNATURE} - not enough attendance.</b>
 
-${EMOJIS.RUNNER} Training: ${practiceDay.time} at ${locationName}
-${EMOJIS.THUMBS_UP} Confirmed: *${count}* ${EMOJIS.THUMBS_UP} out of the *${threshold}* required
+${EMOJIS.RUNNER} Training: ${practiceDay.time} at ${escapeHtml(seasonConfig.location.name)}
+${EMOJIS.THUMBS_UP} Confirmed: <b>${count}</b> ${EMOJIS.THUMBS_UP} out of the <b>${threshold}</b> required
 
 Only ${count} player${count === 1 ? '' : 's'} confirmed ${cancelHoursBefore}h before the start, below the minimum of ${threshold}.`
   }

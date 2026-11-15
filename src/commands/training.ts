@@ -5,7 +5,7 @@ import { describeReport, hasFailure, type SchedulerService } from '../services/S
 import { config } from '../config'
 import { EMOJIS, MESSAGES } from '../utils/constants'
 import { formatDate } from '../utils/formatters'
-import { threadOptions } from '../utils/telegram'
+import { sendWithFallback, threadOptions } from '../utils/telegram'
 import { type Command } from './registry'
 
 interface TrainingCommandsDeps {
@@ -15,7 +15,7 @@ interface TrainingCommandsDeps {
   scheduler: SchedulerService;
 }
 
-const MARKDOWN = { parse_mode: 'Markdown' } as const
+const HTML = { parse_mode: 'HTML' } as const
 
 /** Admin commands to preview and send the training messages before the scheduler does. */
 export const trainingCommands = ({ api, seasonManager, messageGenerator, scheduler }: TrainingCommandsDeps): Command[] => {
@@ -38,7 +38,7 @@ export const trainingCommands = ({ api, seasonManager, messageGenerator, schedul
       description: 'Preview template message',
       adminOnly: true,
       run: async ({ reply }) => {
-        await reply(`${EMOJIS.MEMO} Template Message:\n\n${await teamMessage(false)}`, MARKDOWN)
+        await reply(`${EMOJIS.MEMO} Template Message:\n\n${await teamMessage(false)}`, HTML)
       }
     },
     {
@@ -47,7 +47,7 @@ export const trainingCommands = ({ api, seasonManager, messageGenerator, schedul
       adminOnly: true,
       run: async ({ reply }) => {
         await reply(`${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
-        await reply(`${EMOJIS.ROBOT} LLM Generated Message:\n\n${await teamMessage(true)}`, MARKDOWN)
+        await reply(`${EMOJIS.ROBOT} LLM Generated Message:\n\n${await teamMessage(true)}`, HTML)
       }
     },
     {
@@ -56,7 +56,7 @@ export const trainingCommands = ({ api, seasonManager, messageGenerator, schedul
       adminOnly: true,
       run: async ({ reply }) => {
         await reply(`${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
-        await reply(`${EMOJIS.ROBOT} Trainer LLM Generated Message:\n\n${await trainerMessage(true)}`, MARKDOWN)
+        await reply(`${EMOJIS.ROBOT} Trainer LLM Generated Message:\n\n${await trainerMessage(true)}`, HTML)
       }
     },
     {
@@ -66,7 +66,7 @@ export const trainingCommands = ({ api, seasonManager, messageGenerator, schedul
       run: async ({ reply }) => {
         const { season } = nextTraining()
         const status = season.keyMessageEnabled ? '' : `\n\n${EMOJIS.WARNING} Disabled for ${season.season}: it will not be sent.`
-        await reply(`${EMOJIS.KEY} Key Message:\n\n${messageGenerator.generateKeyMessage()}${status}`, MARKDOWN)
+        await reply(`${EMOJIS.KEY} Key Message:\n\n${messageGenerator.generateKeyMessage()}${status}`, HTML)
       }
     },
     {
@@ -74,7 +74,7 @@ export const trainingCommands = ({ api, seasonManager, messageGenerator, schedul
       description: 'Preview team message (template or LLM)',
       adminOnly: true,
       run: async ({ reply }) => {
-        await reply(`${EMOJIS.FRISBEE} *Team Message Preview:*\n\n${await teamMessage()}`, MARKDOWN)
+        await reply(`${EMOJIS.FRISBEE} <b>Team Message Preview:</b>\n\n${await teamMessage()}`, HTML)
       }
     },
     {
@@ -83,17 +83,17 @@ export const trainingCommands = ({ api, seasonManager, messageGenerator, schedul
       adminOnly: true,
       run: async ({ reply }) => {
         await reply(`${EMOJIS.ROBOT} Generating preview messages...`)
-        await reply(`${EMOJIS.FRISBEE} *Team Message Preview:*\n\n${await teamMessage()}`, MARKDOWN)
+        await reply(`${EMOJIS.FRISBEE} <b>Team Message Preview:</b>\n\n${await teamMessage()}`, HTML)
 
         const { season } = nextTraining()
         if (season.keyMessageEnabled) {
-          await reply(`${EMOJIS.KEY} *Key Message Preview:*\n\n${messageGenerator.generateKeyMessage()}`, MARKDOWN)
+          await reply(`${EMOJIS.KEY} <b>Key Message Preview:</b>\n\n${messageGenerator.generateKeyMessage()}`, HTML)
         } else {
           await reply(`${EMOJIS.KEY} Key message disabled for ${season.season}`)
         }
 
-        await reply(`${EMOJIS.RUNNER} *Trainer Message Preview:*\n\n${await trainerMessage()}`, MARKDOWN)
-        await reply(`${EMOJIS.CHECK_MARK} Preview complete! Use \`/send_to_all\` to send to actual chats.`, MARKDOWN)
+        await reply(`${EMOJIS.RUNNER} <b>Trainer Message Preview:</b>\n\n${await trainerMessage()}`, HTML)
+        await reply(`${EMOJIS.CHECK_MARK} Preview complete! Use <code>/send_to_all</code> to send to actual chats.`, HTML)
       }
     },
     {
@@ -102,7 +102,9 @@ export const trainingCommands = ({ api, seasonManager, messageGenerator, schedul
       adminOnly: true,
       run: async ({ reply }) => {
         await reply(`${EMOJIS.ROBOT} Sending message to team chat...`)
-        await api.sendMessage(config.telegram.chatId, await teamMessage(), { ...MARKDOWN, ...threadOptions(config.telegram.chatThreadId) })
+        const { training, season } = nextTraining()
+        const fallback = () => messageGenerator.generateTemplateMessage(season, training.practiceDay)
+        await sendWithFallback(api, config.telegram.chatId, await teamMessage(), fallback, threadOptions(config.telegram.chatThreadId))
         await reply(`${EMOJIS.CHECK_MARK} Message sent to team chat!`)
       }
     },
@@ -132,13 +134,13 @@ export const trainingCommands = ({ api, seasonManager, messageGenerator, schedul
         const status = count >= threshold ? `${EMOJIS.CHECK_MARK} Enough players` : `${EMOJIS.WARNING} Below threshold`
         const { reminderHoursBefore, cancelHoursBefore } = config.attendance
 
-        await reply(`${EMOJIS.THUMBS_UP} *Attendance*
+        await reply(`${EMOJIS.THUMBS_UP} <b>Attendance</b>
 
-${status}: *${count}* / *${threshold}*
+${status}: <b>${count}</b> / <b>${threshold}</b>
 
 ${EMOJIS.CALENDAR} Training: ${formatDate(training.date)} at ${training.time}
-${EMOJIS.MEMO} Poll message id: \`${pollMessageId}\`
-${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHoursBefore}h before`, MARKDOWN)
+${EMOJIS.MEMO} Poll message id: <code>${pollMessageId}</code>
+${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHoursBefore}h before`, HTML)
       }
     }
   ]

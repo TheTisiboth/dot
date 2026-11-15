@@ -9,8 +9,8 @@ import { type RulesQuizService } from './RulesQuizService'
 import { type SeasonConfig, type PracticeDay, type Attendance, type PartResult, type TrainingInfo } from '../types'
 import { CANCELLATION_SIGNATURE, EMOJIS } from '../utils/constants'
 import { atTime, hoursBefore, getEffectiveDate } from '../utils/dateHelpers'
-import { formatDateLocale, formatDateTimeLocale, extractLocationName, getDayName } from '../utils/formatters'
-import { threadOptions } from '../utils/telegram'
+import { formatDateLocale, formatDateTimeLocale, getDayName } from '../utils/formatters'
+import { sendWithFallback, threadOptions } from '../utils/telegram'
 
 // Long enough for a network blip to pass, short enough that the team still reads the post the day before
 const RETRY_DELAY_MS = 10 * 60_000
@@ -191,8 +191,7 @@ export class SchedulerService {
         { count, threshold }
       )
 
-      await this.bot.sendMessage(this.chatId, message, {
-        parse_mode: 'Markdown',
+      await sendWithFallback(this.bot, this.chatId, message, () => this.messageGenerator.generateReminderTemplateMessage({ count, threshold }, training.practiceDay), {
         reply_to_message_id: pollMessageId,
         ...threadOptions(this.chatThreadId)
       })
@@ -239,7 +238,7 @@ export class SchedulerService {
       })
 
       await this.bot.sendMessage(this.trainerChatId, message, {
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
         ...threadOptions(this.trainerChatThreadId)
       })
 
@@ -326,18 +325,14 @@ export class SchedulerService {
       const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM }, practiceDay)
 
       log.bot(`Sending message to chat ${this.chatId}`)
-      const sent = await this.bot.sendMessage(this.chatId, message, {
-        parse_mode: 'Markdown',
-        ...threadOptions(this.chatThreadId)
-      })
+      const sent = await sendWithFallback(this.bot, this.chatId, message, () => this.messageGenerator.generateTemplateMessage(seasonConfig, practiceDay), threadOptions(this.chatThreadId))
 
       // The training post is the poll: its 👍 reactions are the attendance count
       this.pollMessageId = sent.message_id
       this.armAttendanceTimers()
 
-      const locationName = extractLocationName(seasonConfig.location)
       const threadInfo = this.chatThreadId ? ` (thread ${this.chatThreadId})` : ''
-      log.scheduler(`Scheduled message sent to team${threadInfo} - ${seasonConfig.season} at ${locationName} (${practiceDay.time}) using ${useLLM ? 'LLM' : 'template'}`)
+      log.scheduler(`Scheduled message sent to team${threadInfo} - ${seasonConfig.season} at ${seasonConfig.location.name} (${practiceDay.time}) using ${useLLM ? 'LLM' : 'template'}`)
     })
 
     if (announcement.status === 'failed') {
@@ -363,7 +358,7 @@ export class SchedulerService {
 
       log.bot(`Sending message to chat ${this.chatId}`)
       await this.bot.sendMessage(this.chatId, keyMessage, {
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
         ...threadOptions(this.chatThreadId)
       })
 
@@ -390,14 +385,10 @@ export class SchedulerService {
       )
 
       log.bot(`Sending message to chat ${this.trainerChatId}`)
-      await this.bot.sendMessage(this.trainerChatId, trainerMessage, {
-        parse_mode: 'Markdown',
-        ...threadOptions(this.trainerChatThreadId)
-      })
+      await sendWithFallback(this.bot, this.trainerChatId, trainerMessage, () => this.messageGenerator.generateTrainerTemplateMessage(seasonConfig, practiceDay), threadOptions(this.trainerChatThreadId))
 
-      const locationName = extractLocationName(seasonConfig.location)
       const threadInfo = this.trainerChatThreadId ? ` (thread ${this.trainerChatThreadId})` : ''
-      log.scheduler(`Trainer check message sent${threadInfo} - ${seasonConfig.season} at ${locationName} (${practiceDay.time}) using ${useLLM ? 'LLM' : 'template'}`)
+      log.scheduler(`Trainer check message sent${threadInfo} - ${seasonConfig.season} at ${seasonConfig.location.name} (${practiceDay.time}) using ${useLLM ? 'LLM' : 'template'}`)
     })
   }
 }
@@ -423,7 +414,7 @@ const describePart = (result: PartResult): string => {
   }
 }
 
-/** One line per part, plain text: error messages may hold Markdown characters. */
+/** One line per part, plain text: error messages may hold HTML characters. */
 export const describeReport = (report: AnnounceReport, onlyFailed = false): string =>
   (Object.keys(PART_NAMES) as Array<keyof AnnounceReport>)
     .filter(part => !onlyFailed || report[part].status === 'failed')
