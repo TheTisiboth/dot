@@ -4,7 +4,7 @@ Rules only; the why lives in [`ADR.md`](ADR.md). Glossary and target layout: htt
 
 ## Commands
 
-- Before every push: `npm run verify` (type-check, lint + format, knip, tests); CI also runs build, ESM smoke and `docker build`
+- Before every push: `npm run verify` (type-check, lint + format, knip, tests); CI also runs coverage (`npm run test:coverage`), build, ESM smoke and `docker build`
 - `npm run dev` runs the bot locally; `npm run build` compiles to `dist/`
 
 ## Guidelines ([`ADR.md`](ADR.md))

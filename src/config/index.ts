@@ -4,7 +4,7 @@ import {botConfigSchema} from './schema'
 import {ZodError} from 'zod'
 import {parseDate, parsePracticeDays} from '../utils/configParsers'
 
-dotenv.config()
+dotenv.config({ quiet: true })
 
 function loadAndValidateConfig(): BotConfig {
   const rawConfig = {

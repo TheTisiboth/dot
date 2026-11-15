@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # Minor/patch in one PR, majors one PR each; CVE fixes come from security updates
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

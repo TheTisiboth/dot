@@ -4,7 +4,7 @@ import { Api, TelegramClient, sessions } from 'telegram'
 import QRCode from 'qrcode'
 import dotenv from 'dotenv'
 
-dotenv.config()
+dotenv.config({ quiet: true })
 
 const RESEND = 'r'
 
