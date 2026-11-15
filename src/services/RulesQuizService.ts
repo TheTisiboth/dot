@@ -7,7 +7,6 @@ import { config } from '../config'
 import { findQuizBatch, findQuizQuestion, isSignalQuestion, QUIZ_QUESTIONS } from '../data/rules-quiz'
 import { type PartResult, type QuizBatch, type QuizQuestion } from '../types'
 import { withTimeout } from '../utils/async'
-import { getEffectiveDate } from '../utils/dateHelpers'
 import { formatDateTimeLocale } from '../utils/formatters'
 import { errorMessage, log } from '../utils/logger'
 import { type ChatTarget, noLinkPreview, replyOptions, threadOptions } from '../utils/telegram'
@@ -109,7 +108,7 @@ export class RulesQuizService {
     clearTimeout(this.answerTimer)
 
     const answerAt = answerTimeFor(postedAt, config.rulesQuiz.answerDelayMinutes)
-    const delay = Math.max(0, answerAt.getTime() - getEffectiveDate(new Date()).getTime())
+    const delay = Math.max(0, answerAt.getTime() - Date.now())
     log.scheduler(`⏰ Rules quiz answer armed for ${delay === 0 ? 'now (catch-up)' : formatDateTimeLocale(answerAt)}`)
 
     this.answerTimer = setTimeout(() => { void this.answerOnTimer(pollMessageId) }, delay)

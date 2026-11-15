@@ -1,14 +1,12 @@
 import { config } from '../config'
 import { type SeasonConfig, type SeasonType, type TrainingInfo } from '../types'
-import { getEffectiveDate, createDateFromMonthDay, atTime, getThrowingTime } from '../utils/dateHelpers'
+import { createDateFromMonthDay, atTime, getThrowingTime } from '../utils/dateHelpers'
 import { getDayName } from '../utils/formatters'
 
 export class SeasonManager {
   private readonly seasons = config.seasons
 
   getCurrentSeason(date: Date = new Date()): SeasonType {
-    date = getEffectiveDate(date)
-
     const winterStart = this.seasons.winter.startDate
     const summerStart = this.seasons.summer.startDate
 
@@ -24,15 +22,11 @@ export class SeasonManager {
       currentYear
     )
 
-    if (date >= winterStartDate) {
-      return 'winter'
-    }
-
-    if (date < summerStartDate) {
-      return 'winter'
-    }
-
-    return 'summer'
+    const winterStarted = date >= winterStartDate
+    const summerStarted = date >= summerStartDate
+    // Both or neither started this year: the later start in the year is the current one (it wraps over new year)
+    if (winterStarted === summerStarted) return winterStartDate > summerStartDate ? 'winter' : 'summer'
+    return winterStarted ? 'winter' : 'summer'
   }
 
   getCurrentSeasonConfig(date: Date = new Date()): SeasonConfig {
@@ -45,8 +39,6 @@ export class SeasonManager {
 
   /** Whether a training starts tomorrow at `time`: the post goes out exactly 24h before it. */
   shouldSendMessage(time: string, date: Date = new Date()): boolean {
-    date = getEffectiveDate(date)
-
     const tomorrow = new Date(date)
     tomorrow.setDate(date.getDate() + 1)
 
