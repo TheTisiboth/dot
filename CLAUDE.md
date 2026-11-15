@@ -9,11 +9,11 @@ Rules only; the why lives in [`ADR.md`](ADR.md). Glossary and target layout: htt
 
 ## Guidelines ([`ADR.md`](ADR.md))
 
-- DOT-001 Group by feature; shared code knows no domain; only the entry point knows every module
+- DOT-001 Group by feature; shared code knows no domain; only the entry point knows every module; infra knows no feature
 - DOT-002 Decisions are pure functions; time and randomness are inputs; I/O only fetches, calls, sends
-- DOT-003 Dependencies and config come through parameters; no globals, no env reads, no self-built clients
-- DOT-004 Validate/escape external input once at the boundary into typed values; trust inside
-- DOT-005 External calls time-bounded; inner code throws, job boundary catches, logs once, reports
+- DOT-003 Dependencies and config come through parameters; no mutable globals, no env reads, no self-built clients; constants OK; class only for state/lifecycle
+- DOT-004 Validate/escape external input once at the boundary into typed values; times parsed once with explicit zone; trust inside
+- DOT-005 External calls time-bounded; inner code throws, job boundary catches, logs once, reports; lost user-visible action → operator channel
 - DOT-006 No state that a restart loses; re-arm at startup, check "already done?"; recognise own output by marker
 - DOT-007 Built-in test runner, hand-written fakes, behavior-sentence names, no exact wording; bug fix ships its test
 - DOT-008 Smallest complete change; no abstraction without a second caller, no unused option, no dependency for a few lines

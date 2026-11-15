@@ -22,7 +22,9 @@ leak into shared helpers.
 
 **Decision:** code is grouped by feature. A feature owns its types and its user-facing text.
 Features depend on infrastructure and shared helpers, never the other way round. Shared code
-knows nothing about the domain. Only the entry point knows every module.
+knows nothing about the domain. Only the entry point knows every module. Infrastructure is
+code that talks to the outside or runs jobs (messaging client, scheduler, model client,
+logging) and knows no feature.
 
 **Why:** a feature can be read, changed or removed in one place, and a helper can be reused
 without dragging a feature along.
@@ -46,9 +48,7 @@ function of its inputs. Time and randomness are inputs. Code that talks to the o
 
 **Why:** the pure part is tested directly, with no setup, and its result is reproducible.
 
-**Consequence:** "now" and random values are passed in, never read inside a decision.
-
-**Enforced by:** test (a decision is tested without fakes), review.
+**Enforced by:** review (a decision that needs a fake to be tested breaks it).
 
 ---
 
@@ -59,9 +59,12 @@ function of its inputs. Time and randomness are inputs. Code that talks to the o
 **Context:** a module that imports a global config or builds its own client hides what it
 needs and cannot be tested with a fake.
 
-**Decision:** collaborators and configuration arrive through parameters. Nothing reads a
-global, the environment, or builds its own client. The entry point builds everything and
-wires it. A class only when there is state or a lifecycle; otherwise functions.
+**Decision:** collaborators and configuration arrive through parameters. Nothing reads
+mutable global state or runtime configuration directly, reads the environment, or builds its
+own client. Immutable constants are imported freely. The entry point builds everything and
+wires it. A class only when it owns mutable state or a lifecycle (connect, start, stop);
+holding injected collaborators alone is not a reason: a function taking them as parameters
+is.
 
 **Why:** what a unit needs is visible in its signature, and a test swaps any collaborator.
 
@@ -80,7 +83,8 @@ text breaks formatted output.
 
 **Decision:** whatever comes from outside (environment, generated text, messages read back,
 user input) is validated or escaped once, where it enters, and turned into typed values.
-Inside, no string is parsed twice and nothing is re-checked defensively.
+Inside, no string is parsed twice and nothing is re-checked defensively. A time is parsed
+once into a value with an explicit time zone; nothing does arithmetic on wall-clock strings.
 
 **Why:** one parser means one behavior and one place to fix it; types carry the guarantee
 from there.
@@ -101,7 +105,8 @@ success.
 **Decision:** every external call is bounded in time. Inner code throws; only the outermost
 boundary of a job (a scheduled tick, a timer, a command) catches, logs once with context,
 and reports. A caller is never told "done" for something that failed. One job failing never
-stops another. Losing a user-visible action reaches a human, not only a log.
+stops another. Losing a user-visible action is
+also reported to an operator channel set in configuration, not only logged.
 
 **Why:** a failure is seen exactly once, where its context is complete, and never hidden.
 
@@ -149,7 +154,7 @@ fix ships with the test that failed before it.
 
 **Consequence:** code that needs patching internals to be tested is redesigned (DOT-003).
 
-**Enforced by:** CI (tests pass before merge), review.
+**Enforced by:** pre-push checks (type check, lint, tests), review.
 
 ---
 
@@ -173,7 +178,7 @@ lines do. Validation, error handling and security are never what gets cut.
 
 ---
 
-## DOT-009: Conventions the tools cannot check
+## DOT-009: Naming, comments and casts
 
 **Status:** Accepted
 
@@ -182,13 +187,13 @@ lines do. Validation, error handling and security are never what gets cut.
 **Decision:** names come from the project glossary: one word per concept, one concept per
 word. A constant carries its unit. A comment explains a non-obvious why, never what the code
 does. No lint rule is disabled inline. A type cast is allowed only at a library boundary,
-with the reason. Everything else is the formatter's and linter's decision, not a discussion.
+with the reason. Everything else is the linter's decision, not a discussion.
 
 **Why:** a name means the same thing everywhere, and review time goes to design, not style.
 
 **Consequence:** a new concept adds its word to the glossary first.
 
-**Enforced by:** lint (inline disables rejected, style), review (names, comments, casts).
+**Enforced by:** lint (inline config disabled, style), review (names, comments, casts).
 
 ---
 
@@ -207,4 +212,4 @@ everywhere it is declared, in the same change (stack ADR-005).
 
 **Consequence:** a behavior change found during a restructuring becomes its own change.
 
-**Enforced by:** CI (checks pass before merge), review.
+**Enforced by:** pre-push checks (type check, lint, tests), review.
