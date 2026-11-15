@@ -8,7 +8,7 @@ import { errorMessage, log } from '../utils/logger'
 import { type RulesQuizService } from './RulesQuizService'
 import { type SeasonConfig, type Attendance, type PartResult, type TrainingInfo } from '../types'
 import { CANCELLATION_SIGNATURE, EMOJIS } from '../utils/constants'
-import { atTime, hoursBefore, getEffectiveDate } from '../utils/dateHelpers'
+import { atTime, hoursBefore } from '../utils/dateHelpers'
 import { formatDateLocale, formatDateTimeLocale, getDayName } from '../utils/formatters'
 import { sendWithFallback, threadOptions } from '../utils/telegram'
 
@@ -128,7 +128,7 @@ export class SchedulerService {
   }
 
   private armTimer(label: string, firesAt: Date, trainingAt: Date, check: () => Promise<void>): void {
-    const now = getEffectiveDate(new Date())
+    const now = new Date()
 
     if (now > trainingAt) {
       log.scheduler(`⏭️  ${label} skipped - training already started`)

@@ -54,11 +54,6 @@ function loadAndValidateConfig(): BotConfig {
       }
     },
 
-    testing: {
-      enabled: process.env.TEST_MODE === 'true',
-      overrideDate: process.env.OVERRIDE_DATE,
-    },
-
     exceptionalTraining: {
       location: process.env.EXCEPTIONAL_LOCATION || undefined,
       time: process.env.EXCEPTIONAL_TIME || undefined,

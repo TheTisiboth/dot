@@ -17,8 +17,6 @@ Object.assign(process.env, {
   SUMMER_LOCATION: 'Park',
   SUMMER_PRACTICE_DAYS: '0:19:00,3:19:30',
   OLLAMA_ENABLED: 'false',
-  TEST_MODE: 'false',
-  OVERRIDE_DATE: '',
   EXCEPTIONAL_LOCATION: '',
   EXCEPTIONAL_TIME: '',
   EXCEPTIONAL_CANCELLED: 'false',

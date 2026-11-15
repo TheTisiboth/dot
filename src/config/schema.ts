@@ -70,13 +70,10 @@ const seasonConfigBaseSchema = z.object({
 const seasonsConfigSchema = z.object({
   winter: seasonConfigBaseSchema,
   summer: seasonConfigBaseSchema
-})
-
-// Testing Config Schema
-const testingConfigSchema = z.object({
-  enabled: z.boolean(),
-  overrideDate: z.string().optional()
-})
+}).refine(
+  ({ winter, summer }) => winter.startDate.month !== summer.startDate.month || winter.startDate.day !== summer.startDate.day,
+  'WINTER_START_DATE and SUMMER_START_DATE must differ'
+)
 
 // Exceptional Training Schema
 const exceptionalTrainingSchema = z.object({
@@ -103,7 +100,6 @@ export const botConfigSchema = z.object({
   ollama: ollamaConfigSchema,
   attendance: attendanceConfigSchema,
   seasons: seasonsConfigSchema,
-  testing: testingConfigSchema,
   exceptionalTraining: exceptionalTrainingSchema,
   rulesQuiz: rulesQuizConfigSchema
 })

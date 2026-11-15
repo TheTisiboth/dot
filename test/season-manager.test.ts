@@ -24,6 +24,17 @@ test('winter spans the new year', () => {
   assert.deepEqual(seasons.getCurrentSeasonConfig(SEASON_DATES.newYearsDay).location, config.seasons.winter.location)
 })
 
+test('the seasons follow their start dates when winter starts in January', () => {
+  config.seasons.winter.startDate = { month: 1, day: 10 }
+  const januaryWinter = new SeasonManager()
+
+  assert.equal(januaryWinter.getCurrentSeason(at(2027, 1, 9)), 'summer')
+  assert.equal(januaryWinter.getCurrentSeason(at(2027, 1, 10)), 'winter')
+  assert.equal(januaryWinter.getCurrentSeason(at(2027, 5, 19)), 'winter')
+  assert.equal(januaryWinter.getCurrentSeason(at(2027, 5, 20)), 'summer')
+  assert.equal(januaryWinter.getCurrentSeason(at(2027, 12, 31)), 'summer')
+})
+
 test('the next training is the next practice of the current season', () => {
   const morning = new Date(SUMMER_TRAINING.at.getTime() - 9 * HOUR_MS)
   assert.deepEqual(seasons.getNextTrainingDate(morning), SUMMER_TRAINING.at)

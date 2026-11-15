@@ -1,12 +1,4 @@
-import { config } from '../config'
 import { type DateConfig } from '../types'
-
-export function getEffectiveDate(date: Date): Date {
-  if (config.testing.enabled && config.testing.overrideDate) {
-    return new Date(config.testing.overrideDate)
-  }
-  return date
-}
 
 export function createDateFromMonthDay(month: number, day: number, year?: number): Date {
   const currentYear = year || new Date().getFullYear()
