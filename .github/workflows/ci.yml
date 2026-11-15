@@ -10,9 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - id: node
+        run: echo "version=$(sed -n 's/^ARG NODE_VERSION=//p' Dockerfile)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc # keep in sync with Dockerfile FROM
+          node-version: ${{ steps.node.outputs.version }}
           cache: npm
       - run: npm ci
       - run: npm run verify

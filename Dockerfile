@@ -1,5 +1,7 @@
-# Multi-stage build for Node.js app; keep node version in sync with .nvmrc
-FROM node:20-alpine AS builder
+# Only place to bump Node: CI reads it, test/node-version.test.ts ties @types/node to it
+ARG NODE_VERSION=26
+
+FROM node:${NODE_VERSION}-alpine AS builder
 
 WORKDIR /app
 
@@ -20,7 +22,7 @@ RUN npm run build \
     && npm prune --omit=dev
 
 # Production stage
-FROM node:20-alpine AS production
+FROM node:${NODE_VERSION}-alpine AS production
 
 WORKDIR /app
 
