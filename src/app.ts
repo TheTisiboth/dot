@@ -52,7 +52,7 @@ class UltimateFrisbeeBot {
 
   private setupErrorHandlers(): void {
     process.on('unhandledRejection', (reason) => {
-      log.error('Unhandled Rejection', reason instanceof Error ? reason : new Error(String(reason)))
+      log.error('Unhandled Rejection', reason)
     })
 
     process.on('uncaughtException', (error) => {

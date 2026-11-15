@@ -9,7 +9,7 @@ import { type RulesQuizService } from './RulesQuizService'
 import { type SeasonConfig, type Attendance, type PartResult, type TrainingInfo } from '../types'
 import { CANCELLATION_SIGNATURE, EMOJIS } from '../utils/constants'
 import { atTime, hoursBefore } from '../utils/dateHelpers'
-import { formatDateLocale, formatDateTimeLocale, getDayName } from '../utils/formatters'
+import { formatLogDate, formatLogDateTime, getDayName } from '../utils/formatters'
 import { sendWithFallback, threadOptions } from '../utils/telegram'
 
 // Long enough for a network blip to pass, short enough that the team still reads the post the day before
@@ -86,10 +86,10 @@ export class SchedulerService {
         tomorrow.setDate(tomorrow.getDate() + 1)
 
         if (this.seasonManager.shouldSendMessage(time)) {
-          log.scheduler(`✅ Training tomorrow (${formatDateLocale(tomorrow)}) at ${time} - sending reminders`)
+          log.scheduler(`✅ Training tomorrow (${formatLogDate(tomorrow)}) at ${time} - sending reminders`)
           await this.runScheduled()
         } else {
-          log.scheduler(`⏭️  No training tomorrow (${formatDateLocale(tomorrow)}) at ${time} - skipping`)
+          log.scheduler(`⏭️  No training tomorrow (${formatLogDate(tomorrow)}) at ${time} - skipping`)
         }
         this.logNextScheduledMessage()
       })
@@ -136,7 +136,7 @@ export class SchedulerService {
     }
 
     const delay = Math.max(0, firesAt.getTime() - now.getTime())
-    const when = delay === 0 ? 'now (catch-up)' : formatDateTimeLocale(firesAt)
+    const when = delay === 0 ? 'now (catch-up)' : formatLogDateTime(firesAt)
     log.scheduler(`⏰ ${label} armed for ${when}`)
 
     this.timers.push(setTimeout(() => { void check() }, delay))
@@ -172,7 +172,7 @@ export class SchedulerService {
     const count = await this.reactionReader.getThumbsUpCount(this.chatId, pollMessageId)
     const threshold = this.seasonManager.getCurrentSeasonConfig(trainingAt).minAttendance
 
-    log.scheduler(`👍 Attendance: ${count}/${threshold} for training at ${formatDateTimeLocale(trainingAt)}`)
+    log.scheduler(`👍 Attendance: ${count}/${threshold} for training at ${formatLogDateTime(trainingAt)}`)
 
     return { pollMessageId, count, threshold, training }
   }
@@ -283,8 +283,8 @@ export class SchedulerService {
 
     const reminderDayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][reminderDate.getDay()]
 
-    log.scheduler(`🔔 Next reminder: ${reminderDayName}, ${formatDateLocale(reminderDate)} at ${reminderDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} (in ${daysUntilReminder} days)`)
-    log.scheduler(`📅 For training: ${getDayName(nextTraining.date.getDay())}, ${formatDateLocale(nextTraining.date)} at ${nextTraining.time}`)
+    log.scheduler(`🔔 Next reminder: ${reminderDayName}, ${formatLogDateTime(reminderDate)} (in ${daysUntilReminder} days)`)
+    log.scheduler(`📅 For training: ${getDayName(nextTraining.date.getDay())}, ${formatLogDate(nextTraining.date)} at ${nextTraining.time}`)
   }
 
   /** Posts the announcement, key and trainer requests, then the quiz, and says what happened to each (used by /send_to_all). */
