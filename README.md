@@ -336,8 +336,11 @@ src/
 ├── config/
 │   ├── index.ts               # Config loader
 │   └── schema.ts              # Validation schemas
-├── controllers/
-│   └── BotController.ts       # Command handlers
+├── commands/
+│   ├── registry.ts            # Routing, admin guard, error reply, menus
+│   ├── public.ts              # /start, /help, /info, /training
+│   ├── training.ts            # Admin previews and sends
+│   └── quiz.ts                # Admin rules quiz commands
 ├── services/
 │   ├── SeasonManager.ts       # Season logic
 │   ├── MessageGenerator.ts    # Message creation

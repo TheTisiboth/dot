@@ -1,0 +1,81 @@
+import type { Api, Bot } from 'grammy'
+import type { Message } from 'grammy/types'
+import { EMOJIS } from '../utils/constants'
+import { log } from '../utils/logger'
+import { type ChatTarget, threadOptions } from '../utils/telegram'
+
+type SendOptions = Parameters<Api['sendMessage']>[2]
+
+export interface CommandContext {
+  /** The text after the command, trimmed; empty when there is none. */
+  args: string;
+  /** Where the command was typed. */
+  chat: ChatTarget;
+  /** Answers in the chat and topic the command came from. */
+  reply: (text: string, options?: SendOptions) => Promise<void>;
+}
+
+/** One declaration per command: routing, admin guard, logging, error reply and menus all come from it. */
+export interface Command {
+  name: string;
+  description: string;
+  /** Exists in the admin chat only: elsewhere it is ignored silently. */
+  adminOnly?: boolean;
+  run: (ctx: CommandContext) => Promise<void>;
+}
+
+const COMMAND = /^\/(\w+)(?:@(\w+))?(?:\s+(.*))?$/s
+
+/** The command a whole message invokes, or undefined for plain text and commands addressed to another bot. */
+export const parseCommand = (text: string, botUsername: string): { name: string; args: string } | undefined => {
+  const [, name, target, args = ''] = COMMAND.exec(text) ?? []
+  if (!name || (target && target.toLowerCase() !== botUsername.toLowerCase())) return undefined
+  return { name: name.toLowerCase(), args: args.trim() }
+}
+
+/** Sends each command to its handler; any other message goes on to the next middleware. */
+export const routeCommands = (bot: Bot, commands: readonly Command[], adminChatId: string): void => {
+  bot.on('message:text', async (ctx, next) => {
+    const parsed = parseCommand(ctx.msg.text, ctx.me.username)
+    const command = parsed && commands.find(({ name }) => name === parsed.name)
+    if (!parsed || !command) return next()
+
+    await runCommand(bot.api, command, ctx.msg, parsed.args, adminChatId)
+  })
+}
+
+const runCommand = async (api: Api, { name, adminOnly, run }: Command, msg: Message, args: string, adminChatId: string): Promise<void> => {
+  const user = msg.from?.username || msg.from?.id
+  if (adminOnly && String(msg.chat.id) !== adminChatId) {
+    log.auth(`Non-admin attempted /${name}`, user, msg.chat.id)
+    return
+  }
+
+  log.command(`/${name}`, msg.chat.id, user, msg.message_thread_id)
+  const chat = originOf(msg)
+  const reply = async (text: string, options?: SendOptions) => {
+    log.bot(`Sending message to chat ${chat.chatId}${chat.threadId ? ` (thread ${chat.threadId})` : ''}`)
+    await api.sendMessage(chat.chatId, text, { ...options, ...threadOptions(chat.threadId) })
+  }
+
+  try {
+    await run({ args, chat, reply })
+  } catch (error) {
+    log.error(`/${name}`, error)
+    await reply(`${EMOJIS.CROSS_MARK} Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
+/** Outside forum topics message_thread_id points at a reply thread, not a topic: answer in the chat then. */
+const originOf = (msg: Message): ChatTarget => ({
+  chatId: String(msg.chat.id),
+  threadId: msg.is_topic_message ? String(msg.message_thread_id) : undefined
+})
+
+/** Telegram's command menus: public commands everywhere, all of them in the admin chat. */
+export const publishCommandMenus = async (api: Api, commands: readonly Command[], adminChatId: string): Promise<void> => {
+  const menu = (list: readonly Command[]) => list.map(({ name, description }) => ({ command: name, description }))
+
+  await api.setMyCommands(menu(commands.filter(({ adminOnly }) => !adminOnly)))
+  await api.setMyCommands(menu(commands), { scope: { type: 'chat', chat_id: Number(adminChatId) } })
+}

@@ -1,6 +1,12 @@
 // Bot API sendPoll limits
 export const POLL_LIMITS = { question: 300, option: 100 } as const
 
+/** A chat, optionally one forum topic in it. */
+export interface ChatTarget {
+  chatId: string;
+  threadId?: string;
+}
+
 /** Send options targeting a forum topic, or nothing when there is no topic. */
 export const threadOptions = (threadId?: string | number): { message_thread_id?: number } =>
   threadId ? { message_thread_id: Number(threadId) } : {}
@@ -10,6 +16,3 @@ export const replyOptions = (messageId?: number): { reply_to_message_id?: number
 
 /** No link preview card under the message. */
 export const noLinkPreview = () => ({ link_preview_options: { is_disabled: true } })
-
-/** `/name`, `/NAME`, `/name@bot` or `/name args` as the whole message; captures the `@bot` target and the args. */
-export const commandPattern = (name: string): RegExp => new RegExp(`^/${name}(?:@(\\w+))?(?:\\s+(.*))?$`, 'is')
