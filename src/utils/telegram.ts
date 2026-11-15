@@ -10,3 +10,6 @@ export const replyOptions = (messageId?: number): { reply_to_message_id?: number
 
 /** No link preview card under the message. */
 export const noLinkPreview = () => ({ link_preview_options: { is_disabled: true } })
+
+/** `/name`, `/NAME`, `/name@bot` or `/name args` as the whole message; captures the `@bot` target and the args. */
+export const commandPattern = (name: string): RegExp => new RegExp(`^/${name}(?:@(\\w+))?(?:\\s+(.*))?$`, 'is')

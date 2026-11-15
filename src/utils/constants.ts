@@ -40,6 +40,5 @@ export const CANCELLATION_SIGNATURE = 'Training should be cancelled'
 
 export const MESSAGES = {
   BOT_STARTED: 'Ultimate Frisbee Training Bot started!',
-  GENERATING_LLM_MESSAGE: 'Generating LLM message...',
-  ADMIN_ONLY_COMMAND: 'This command can only be used by the configured admin.'
+  GENERATING_LLM_MESSAGE: 'Generating LLM message...'
 } as const

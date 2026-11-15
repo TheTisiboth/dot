@@ -7,7 +7,7 @@ import { MessageGenerator } from '../src/services/MessageGenerator'
 import { SchedulerService } from '../src/services/SchedulerService'
 import { SeasonManager } from '../src/services/SeasonManager'
 import { formatDate } from '../src/utils/formatters'
-import { makeFakeBot } from './fakes/bot'
+import { BOT_USERNAME, makeFakeBot } from './fakes/bot'
 import { makeFakeReader, TRAINING_POST_ID } from './fakes/reactionReader'
 import { makeFakeRulesQuiz } from './fakes/rulesQuiz'
 import { SUMMER_TRAINING, beforeTraining } from './fixtures/dates'
@@ -31,22 +31,50 @@ const build = ({ withScheduler = true } = {}) => {
   const generator = new MessageGenerator()
   const controller = new BotController(bot, seasons, generator, quiz)
   if (withScheduler) controller.setSchedulerService(new SchedulerService(seasons, generator, makeFakeReader({ thumbsUp: ATTENDING }), bot.api, quiz))
-  return { bot, quiz }
+  return { bot, quiz, seasons }
 }
 
 restoreConfigAfterEach()
 afterEach(() => { mock.timers.reset() })
 
-test('every admin command from another chat gets one refusal and does nothing', async () => {
+test('every admin command from another chat is ignored silently', async () => {
   startAt(beforeTraining(24 * HOUR_MS))
   const { bot, quiz } = build()
 
   for (const command of ADMIN_COMMANDS) await bot.command(command, PLAYER)
 
-  assert.equal(bot.sentTo(PLAYER.chatId).length, ADMIN_COMMANDS.length)
-  assert.equal(bot.sent.length, ADMIN_COMMANDS.length)
+  assert.deepEqual(bot.sent, [])
   assert.deepEqual(quiz.calls, [])
   assert.deepEqual(quiz.previews, [])
+})
+
+test('a command name inside other text or addressed to another bot triggers nothing', async () => {
+  const { bot } = build()
+
+  for (const text of ['/information', 'see /help', '/help@OtherBot', '/starting']) await bot.command(text, PLAYER)
+
+  assert.deepEqual(bot.sent, [])
+})
+
+test('a command runs whatever its case and when addressed to this bot', async () => {
+  const { bot } = build()
+
+  for (const text of ['/help', `/help@${BOT_USERNAME}`, '/HELP']) await bot.command(text, PLAYER)
+
+  assert.equal(bot.sentTo(PLAYER.chatId).length, 3)
+})
+
+test('a throwing handler gets one error reply and one error log', async () => {
+  const { bot, seasons } = build()
+  seasons.getNextTrainingInfo = () => { throw new Error('season broken') }
+  const errors = mock.method(console, 'error', () => {})
+
+  await bot.command('/training', PLAYER)
+
+  const replies = bot.sentTo(PLAYER.chatId)
+  assert.equal(replies.length, 1)
+  assert.ok(replies[0].text.includes('season broken'))
+  assert.equal(errors.mock.calls.filter(({ arguments: [line] }) => String(line).includes('season broken')).length, 1)
 })
 
 test('an admin command from the admin chat runs', async () => {

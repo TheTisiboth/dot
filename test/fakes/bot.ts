@@ -13,7 +13,9 @@ interface CommandMenu {
   options?: { scope?: BotCommandScope };
 }
 
-type HearsMiddleware = (ctx: { msg: Message; match: RegExpExecArray }, next: () => Promise<void>) => Promise<unknown>
+type HearsMiddleware = (ctx: { msg: Message; match: RegExpExecArray; me: { username: string } }, next: () => Promise<void>) => Promise<unknown>
+
+export const BOT_USERNAME = 'dot_bot'
 
 /** Where a command is typed: a chat, optionally a forum topic in it. */
 interface CommandOrigin { chatId: number; topicId?: number }
@@ -64,7 +66,7 @@ export const makeFakeBot = ({ failingChat }: { failingChat?: string } = {}) => {
         const offset = handlers.slice(index).findIndex(({ regexp }) => regexp.test(text))
         if (offset < 0) return
         const { regexp, middleware } = handlers[index + offset]
-        await middleware({ msg, match: regexp.exec(text) as RegExpExecArray }, () => runFrom(index + offset + 1))
+        await middleware({ msg, match: regexp.exec(text) as RegExpExecArray, me: { username: BOT_USERNAME } }, () => runFrom(index + offset + 1))
       }
       await runFrom(0)
     }
