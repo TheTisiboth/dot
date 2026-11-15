@@ -4,13 +4,25 @@ import { type MessageGenerator } from './MessageGenerator'
 import { type ReactionReader } from './ReactionReader'
 import { config } from '../config'
 import type { Api } from 'grammy'
-import { log } from '../utils/logger'
+import { errorMessage, log } from '../utils/logger'
 import { type RulesQuizService } from './RulesQuizService'
-import { type SeasonConfig, type PracticeDay, type Attendance, type TrainingInfo } from '../types'
-import { CANCELLATION_SIGNATURE } from '../utils/constants'
+import { type SeasonConfig, type PracticeDay, type Attendance, type PartResult, type TrainingInfo } from '../types'
+import { CANCELLATION_SIGNATURE, EMOJIS } from '../utils/constants'
 import { atTime, hoursBefore, getEffectiveDate } from '../utils/dateHelpers'
 import { formatDateLocale, formatDateTimeLocale, extractLocationName, getDayName } from '../utils/formatters'
 import { threadOptions } from '../utils/telegram'
+
+// Long enough for a network blip to pass, short enough that the team still reads the post the day before
+const RETRY_DELAY_MS = 10 * 60_000
+
+export const PART_NAMES = {
+  announcement: 'Announcement',
+  keyRequest: 'Key request',
+  trainerRequest: 'Trainer request',
+  quiz: 'Rules quiz'
+} as const
+
+export type AnnounceReport = Record<keyof typeof PART_NAMES, PartResult>
 
 interface AttendanceCheck extends Attendance {
   pollMessageId: number
@@ -31,6 +43,7 @@ export class SchedulerService {
 
   private pollMessageId?: number
   private timers: NodeJS.Timeout[] = []
+  private retryTimer?: NodeJS.Timeout
 
   constructor(
     seasonManager: SeasonManager,
@@ -73,7 +86,7 @@ export class SchedulerService {
 
         if (this.seasonManager.shouldSendMessage(time)) {
           log.scheduler(`✅ Training tomorrow (${formatDateLocale(tomorrow)}) at ${time} - sending reminders`)
-          await this.sendScheduledMessage()
+          await this.runScheduled()
         } else {
           log.scheduler(`⏭️  No training tomorrow (${formatDateLocale(tomorrow)}) at ${time} - skipping`)
         }
@@ -270,15 +283,46 @@ export class SchedulerService {
     log.scheduler(`📅 For training: ${getDayName(nextTraining.date.getDay())}, ${formatDateLocale(nextTraining.date)} at ${nextTraining.time}`)
   }
 
-  async sendScheduledMessage(): Promise<void> {
+  /** Posts the announcement, key and trainer requests, then the quiz, and says what happened to each (used by /send_to_all). */
+  async sendScheduledMessage(): Promise<AnnounceReport> {
+    const training = await this.announce()
+    // A failed announcement must not skip the quiz, which goes out even if training is cancelled
+    return { ...training, quiz: await this.rulesQuiz.sendScheduled() }
+  }
+
+  /** The cron job: a failed announcement is retried once, later; whatever still failed is reported to the admin chat. */
+  private async runScheduled(): Promise<void> {
+    clearTimeout(this.retryTimer)
+    const report = await this.sendScheduledMessage()
+    if (report.announcement.status !== 'failed') {
+      await this.alertFailures(report)
+      return
+    }
+
+    log.scheduler(`🔁 Announcement retry in ${RETRY_DELAY_MS / 60_000} min`)
+    this.retryTimer = setTimeout(() => {
+      void this.announce().then(training => this.alertFailures({ ...training, quiz: report.quiz }))
+    }, RETRY_DELAY_MS)
+  }
+
+  private async alertFailures(report: AnnounceReport): Promise<void> {
+    if (!hasFailure(report)) return
+
     try {
-      const nextTraining = this.seasonManager.getNextTrainingInfo()
-      const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
-      const practiceDay = nextTraining.practiceDay
+      await this.bot.sendMessage(config.telegram.adminChatId, `${EMOJIS.WARNING} Scheduled training messages failed:\n\n${describeReport(report, true)}`)
+    } catch (error) {
+      log.error('Alerting the admin chat', error)
+    }
+  }
 
-      const useLLM = this.messageGenerator.isLLMAvailable()
+  /** Key and trainer requests wait for the announcement, so a retry never posts them twice. */
+  private async announce(): Promise<Omit<AnnounceReport, 'quiz'>> {
+    const nextTraining = this.seasonManager.getNextTrainingInfo()
+    const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
+    const practiceDay = nextTraining.practiceDay
+    const useLLM = this.messageGenerator.isLLMAvailable()
 
-      // Send team message
+    const announcement = await attempt('Sending announcement', async () => {
       const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM }, practiceDay)
 
       log.bot(`Sending message to chat ${this.chatId}`)
@@ -294,26 +338,27 @@ export class SchedulerService {
       const locationName = extractLocationName(seasonConfig.location)
       const threadInfo = this.chatThreadId ? ` (thread ${this.chatThreadId})` : ''
       log.scheduler(`Scheduled message sent to team${threadInfo} - ${seasonConfig.season} at ${locationName} (${practiceDay.time}) using ${useLLM ? 'LLM' : 'template'}`)
+    })
 
-      await this.sendKeyMessage(seasonConfig)
-
-      // Send trainer check message
-      await this.sendTrainerCheckMessage(seasonConfig, practiceDay, useLLM)
-    } catch (error) {
-      log.error('Sending scheduled message', error)
+    if (announcement.status === 'failed') {
+      const notSent: PartResult = { status: 'skipped', reason: 'announcement failed' }
+      return { announcement, keyRequest: notSent, trainerRequest: notSent }
     }
 
-    // Outside the try above: a failed training post must not skip the quiz, which goes out even if training is cancelled
-    await this.rulesQuiz.sendScheduled()
+    return {
+      announcement,
+      keyRequest: await this.sendKeyMessage(seasonConfig),
+      trainerRequest: await this.sendTrainerCheckMessage(seasonConfig, practiceDay, useLLM)
+    }
   }
 
-  private async sendKeyMessage(seasonConfig: SeasonConfig): Promise<void> {
+  private async sendKeyMessage(seasonConfig: SeasonConfig): Promise<PartResult> {
     if (!seasonConfig.keyMessageEnabled) {
       log.scheduler(`Key message disabled for ${seasonConfig.season}, skipping`)
-      return
+      return { status: 'skipped', reason: `disabled for ${seasonConfig.season}` }
     }
 
-    try {
+    return await attempt('Sending key message', async () => {
       const keyMessage = this.messageGenerator.generateKeyMessage()
 
       log.bot(`Sending message to chat ${this.chatId}`)
@@ -324,22 +369,20 @@ export class SchedulerService {
 
       const threadInfo = this.chatThreadId ? ` (thread ${this.chatThreadId})` : ''
       log.scheduler(`Key message sent to team${threadInfo}`)
-    } catch (error) {
-      log.error('Sending key message', error)
-    }
+    })
   }
 
   private async sendTrainerCheckMessage(
     seasonConfig: SeasonConfig,
     practiceDay: PracticeDay,
     useLLM: boolean
-  ): Promise<void> {
+  ): Promise<PartResult> {
     if (!this.enableTrainerMessages) {
       log.scheduler('Trainer messages disabled, skipping trainer check message')
-      return
+      return { status: 'skipped', reason: 'trainer messages disabled' }
     }
 
-    try {
+    return await attempt('Sending trainer check message', async () => {
       const trainerMessage = await this.messageGenerator.generateTrainerMessage(
         seasonConfig,
         { useLLM },
@@ -355,8 +398,34 @@ export class SchedulerService {
       const locationName = extractLocationName(seasonConfig.location)
       const threadInfo = this.trainerChatThreadId ? ` (thread ${this.trainerChatThreadId})` : ''
       log.scheduler(`Trainer check message sent${threadInfo} - ${seasonConfig.season} at ${locationName} (${practiceDay.time}) using ${useLLM ? 'LLM' : 'template'}`)
-    } catch (error) {
-      log.error('Sending trainer check message', error)
-    }
+    })
   }
 }
+
+/** Each part fails on its own: one lost message never keeps the next from going out. */
+const attempt = async (context: string, send: () => Promise<void>): Promise<PartResult> => {
+  try {
+    await send()
+    return { status: 'sent' }
+  } catch (error) {
+    log.error(context, error)
+    return { status: 'failed', error: errorMessage(error) }
+  }
+}
+
+export const hasFailure = (report: AnnounceReport): boolean => Object.values(report).some(({ status }) => status === 'failed')
+
+const describePart = (result: PartResult): string => {
+  switch (result.status) {
+    case 'sent': return `${EMOJIS.CHECK_MARK} sent`
+    case 'skipped': return `⏭️ skipped (${result.reason})`
+    case 'failed': return `${EMOJIS.CROSS_MARK} failed: ${result.error}`
+  }
+}
+
+/** One line per part, plain text: error messages may hold Markdown characters. */
+export const describeReport = (report: AnnounceReport, onlyFailed = false): string =>
+  (Object.keys(PART_NAMES) as Array<keyof AnnounceReport>)
+    .filter(part => !onlyFailed || report[part].status === 'failed')
+    .map(part => `${PART_NAMES[part]}: ${describePart(report[part])}`)
+    .join('\n')

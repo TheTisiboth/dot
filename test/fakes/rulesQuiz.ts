@@ -11,7 +11,7 @@ export const makeFakeRulesQuiz = () => {
   const fake = {
     calls: [] as string[],
     previews: [] as Array<{ target: QuizTarget; question: QuizQuestion }>,
-    sendScheduled: async () => { fake.calls.push('sendScheduled') },
+    sendScheduled: async () => { fake.calls.push('sendScheduled'); return { status: 'sent' } as const },
     armAnswer: async () => { fake.calls.push('armAnswer') },
     pickNext: async () => { fake.calls.push('pickNext'); return question },
     postNext: async () => { fake.calls.push('postNext'); return question },

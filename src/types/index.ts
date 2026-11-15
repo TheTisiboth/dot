@@ -57,3 +57,9 @@ export interface QuizBatch {
   source: { title: string; url: string };
   questions: QuizQuestion[];
 }
+
+/** What happened to one message of a job: sent, deliberately not sent, or lost to an error. */
+export type PartResult =
+  | { status: 'sent' }
+  | { status: 'skipped'; reason: string }
+  | { status: 'failed'; error: string }

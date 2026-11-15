@@ -1,7 +1,7 @@
 import type { Api, Bot } from 'grammy'
 import type { Message } from 'grammy/types'
 import { EMOJIS } from '../utils/constants'
-import { log } from '../utils/logger'
+import { errorMessage, log } from '../utils/logger'
 import { type ChatTarget, threadOptions } from '../utils/telegram'
 
 type SendOptions = Parameters<Api['sendMessage']>[2]
@@ -62,7 +62,7 @@ const runCommand = async (api: Api, { name, adminOnly, run }: Command, msg: Mess
     await run({ args, chat, reply })
   } catch (error) {
     log.error(`/${name}`, error)
-    await reply(`${EMOJIS.CROSS_MARK} Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    await reply(`${EMOJIS.CROSS_MARK} Error: ${errorMessage(error)}`)
   }
 }
 

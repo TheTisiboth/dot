@@ -25,10 +25,11 @@ export const log = {
   },
 
   error: (context: string, error: unknown) => {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    console.error(`❌ [Error] ${context}: ${errorMessage}`)
-    if (error instanceof Error && error.stack) {
+    console.error(`❌ [Error] ${context}: ${errorMessage(error)}`)
+    if (Error.isError(error) && error.stack) {
       console.error('Stack trace:', error.stack)
     }
   }
 }
+
+export const errorMessage = (error: unknown): string => Error.isError(error) ? error.message : 'Unknown error'
