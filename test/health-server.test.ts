@@ -1,6 +1,7 @@
 import { test, mock, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
+import { get as httpGet } from 'node:http'
 import { type AddressInfo } from 'node:net'
 import { Api } from 'grammy'
 import { startHealthServer, type HealthDependencies } from '../src/services/HealthServer'
@@ -81,6 +82,21 @@ test('/health answers 503 within the timeout when Telegram hangs', async () => {
 
   assert.equal(code, 503)
   assert.equal(body.checks.ollama.status, 'down')
+})
+
+test('a malformed path is answered 404, not a crash', async () => {
+  mock.method(console, 'log', () => {})
+  const server = startHealthServer(dependencies(), 0, PROBE_TIMEOUT_MS)
+  await once(server, 'listening')
+  try {
+    // fetch would normalise the path; a raw request sends it as an attacker would
+    const code = await new Promise<number | undefined>((resolve, reject) => {
+      httpGet({ port: (server.address() as AddressInfo).port, path: '//[' }, response => { response.resume(); resolve(response.statusCode) }).on('error', reject)
+    })
+    assert.equal(code, 404)
+  } finally {
+    server.close()
+  }
 })
 
 test('an unknown dependency is 404', async () => {

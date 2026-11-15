@@ -61,8 +61,8 @@ const respond = async (path: string, checks: Record<string, () => Promise<Check>
 export const startHealthServer = (dependencies: HealthDependencies, port: number, timeoutMs: number): Server => {
   const checks = dependencyChecks(dependencies, timeoutMs)
   const server = createServer((req, res) => {
-    const { pathname } = new URL(req.url ?? '/', 'http://localhost')
-    respond(pathname, checks)
+    // Not `new URL`: it throws on a malformed path, outside the catch below, and would crash the bot
+    respond((req.url ?? '').split('?')[0], checks)
       .then(({ code, body }) => {
         res.writeHead(code, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify(body))
