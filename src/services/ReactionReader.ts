@@ -7,7 +7,7 @@ import { config } from '../config'
 import { EMOJIS, isKeyMessage } from '../utils/constants'
 import { hoursBefore } from '../utils/dateHelpers'
 import { TimeoutError, withTimeout } from '../utils/async'
-import { log } from '../utils/logger'
+import { errorMessage, log } from '../utils/logger'
 import { parseQuizTag } from '../utils/quizTag'
 
 // How far back to look for the training post. The cron posts it ~24h before training, but a
@@ -98,7 +98,7 @@ export class ReactionReader {
     try {
       await this.client.disconnect()
     } catch (error) {
-      log.warn('MTProto', `Failed to stop client after connection error: ${String(error)}`)
+      log.warn('MTProto', `Failed to stop client after connection error: ${errorMessage(error)}`)
     }
   }
 
@@ -113,7 +113,7 @@ export class ReactionReader {
       // A Telegram error (no access, flood wait...) would fail again the same way on a new connection
       if (!(error instanceof TimeoutError) && this.client.connected) throw error
 
-      log.warn('MTProto', `${label} failed, reconnecting and retrying once: ${error instanceof Error ? error.message : String(error)}`)
+      log.warn('MTProto', `${label} failed, reconnecting and retrying once: ${errorMessage(error)}`)
       await this.reset()
       return await this.attempt(label, run)
     }
