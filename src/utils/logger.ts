@@ -35,7 +35,9 @@ export const log = {
 }
 
 // GramJS and the Bot API client can reject with plain objects or strings, not only Errors
-export const errorMessage = (error: unknown): string => {
+export const errorMessage = (error: unknown, seen = new Set<Error>()): string => {
   if (!Error.isError(error)) return typeof error === 'string' ? error : inspect(error, { breakLength: Infinity })
-  return error.cause === undefined ? error.message : `${error.message} (cause: ${errorMessage(error.cause)})`
+  if (seen.has(error)) return '[Circular]'
+  seen.add(error)
+  return error.cause === undefined ? error.message : `${error.message} (cause: ${errorMessage(error.cause, seen)})`
 }

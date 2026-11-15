@@ -27,6 +27,14 @@ test('the cause of an error is logged with it', () => {
   assert.match(line, /code: 403/)
 })
 
+test('an error whose cause chain loops back is still logged', () => {
+  const error = new Error('send failed')
+  error.cause = new Error('socket closed', { cause: error })
+  const [line] = captured('error', () => { log.error('ctx', error) })
+  assert.match(line, /send failed/)
+  assert.match(line, /socket closed/)
+})
+
 test('a log line never starts with two emojis', () => {
   const lines = captured('log', () => {
     log.scheduler('⏰ Registered daily reminder check at 18:00')
