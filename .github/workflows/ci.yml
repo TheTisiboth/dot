@@ -9,7 +9,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: node
         run: echo "version=$(sed -n 's/^ARG NODE_VERSION=//p' Dockerfile)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
@@ -25,5 +25,5 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: docker build .
