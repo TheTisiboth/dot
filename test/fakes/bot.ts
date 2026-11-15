@@ -20,12 +20,13 @@ export const BOT_USERNAME = 'dot_bot'
 /** Where a command is typed: a chat, optionally a forum topic in it. */
 interface CommandOrigin { chatId: number; topicId?: number }
 
-/** A Bot API stand-in recording what is sent where. Sends to `failingChat` throw, as a Telegram outage would. */
+/** A Bot API stand-in recording what is sent where. Sends to `failingChat` throw, as a Telegram outage would; set it to undefined to recover. */
 export const makeFakeBot = ({ failingChat }: { failingChat?: string } = {}) => {
   let nextMessageId = 1
   const middlewares: Middleware[] = []
 
   const fake = {
+    failingChat,
     sent: [] as SentMessage[],
     menus: [] as CommandMenu[],
 
@@ -33,7 +34,7 @@ export const makeFakeBot = ({ failingChat }: { failingChat?: string } = {}) => {
 
     api: {
       sendMessage: async (chatId: string | number, text: string, options: Record<string, unknown> = {}) => {
-        if (String(chatId) === failingChat) throw new Error('Telegram is down')
+        if (String(chatId) === fake.failingChat) throw new Error('Telegram is down')
         const messageId = nextMessageId++
         fake.sent.push({ chatId: String(chatId), text, options, messageId })
         return { message_id: messageId }

@@ -9,6 +9,7 @@ import { trainingCommands } from '../src/commands/training'
 import { MessageGenerator } from '../src/services/MessageGenerator'
 import { SchedulerService } from '../src/services/SchedulerService'
 import { SeasonManager } from '../src/services/SeasonManager'
+import { EMOJIS } from '../src/utils/constants'
 import { formatDate } from '../src/utils/formatters'
 import { makeFakeBot } from './fakes/bot'
 import { makeFakeReader, TRAINING_POST_ID } from './fakes/reactionReader'
@@ -27,8 +28,8 @@ const ADMIN_COMMANDS = [
   '/send_to_team', '/send_to_all', '/attendance', '/send_rule', '/answer_rule', '/test_rule'
 ]
 
-const build = () => {
-  const bot = makeFakeBot()
+const build = ({ failingChat }: { failingChat?: string } = {}) => {
+  const bot = makeFakeBot({ failingChat })
   const quiz = makeFakeRulesQuiz()
   const seasonManager = new SeasonManager()
   const messageGenerator = new MessageGenerator()
@@ -137,6 +138,17 @@ test('/send_to_all posts the scheduled announcement and the quiz', async () => {
   assert.ok(bot.sentTo(TEAM_CHAT).length > 0)
   assert.ok(bot.sentTo(config.telegram.trainerChatId).length > 0)
   assert.deepEqual(quiz.calls, ['sendScheduled'])
+})
+
+test('/send_to_all reports a failed announcement instead of success', async () => {
+  startAt(beforeTraining(24 * HOUR_MS))
+  const { bot } = build({ failingChat: TEAM_CHAT })
+
+  await bot.command('/send_to_all', ADMIN)
+
+  const report = bot.sentTo(ADMIN.chatId).at(-1)
+  assert.ok(report?.text.includes('Telegram is down'))
+  assert.equal(report?.text.startsWith(EMOJIS.CHECK_MARK), false)
 })
 
 test('/test_rule previews the named question in the admin chat', async () => {

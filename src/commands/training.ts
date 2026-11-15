@@ -1,7 +1,7 @@
 import type { Api } from 'grammy'
 import { type SeasonManager } from '../services/SeasonManager'
 import { type MessageGenerator } from '../services/MessageGenerator'
-import { type SchedulerService } from '../services/SchedulerService'
+import { describeReport, hasFailure, type SchedulerService } from '../services/SchedulerService'
 import { config } from '../config'
 import { EMOJIS, MESSAGES } from '../utils/constants'
 import { formatDate } from '../utils/formatters'
@@ -112,8 +112,9 @@ export const trainingCommands = ({ api, seasonManager, messageGenerator, schedul
       adminOnly: true,
       run: async ({ reply }) => {
         await reply(`${EMOJIS.ROBOT} Sending messages to team and trainer chats...`)
-        await scheduler.sendScheduledMessage()
-        await reply(`${EMOJIS.CHECK_MARK} Messages sent! Check the team chat and trainer chat.`)
+        const report = await scheduler.sendScheduledMessage()
+        const header = hasFailure(report) ? `${EMOJIS.WARNING} Some messages failed:` : `${EMOJIS.CHECK_MARK} Messages sent:`
+        await reply(`${header}\n\n${describeReport(report)}`)
       }
     },
     {

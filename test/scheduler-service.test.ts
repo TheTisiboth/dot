@@ -5,7 +5,7 @@ import type { Api } from 'grammy'
 import { config } from '../src/config'
 import { MessageGenerator } from '../src/services/MessageGenerator'
 import { type ReactionReader } from '../src/services/ReactionReader'
-import { SchedulerService } from '../src/services/SchedulerService'
+import { PART_NAMES, SchedulerService } from '../src/services/SchedulerService'
 import { SeasonManager } from '../src/services/SeasonManager'
 import { CANCELLATION_SIGNATURE, EMOJIS, isKeyMessage } from '../src/utils/constants'
 import { makeFakeBot } from './fakes/bot'
@@ -18,6 +18,8 @@ import { restoreConfigAfterEach } from './helpers/config'
 // testEnv keeps the default attendance timing: reminder 3h, cancellation 1h before the training
 const TEAM_CHAT = config.telegram.chatId
 const TRAINER_CHAT = config.telegram.trainerChatId
+const ADMIN_CHAT = config.telegram.adminChatId
+const RETRY_DELAY_MS = 10 * MINUTE_MS
 const threshold = () => config.seasons.summer.minAttendance
 
 const schedulerFor = (bot: Api, reader: ReactionReader, quiz = makeFakeRulesQuiz()) =>
@@ -90,6 +92,55 @@ test('the quiz goes out even when the announcement fails', async () => {
   await scheduler.sendScheduledMessage()
 
   assert.deepEqual(quiz.calls, ['sendScheduled'])
+})
+
+test('a failed scheduled announcement is retried once, then one admin alert names it and the error', async () => {
+  startAt(beforeTraining(24 * HOUR_MS + 30_000))
+  const { scheduler, bot } = build({ failingChat: TEAM_CHAT })
+  scheduler.setupScheduler()
+
+  await advance(30_000)
+  assert.equal(bot.sentTo(ADMIN_CHAT).length, 0)
+  await advance(RETRY_DELAY_MS)
+  await advance(HOUR_MS)
+
+  const [alert, ...rest] = bot.sentTo(ADMIN_CHAT)
+  assert.equal(rest.length, 0)
+  assert.ok(alert.text.includes(PART_NAMES.announcement))
+  assert.ok(alert.text.includes('Telegram is down'))
+  assert.equal(bot.sentTo(TRAINER_CHAT).length, 0)
+})
+
+test('a scheduled announcement that succeeds on retry posts every message and alerts nobody', async () => {
+  startAt(beforeTraining(24 * HOUR_MS + 30_000))
+  const { scheduler, bot, quiz } = build({ failingChat: TEAM_CHAT })
+  scheduler.setupScheduler()
+
+  await advance(30_000)
+  bot.failingChat = undefined
+  await advance(RETRY_DELAY_MS)
+
+  assert.equal(bot.sentTo(TEAM_CHAT).length, 2)
+  assert.equal(bot.sentTo(TRAINER_CHAT).length, 1)
+  assert.equal(bot.sentTo(ADMIN_CHAT).length, 0)
+  assert.deepEqual(quiz.calls, ['armAnswer', 'sendScheduled'])
+})
+
+test('a failed trainer request alerts about it alone, and the attendance check is still armed', async () => {
+  startAt(beforeTraining(24 * HOUR_MS + 30_000))
+  const { scheduler, bot } = build({ failingChat: TRAINER_CHAT, history: { postId: undefined, thumbsUp: 1 } })
+  scheduler.setupScheduler()
+
+  await advance(30_000)
+
+  const [alert, ...rest] = bot.sentTo(ADMIN_CHAT)
+  assert.equal(rest.length, 0)
+  assert.ok(alert.text.includes(PART_NAMES.trainerRequest))
+  for (const other of [PART_NAMES.announcement, PART_NAMES.keyRequest, PART_NAMES.quiz]) assert.equal(alert.text.includes(other), false)
+
+  const [announcement] = bot.sentTo(TEAM_CHAT)
+  await advance(21 * HOUR_MS)
+  assert.ok(bot.sentTo(TEAM_CHAT).some(message => message.options.reply_to_message_id === announcement.messageId))
 })
 
 test('the announcement arms the attendance check on the post it just sent', async () => {

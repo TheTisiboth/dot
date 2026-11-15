@@ -5,11 +5,11 @@ import { buildQuizPost, modeFor, pickQuestion } from './quizPicker'
 import { answerTimeFor, buildAnswer } from './quizAnswer'
 import { config } from '../config'
 import { findQuizBatch, findQuizQuestion, isSignalQuestion, QUIZ_QUESTIONS } from '../data/rules-quiz'
-import { type QuizBatch, type QuizQuestion } from '../types'
+import { type PartResult, type QuizBatch, type QuizQuestion } from '../types'
 import { withTimeout } from '../utils/async'
 import { getEffectiveDate } from '../utils/dateHelpers'
 import { formatDateTimeLocale } from '../utils/formatters'
-import { log } from '../utils/logger'
+import { errorMessage, log } from '../utils/logger'
 import { type ChatTarget, noLinkPreview, replyOptions, threadOptions } from '../utils/telegram'
 
 // Above the history read's own bound (each MTProto request times out and retries once), so a stuck
@@ -46,10 +46,10 @@ export class RulesQuizService {
    * Called by the training job: never throws, so a quiz failure never affects the training post.
    * A failed post is retried once, later: a network blip at send time must not cost the quiz.
    */
-  async sendScheduled(): Promise<void> {
+  async sendScheduled(): Promise<PartResult> {
     if (!config.rulesQuiz.enabled) {
       log.scheduler('Rules quiz disabled, skipping')
-      return
+      return { status: 'skipped', reason: 'disabled' }
     }
 
     clearTimeout(this.retryTimer)
@@ -57,10 +57,12 @@ export class RulesQuizService {
 
     try {
       await this.postNext()
+      return { status: 'sent' }
     } catch (error) {
       log.error('Sending rules quiz', error)
       log.scheduler(`🔁 Rules quiz retry in ${RETRY_DELAY_MS / 60_000} min`)
       this.retryTimer = setTimeout(() => { void this.retryScheduled() }, RETRY_DELAY_MS)
+      return { status: 'failed', error: `${errorMessage(error)}, retrying in ${RETRY_DELAY_MS / 60_000} min` }
     }
   }
 
