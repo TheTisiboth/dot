@@ -126,9 +126,9 @@ export class SeasonManager {
   }
 
   getTrainingDaysString(season?: SeasonType): string {
-    const seasonConfig = season ?
-      { season, ...this.seasons[season] } :
-      this.getCurrentSeasonConfig()
+    const seasonConfig = season
+      ? { season, ...this.seasons[season] }
+      : this.getCurrentSeasonConfig()
 
     return seasonConfig.practices
       .map(practice => `${getDayName(practice.day)} at ${practice.time}`)

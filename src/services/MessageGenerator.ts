@@ -10,9 +10,11 @@ export class MessageGenerator {
   private readonly ollama: Ollama | null
 
   constructor() {
-    this.ollama = config.ollama.enabled ? new Ollama({
-      host: config.ollama.host
-    }) : null
+    this.ollama = config.ollama.enabled
+      ? new Ollama({
+          host: config.ollama.host
+        })
+      : null
   }
 
   private getLocationAndTime(seasonConfig: SeasonConfig, practiceDay: PracticeDay): { location: string; time: string; startTime: string } {

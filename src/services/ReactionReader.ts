@@ -160,12 +160,12 @@ export class ReactionReader {
     const windowStart = hoursBefore(trainingAt, POLL_LOOKBACK_HOURS)
 
     const poll = messages.find(message =>
-      this.isFromBot(message) &&
-      !this.isReplyToMessage(message, threadId) &&
-      message.message?.includes(EMOJIS.THUMBS_UP) &&
-      !isKeyMessage(message.message) &&
-      this.sentAt(message) >= windowStart &&
-      this.sentAt(message) <= trainingAt
+      this.isFromBot(message)
+      && !this.isReplyToMessage(message, threadId)
+      && message.message?.includes(EMOJIS.THUMBS_UP)
+      && !isKeyMessage(message.message)
+      && this.sentAt(message) >= windowStart
+      && this.sentAt(message) <= trainingAt
     )
 
     return poll?.id
@@ -194,9 +194,9 @@ export class ReactionReader {
     const messages = await this.fetchMessages(chatId, { limit: HISTORY_LIMIT }, threadId)
 
     return messages.some(message =>
-      this.isFromBot(message) &&
-      message.message?.includes(needle) &&
-      this.sentAt(message) >= since
+      this.isFromBot(message)
+      && message.message?.includes(needle)
+      && this.sentAt(message) >= since
     )
   }
 

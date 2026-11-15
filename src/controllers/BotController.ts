@@ -62,43 +62,43 @@ export class BotController {
     this.bot.onText(/\/test_rule(?:@\w+)?(?:\s+(\S+))?/, (msg, match) => this.requireAdmin(msg, () => this.handleTestRule(msg, match?.[1])))
   }
 
-    private async registerBotCommands() {
-        // Public commands for all users
-        const publicCommands = [
-            {command: 'start', description: 'Start the bot'},
-            {command: 'help', description: 'Show available commands'},
-            {command: 'info', description: 'Show training schedule'},
-            {command: 'training', description: 'Show next training'}
-        ]
+  private async registerBotCommands() {
+    // Public commands for all users
+    const publicCommands = [
+      {command: 'start', description: 'Start the bot'},
+      {command: 'help', description: 'Show available commands'},
+      {command: 'info', description: 'Show training schedule'},
+      {command: 'training', description: 'Show next training'}
+    ]
 
-        // Admin-only commands
-        const adminCommands = [...publicCommands,
-            {command: 'test_template', description: 'Preview template message'},
-            {command: 'test_llm', description: 'Preview LLM team message'},
-            {command: 'test_trainer', description: 'Preview LLM trainer message'},
-            {command: 'test_key', description: 'Preview key-holder message'},
-            {command: 'preview_team', description: 'Preview team message (template or LLM)'},
-            {command: 'preview_all', description: 'Preview both team and trainer messages'},
-            {command: 'send_to_team', description: 'Send message to team chat'},
-            {command: 'send_to_all', description: 'Send messages to team and trainer chats'},
-            {command: 'attendance', description: 'Show live 👍 count on the training post'},
-            {command: 'test_rule', description: 'Preview a rules quiz question and its answer here: /test_rule [id]'},
-            {command: 'send_rule', description: 'Post the next rules quiz question to the rules chat'},
-            {command: 'answer_rule', description: 'Answer the latest rules quiz poll now'}
-        ]
+    // Admin-only commands
+    const adminCommands = [...publicCommands,
+      {command: 'test_template', description: 'Preview template message'},
+      {command: 'test_llm', description: 'Preview LLM team message'},
+      {command: 'test_trainer', description: 'Preview LLM trainer message'},
+      {command: 'test_key', description: 'Preview key-holder message'},
+      {command: 'preview_team', description: 'Preview team message (template or LLM)'},
+      {command: 'preview_all', description: 'Preview both team and trainer messages'},
+      {command: 'send_to_team', description: 'Send message to team chat'},
+      {command: 'send_to_all', description: 'Send messages to team and trainer chats'},
+      {command: 'attendance', description: 'Show live 👍 count on the training post'},
+      {command: 'test_rule', description: 'Preview a rules quiz question and its answer here: /test_rule [id]'},
+      {command: 'send_rule', description: 'Post the next rules quiz question to the rules chat'},
+      {command: 'answer_rule', description: 'Answer the latest rules quiz poll now'}
+    ]
 
-        try {
-            // Set public commands for all other chats
-            await this.bot.setMyCommands(publicCommands)
+    try {
+      // Set public commands for all other chats
+      await this.bot.setMyCommands(publicCommands)
 
-            // Set admin commands for admin chat (public + admin)
-            await this.bot.setMyCommands(adminCommands, {
-                scope: {type: 'chat', chat_id: parseInt(this.adminChatId)}
-            })
-        } catch (err) {
-            log.error('Registering bot commands', err)
-        }
+      // Set admin commands for admin chat (public + admin)
+      await this.bot.setMyCommands(adminCommands, {
+        scope: {type: 'chat', chat_id: parseInt(this.adminChatId)}
+      })
+    } catch (err) {
+      log.error('Registering bot commands', err)
     }
+  }
 
   private isAdmin(chatId: number): boolean {
     return chatId.toString() === this.adminChatId
@@ -179,7 +179,6 @@ ${summerInfo}`
 
     await this.reply(msg, `${EMOJIS.KEY} Key Message:\n\n${message}${status}`, { parse_mode: 'Markdown' })
   }
-
 
   private async handleTraining(msg: TelegramBot.Message): Promise<void> {
     log.command('/training', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
