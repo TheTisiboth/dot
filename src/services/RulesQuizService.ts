@@ -1,4 +1,4 @@
-import type TelegramBot from 'node-telegram-bot-api'
+import { type Api, InputFile } from 'grammy'
 import { type SeasonManager } from './SeasonManager'
 import { type LatestQuiz, type ReactionReader } from './ReactionReader'
 import { buildQuizPost, modeFor, pickQuestion } from './quizPicker'
@@ -27,7 +27,7 @@ interface Chat {
  * then its answer behind a spoiler, RULES_ANSWER_DELAY_MINUTES later.
  */
 export class RulesQuizService {
-  private readonly bot: TelegramBot
+  private readonly bot: Api
   private readonly seasonManager: SeasonManager
   private readonly reactionReader: ReactionReader
   // Posts and answers run one after another: two overlapping ones would read the same history,
@@ -41,7 +41,7 @@ export class RulesQuizService {
   private lastPosted?: LatestQuiz
   private readonly answeredIds = new Set<number>()
 
-  constructor(bot: TelegramBot, seasonManager: SeasonManager, reactionReader: ReactionReader) {
+  constructor(bot: Api, seasonManager: SeasonManager, reactionReader: ReactionReader) {
     this.bot = bot
     this.seasonManager = seasonManager
     this.reactionReader = reactionReader
@@ -251,19 +251,18 @@ export class RulesQuizService {
   ): Promise<number> {
     const sent = await this.bot.sendPhoto(
       chatId,
-      image,
+      new InputFile(image),
       {
         ...threadOptions(threadId),
         ...replyOptions(replyTo),
         ...(htmlCaption && { caption: htmlCaption, parse_mode: 'HTML' }),
         ...(spoiler && { has_spoiler: true })
-      },
-      { contentType: 'image/png' }
+      }
     )
     return sent.message_id
   }
 
-  private async sendText({ chatId, threadId }: Chat, text: string, replyTo?: number, options?: TelegramBot.SendMessageOptions): Promise<number> {
+  private async sendText({ chatId, threadId }: Chat, text: string, replyTo?: number, options?: Parameters<Api['sendMessage']>[2]): Promise<number> {
     const sent = await this.bot.sendMessage(chatId, text, { ...threadOptions(threadId), ...replyOptions(replyTo), ...options })
     return sent.message_id
   }
@@ -281,7 +280,7 @@ export class RulesQuizService {
       ...replyOptions(replyTo),
       is_anonymous: true,
       type: 'quiz',
-      correct_option_id: correctOptionId
+      correct_option_ids: [correctOptionId]
     })
     return sent.message_id
   }

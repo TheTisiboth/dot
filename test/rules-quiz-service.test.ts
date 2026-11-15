@@ -1,7 +1,7 @@
 import './helpers/testEnv'
 import { test, beforeEach, afterEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
-import type TelegramBot from 'node-telegram-bot-api'
+import { type Api, InputFile } from 'grammy'
 import { config } from '../src/config'
 import { findQuizQuestion, QUIZ_QUESTIONS } from '../src/data/rules-quiz'
 import { RulesQuizService } from '../src/services/RulesQuizService'
@@ -33,7 +33,7 @@ const bot = (() => {
   let nextId = 100
   const record = (method: Call['method']) => async (chatId: string, content: unknown, ...rest: unknown[]) => {
     const options = (method === 'sendPoll' ? rest[1] : rest[0]) as Record<string, unknown>
-    const extra = method === 'sendPhoto' ? rest[1] : method === 'sendPoll' ? rest[0] : undefined
+    const extra = method === 'sendPoll' ? rest[0] : undefined
     const messageId = nextId++
     calls.push({ method, chatId, content, options, extra, messageId })
     return { message_id: messageId }
@@ -45,7 +45,7 @@ const bot = (() => {
     getMe: async () => ({ username: 'quiz_bot' }),
     stopPoll: async () => { throw new Error('the poll must stay open') }
   }
-})() as unknown as TelegramBot
+})() as unknown as Api
 
 const seasonOf = (season: SeasonType) =>
   ({ getNextTrainingInfo: () => ({ season }) }) as unknown as SeasonManager
@@ -87,8 +87,8 @@ test('signal question: photo, then the poll replying to it, in the topic', async
 
   assert.deepEqual(calls.map(c => c.method), ['sendPhoto', 'sendPoll'])
   const [photo, poll] = calls
-  assert.equal(photo.content, 'assets/signals/01-foul.png')
-  assert.deepEqual(photo.extra, { contentType: 'image/png' })
+  assert.ok(photo.content instanceof InputFile)
+  assert.equal(photo.content.filename, '01-foul.png')
   assert.equal(photo.options.message_thread_id, 7)
   assert.equal(poll.options.reply_to_message_id, photo.messageId)
   assert.equal(poll.options.message_thread_id, 7)
@@ -105,7 +105,7 @@ test('poll is an anonymous quiz pointing at the right answer, and carries the hi
     assert.equal(parseQuizTag(poll.content as string), 'r1_01')
     assert.equal(poll.options.is_anonymous, true)
     assert.equal(poll.options.type, 'quiz')
-    assert.equal(options[poll.options.correct_option_id as number], question('r1_01').answer)
+    assert.equal(options[(poll.options.correct_option_ids as number[])[0]], question('r1_01').answer)
     assert.equal(poll.options.reply_to_message_id, undefined)
     assert.deepEqual([...options].sort(), [question('r1_01').answer, ...question('r1_01').wrong].sort())
   }
@@ -233,7 +233,7 @@ test('a failed post does not block the next one', async () => {
 
 test('a failed bot username lookup is retried on the next post', async () => {
   let attempts = 0
-  const flakyBot = Object.assign(Object.create(bot as object) as TelegramBot, {
+  const flakyBot = Object.assign(Object.create(bot as object) as Api, {
     getMe: async () => {
       attempts++
       if (attempts === 1) throw new Error('Bot API down')
@@ -269,7 +269,8 @@ test('answer: "what is the signal?" questions answer with the signal photo', asy
 
   assert.deepEqual(calls.map(c => c.method), ['sendPhoto'])
   const [photo] = calls
-  assert.equal(photo.content, 'assets/signals/01-foul.png')
+  assert.ok(photo.content instanceof InputFile)
+  assert.equal(photo.content.filename, '01-foul.png')
   assert.equal(photo.options.reply_to_message_id, 50)
   assert.equal(photo.options.has_spoiler, true)
   assert.equal(photo.options.parse_mode, 'HTML')
@@ -334,7 +335,7 @@ test('preview: the question, then its spoiler answer replying to the poll', asyn
 test('answer: no link preview card', async () => {
   latestQuiz = latest({ questionId: 'r9_01' })
   await service().answerLatest()
-  assert.equal(calls[0].options.link_preview_options, JSON.stringify({ is_disabled: true }))
+  assert.deepEqual(calls[0].options.link_preview_options, { is_disabled: true })
 })
 
 test('timer: a poll posted just before it fires is not answered early', async () => {

@@ -1,18 +1,19 @@
-import type TelegramBot from 'node-telegram-bot-api'
+import type { Bot } from 'grammy'
+import type { BotCommand, BotCommandScope, Message } from 'grammy/types'
 
 interface SentMessage {
   chatId: string;
   text: string;
-  options: TelegramBot.SendMessageOptions;
+  options: Record<string, unknown>;
   messageId: number;
 }
 
 interface CommandMenu {
-  commands: TelegramBot.BotCommand[];
-  options?: { scope?: TelegramBot.BotCommandScope };
+  commands: readonly BotCommand[];
+  options?: { scope?: BotCommandScope };
 }
 
-type TextHandler = (msg: TelegramBot.Message, match: RegExpExecArray | null) => unknown
+type HearsMiddleware = (ctx: { msg: Message; match: RegExpExecArray }, next: () => Promise<void>) => Promise<unknown>
 
 /** Where a command is typed: a chat, optionally a forum topic in it. */
 interface CommandOrigin { chatId: number; topicId?: number }
@@ -20,59 +21,55 @@ interface CommandOrigin { chatId: number; topicId?: number }
 /** A Bot API stand-in recording what is sent where. Sends to `failingChat` throw, as a Telegram outage would. */
 export const makeFakeBot = ({ failingChat }: { failingChat?: string } = {}) => {
   let nextMessageId = 1
-  const handlers: Array<{ regexp: RegExp; handler: TextHandler }> = []
-  let onPollingError: ((error: Error) => void) | undefined
+  const handlers: Array<{ regexp: RegExp; middleware: HearsMiddleware }> = []
 
   const fake = {
     sent: [] as SentMessage[],
     menus: [] as CommandMenu[],
-    pollingStops: 0,
-    pollingStarts: 0,
 
     sentTo: (chatId: string | number) => fake.sent.filter(message => message.chatId === String(chatId)),
 
-    sendMessage: async (chatId: string | number, text: string, options: TelegramBot.SendMessageOptions = {}) => {
-      if (String(chatId) === failingChat) throw new Error('Telegram is down')
-      const messageId = nextMessageId++
-      fake.sent.push({ chatId: String(chatId), text, options, messageId })
-      return { message_id: messageId }
+    api: {
+      sendMessage: async (chatId: string | number, text: string, options: Record<string, unknown> = {}) => {
+        if (String(chatId) === failingChat) throw new Error('Telegram is down')
+        const messageId = nextMessageId++
+        fake.sent.push({ chatId: String(chatId), text, options, messageId })
+        return { message_id: messageId }
+      },
+      setMyCommands: async (commands: readonly BotCommand[], options?: CommandMenu['options']) => {
+        fake.menus.push({ commands, options })
+        return true
+      }
     },
 
-    onText: (regexp: RegExp, handler: TextHandler) => { handlers.push({ regexp, handler }) },
-    setMyCommands: async (commands: TelegramBot.BotCommand[], options?: CommandMenu['options']) => {
-      fake.menus.push({ commands, options })
-      return true
-    },
-
-    on: (event: string, listener: (error: Error) => void) => { if (event === 'polling_error') onPollingError = listener },
-    stopPolling: async () => { fake.pollingStops++ },
-    startPolling: async () => { fake.pollingStarts++ },
-
-    /** Raises a polling error the way the library does. */
-    failPolling: (error: Error) => { onPollingError?.(error) },
+    on: (_filter: 'message:text') => ({
+      hears: (regexp: RegExp, middleware: HearsMiddleware) => { handlers.push({ regexp, middleware }) }
+    }),
 
     /**
-     * Types `text` in a chat. The one place that knows how the library dispatches commands:
-     * like node-telegram-bot-api, every handler whose pattern matches runs.
+     * Types `text` in a chat. The one place that knows how grammY dispatches: the first handler whose
+     * pattern matches runs, and the next matching one only when it calls `next`.
      */
     command: async (text: string, { chatId, topicId }: CommandOrigin) => {
-      const msg: TelegramBot.Message = {
+      const msg: Message = {
         message_id: nextMessageId++,
         date: 0,
         text,
-        chat: { id: chatId, type: 'supergroup' },
+        chat: { id: chatId, type: 'supergroup', title: 'Team' },
         from: { id: 1, is_bot: false, first_name: 'Player' },
         message_thread_id: topicId,
         is_topic_message: topicId !== undefined
       }
-      const matching = handlers.flatMap(({ regexp, handler }) => {
-        const match = regexp.exec(text)
-        return match ? [handler(msg, match)] : []
-      })
-      await Promise.all(matching)
+      const runFrom = async (index: number): Promise<void> => {
+        const offset = handlers.slice(index).findIndex(({ regexp }) => regexp.test(text))
+        if (offset < 0) return
+        const { regexp, middleware } = handlers[index + offset]
+        await middleware({ msg, match: regexp.exec(text) as RegExpExecArray }, () => runFrom(index + offset + 1))
+      }
+      await runFrom(0)
     }
   }
 
   // The library boundary: the fake implements only the Bot API methods the code under test calls
-  return fake as typeof fake & TelegramBot
+  return fake as typeof fake & Bot
 }

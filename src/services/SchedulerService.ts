@@ -3,7 +3,7 @@ import { type SeasonManager } from './SeasonManager'
 import { type MessageGenerator } from './MessageGenerator'
 import { type ReactionReader } from './ReactionReader'
 import { config } from '../config'
-import type TelegramBot from 'node-telegram-bot-api'
+import type { Api } from 'grammy'
 import { log } from '../utils/logger'
 import { type RulesQuizService } from './RulesQuizService'
 import { type SeasonConfig, type PracticeDay, type Attendance, type TrainingInfo } from '../types'
@@ -21,7 +21,7 @@ export class SchedulerService {
   private readonly seasonManager: SeasonManager
   private readonly messageGenerator: MessageGenerator
   private readonly reactionReader: ReactionReader
-  private readonly bot: TelegramBot
+  private readonly bot: Api
   private readonly rulesQuiz: RulesQuizService
   private readonly chatId: string
   private readonly chatThreadId?: string
@@ -36,7 +36,7 @@ export class SchedulerService {
     seasonManager: SeasonManager,
     messageGenerator: MessageGenerator,
     reactionReader: ReactionReader,
-    bot: TelegramBot,
+    bot: Api,
     rulesQuiz: RulesQuizService
   ) {
     this.seasonManager = seasonManager

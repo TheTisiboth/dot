@@ -30,7 +30,7 @@ const build = ({ withScheduler = true } = {}) => {
   const seasons = new SeasonManager()
   const generator = new MessageGenerator()
   const controller = new BotController(bot, seasons, generator, quiz)
-  if (withScheduler) controller.setSchedulerService(new SchedulerService(seasons, generator, makeFakeReader({ thumbsUp: ATTENDING }), bot, quiz))
+  if (withScheduler) controller.setSchedulerService(new SchedulerService(seasons, generator, makeFakeReader({ thumbsUp: ATTENDING }), bot.api, quiz))
   return { bot, quiz }
 }
 
@@ -176,6 +176,24 @@ test('/send_rule and /answer_rule drive the quiz', async () => {
   await bot.command('/answer_rule', ADMIN)
 
   assert.deepEqual(quiz.calls, ['postNext', 'answerLatest'])
+})
+
+test('a failing quiz action is reported back to the admin', async () => {
+  const { bot, quiz } = build()
+  const down = async () => { throw new Error('MTProto down') }
+  Object.assign(quiz, { postNext: down, answerLatest: down, pickNext: down })
+
+  for (const command of ['/send_rule', '/answer_rule', '/test_rule']) await bot.command(command, ADMIN)
+
+  assert.equal(bot.sentTo(ADMIN.chatId).filter(({ text }) => text.includes('MTProto down')).length, 3)
+})
+
+test('/start greets in any chat', async () => {
+  const { bot } = build()
+
+  await bot.command('/start', PLAYER)
+
+  assert.equal(bot.sentTo(PLAYER.chatId).length, 1)
 })
 
 test('the previews stay in the admin chat', async () => {
