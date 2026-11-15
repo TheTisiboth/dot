@@ -9,15 +9,12 @@ export type PracticeDay = z.infer<typeof practiceDaySchema>
 export type DateConfig = z.infer<typeof dateConfigSchema>
 
 export type BotConfig = z.infer<typeof botConfigSchema>
-export type SeasonsConfig = BotConfig['seasons']
-export type SeasonConfigBase = SeasonsConfig['winter']
+export type SeasonConfigBase = BotConfig['seasons']['winter']
 
 export type SeasonType = 'winter' | 'summer'
 
 export interface MessageGenerationOptions {
   useLLM?: boolean;
-  temperature?: number;
-  maxTokens?: number;
 }
 
 export interface Attendance {
@@ -27,7 +24,6 @@ export interface Attendance {
 
 export interface TrainingInfo {
   date: Date;
-  dayName: string;
   location: string;
   time: string;
   throwingTime?: string;

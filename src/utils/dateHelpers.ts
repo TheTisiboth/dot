@@ -8,18 +8,6 @@ export function getEffectiveDate(date: Date): Date {
   return date
 }
 
-export function isValidDate(date: Date): boolean {
-  return !isNaN(date.getTime())
-}
-
-export function parseTestDate(dateStr: string): Date {
-  const date = new Date(dateStr)
-  if (!isValidDate(date)) {
-    throw new Error('Invalid date format')
-  }
-  return date
-}
-
 export function createDateFromMonthDay(month: number, day: number, year?: number): Date {
   const currentYear = year || new Date().getFullYear()
   return new Date(currentYear, month - 1, day)

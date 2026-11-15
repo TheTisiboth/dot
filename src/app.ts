@@ -108,5 +108,3 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const bot = new UltimateFrisbeeBot()
   void bot.start()
 }
-
-export default UltimateFrisbeeBot
