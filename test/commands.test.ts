@@ -97,6 +97,30 @@ test('/training shows the throwing time when the season has one', async () => {
   assert.ok(bot.sentTo(PLAYER.chatId)[0].text.includes('19:15'))
 })
 
+test('/training shows the moved place and time of an exceptional training', async () => {
+  config.exceptionalTraining = { location: { name: 'Beach' }, time: '20:15' }
+  startAt(beforeTraining(24 * HOUR_MS))
+  const { bot } = build()
+
+  await bot.command('/training', PLAYER)
+
+  const [reply] = bot.sentTo(PLAYER.chatId)
+  assert.ok(reply.text.includes('Beach'))
+  assert.ok(reply.text.includes('20:15'))
+})
+
+test('/training says when the next training is cancelled', async () => {
+  startAt(beforeTraining(24 * HOUR_MS))
+  const { bot } = build()
+  await bot.command('/training', PLAYER)
+  config.exceptionalTraining.isCancelled = true
+  await bot.command('/training', PLAYER)
+
+  const [regular, cancelled] = bot.sentTo(PLAYER.chatId)
+  assert.equal(regular.text.includes(EMOJIS.CROSS_MARK), false)
+  assert.ok(cancelled.text.includes(EMOJIS.CROSS_MARK))
+})
+
 test('/info lists both seasons with their locations and practice times', async () => {
   const { bot } = build()
 

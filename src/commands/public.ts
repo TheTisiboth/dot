@@ -61,6 +61,7 @@ ${formatPracticeDays(seasonConfig.practices)}
 
 const nextTrainingText = (seasonManager: SeasonManager): string => {
   const training = seasonManager.getNextTrainingInfo()
+  const cancelled = training.isCancelled ? `\n\n${EMOJIS.CROSS_MARK} <b>Cancelled</b>` : ''
   const timeLines = training.throwingTime
     ? `${EMOJIS.FIRE} Throwing: ${training.throwingTime}\n${EMOJIS.CLOCK} Training: ${training.time}`
     : `${EMOJIS.CLOCK} ${training.time}`
@@ -69,5 +70,5 @@ const nextTrainingText = (seasonManager: SeasonManager): string => {
 
 ${EMOJIS.CALENDAR} ${formatDate(training.date)}
 ${timeLines}
-${EMOJIS.LOCATION} ${locationLink(training.location)}`
+${EMOJIS.LOCATION} ${locationLink(training.location)}${cancelled}`
 }

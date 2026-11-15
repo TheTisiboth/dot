@@ -1,10 +1,9 @@
 import { Ollama } from 'ollama'
 import { config } from '../config'
-import { type SeasonConfig, type MessageGenerationOptions, type PracticeDay, type Attendance, type TrainingLocation } from '../types'
+import { type MessageGenerationOptions, type Attendance, type TrainingInfo, type TrainingLocation } from '../types'
 import { EMOJIS, MARKERS, CANCELLATION_SIGNATURE } from '../utils/constants'
 import { log } from '../utils/logger'
 import { escapeHtml, formatStartTime, locationLink } from '../utils/formatters'
-import { getThrowingTime } from '../utils/dateHelpers'
 
 export class MessageGenerator {
   private readonly ollama: Ollama | null
@@ -17,31 +16,23 @@ export class MessageGenerator {
       : null
   }
 
-  private getLocationAndTime(seasonConfig: SeasonConfig, practiceDay: PracticeDay): { location: TrainingLocation; time: string; startTime: string } {
-    return {
-      location: seasonConfig.location,
-      time: practiceDay.time,
-      startTime: formatStartTime(practiceDay.time, getThrowingTime(practiceDay.time, seasonConfig.throwingMinutesBefore))
-    }
-  }
+  generateTemplateMessage(training: TrainingInfo): string {
+    const { location, time } = training
 
-  generateTemplateMessage(seasonConfig: SeasonConfig, practiceDay: PracticeDay): string {
-    const { location, time, startTime } = this.getLocationAndTime(seasonConfig, practiceDay)
-
-    log.messageGen(`Template message generated for ${seasonConfig.season} at ${location.name} (${time})`)
+    log.messageGen(`Template message generated for ${training.season} at ${location.name} (${time})`)
     return `${EMOJIS.ROCKET} Hey team!
 
-Tomorrow we're planning an Ultimate Frisbee training at ${locationLink(location)} ${startTime}.
+Tomorrow we're planning an Ultimate Frisbee training at ${locationLink(location)} ${formatStartTime(time, training.throwingTime)}.
 
 ${EMOJIS.BULB} If you're in, just drop a ${EMOJIS.THUMBS_UP} on this message so we know how many are coming.
 
 The more the merrier! ${EMOJIS.FRISBEE}`
   }
 
-  generateTrainerTemplateMessage(seasonConfig: SeasonConfig, practiceDay: PracticeDay): string {
-    const { location, time } = this.getLocationAndTime(seasonConfig, practiceDay)
+  generateTrainerTemplateMessage(training: TrainingInfo): string {
+    const { location, time } = training
 
-    log.messageGen(`Trainer template message generated for ${seasonConfig.season} at ${location.name} (${time})`)
+    log.messageGen(`Trainer template message generated for ${training.season} at ${location.name} (${time})`)
     return `${EMOJIS.COACH} Trainers needed! We have training tomorrow starting at ${time}.
 
 ${EMOJIS.BULB} Can you lead the session? React with ${EMOJIS.THUMBS_UP} if you're available to coach.
@@ -103,58 +94,45 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     }
   }
 
-  private async generateOllamaMessage(
-    seasonConfig: SeasonConfig,
-    practiceDay: PracticeDay,
-    isTrainerMessage = false
-  ): Promise<string> {
-    const { location, time, startTime } = this.getLocationAndTime(seasonConfig, practiceDay)
-    const { season } = seasonConfig
+  private async generateOllamaMessage(training: TrainingInfo, isTrainerMessage = false): Promise<string> {
+    const { location, time, season } = training
 
     const prompt = isTrainerMessage
       ? this.createTrainerLLMPrompt(time, season)
-      : this.createLLMPrompt(location.name, time, startTime, season)
+      : this.createLLMPrompt(location.name, time, formatStartTime(time, training.throwingTime), season)
 
     const fallback = isTrainerMessage
-      ? () => this.generateTrainerTemplateMessage(seasonConfig, practiceDay)
-      : () => this.generateTemplateMessage(seasonConfig, practiceDay)
+      ? () => this.generateTrainerTemplateMessage(training)
+      : () => this.generateTemplateMessage(training)
 
     return await this.runOllama(prompt, fallback, isTrainerMessage ? 'Trainer LLM' : 'LLM', location)
   }
 
-  async generateMessage(
-    seasonConfig: SeasonConfig,
-    options: MessageGenerationOptions = {},
-    practiceDay: PracticeDay
-  ): Promise<string> {
+  async generateMessage(training: TrainingInfo, options: MessageGenerationOptions = {}): Promise<string> {
     const { useLLM = false } = options
 
     if (useLLM && this.ollama) {
-      return await this.generateOllamaMessage(seasonConfig, practiceDay, false)
+      return await this.generateOllamaMessage(training, false)
     }
     if (useLLM) log.messageGen('No LLM configured, using template')
-    return this.generateTemplateMessage(seasonConfig, practiceDay)
+    return this.generateTemplateMessage(training)
   }
 
-  async generateTrainerMessage(
-    seasonConfig: SeasonConfig,
-    options: MessageGenerationOptions = {},
-    practiceDay: PracticeDay
-  ): Promise<string> {
+  async generateTrainerMessage(training: TrainingInfo, options: MessageGenerationOptions = {}): Promise<string> {
     const { useLLM = false } = options
 
     if (useLLM && this.ollama) {
-      return await this.generateOllamaMessage(seasonConfig, practiceDay, true)
+      return await this.generateOllamaMessage(training, true)
     } else {
-      return this.generateTrainerTemplateMessage(seasonConfig, practiceDay)
+      return this.generateTrainerTemplateMessage(training)
     }
   }
 
-  generateReminderTemplateMessage(attendance: Attendance, practiceDay: PracticeDay): string {
+  generateReminderTemplateMessage(attendance: Attendance, training: TrainingInfo): string {
     const { count, threshold } = attendance
 
     log.messageGen(`Reminder template message generated (${count}/${threshold})`)
-    return `${MARKERS.REMINDER} So far ${count} of the ${threshold} players we need have confirmed for the ${practiceDay.time} training.
+    return `${MARKERS.REMINDER} So far ${count} of the ${threshold} players we need have confirmed for the ${training.time} training.
 
 ${EMOJIS.BULB} If you're coming, please react with ${EMOJIS.THUMBS_UP} on the original training post above (the one this message replies to).
 
@@ -162,18 +140,17 @@ ${EMOJIS.WARNING} If we don't reach ${threshold}, the training might have to be 
   }
 
   async generateReminderMessage(
-    seasonConfig: SeasonConfig,
+    training: TrainingInfo,
     options: MessageGenerationOptions = {},
-    practiceDay: PracticeDay,
     attendance: Attendance
   ): Promise<string> {
     const { useLLM = false } = options
-    const fallback = () => this.generateReminderTemplateMessage(attendance, practiceDay)
+    const fallback = () => this.generateReminderTemplateMessage(attendance, training)
 
     if (!useLLM || !this.ollama) return fallback()
 
-    const prompt = this.createReminderLLMPrompt(attendance, practiceDay.time)
-    const message = await this.runOllama(prompt, fallback, 'Reminder LLM', seasonConfig.location)
+    const prompt = this.createReminderLLMPrompt(attendance, training.time)
+    const message = await this.runOllama(prompt, fallback, 'Reminder LLM', training.location)
 
     // The marker must never depend on the LLM: it is how we recognise our own reminder in chat history
     return message.startsWith(MARKERS.REMINDER) ? message : `${MARKERS.REMINDER} ${message}`
@@ -186,18 +163,14 @@ ${EMOJIS.WARNING} If we don't reach ${threshold}, the training might have to be 
   }
 
   /** Deliberately template-only: a cancellation must never be garbled by the LLM. */
-  generateCancellationMessage(
-    seasonConfig: SeasonConfig,
-    practiceDay: PracticeDay,
-    attendance: Attendance
-  ): string {
+  generateCancellationMessage(training: TrainingInfo, attendance: Attendance): string {
     const { count, threshold } = attendance
     const { cancelHoursBefore } = config.attendance
 
     log.messageGen(`Cancellation message generated (${count}/${threshold})`)
     return `${MARKERS.CANCELLATION} <b>${CANCELLATION_SIGNATURE} - not enough attendance.</b>
 
-${EMOJIS.RUNNER} Training: ${practiceDay.time} at ${escapeHtml(seasonConfig.location.name)}
+${EMOJIS.RUNNER} Training: ${training.time} at ${escapeHtml(training.location.name)}
 ${EMOJIS.THUMBS_UP} Confirmed: <b>${count}</b> ${EMOJIS.THUMBS_UP} out of the <b>${threshold}</b> required
 
 Only ${count} player${count === 1 ? '' : 's'} confirmed ${cancelHoursBefore}h before the start, below the minimum of ${threshold}.`

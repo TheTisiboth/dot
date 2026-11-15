@@ -21,29 +21,29 @@ const { config } = await import('../src/config')
 const { MessageGenerator } = await import('../src/services/MessageGenerator')
 
 const generator = new MessageGenerator()
-const season = { season: 'winter' as const, ...config.seasons.winter }
-const practiceDay = season.practices[0]
+const practiceDay = config.seasons.winter.practices[0]
+const training = { date: new Date(), location: config.seasons.winter.location, time: practiceDay.time, season: 'winter' as const, practiceDay }
 const attendance = { count: 3, threshold: 8 }
 
 beforeEach(() => { reply = { status: 200, content: 'Come play!\n\nSo far 3 of 8, react 👍.' } })
 
 test('the announcement asks for a 👍 and names location and time', async () => {
-  const message = await generator.generateMessage(season, { useLLM: false }, practiceDay)
+  const message = await generator.generateMessage(training, { useLLM: false })
 
   assert.ok(message.includes(EMOJIS.THUMBS_UP))
-  assert.ok(message.includes(season.location.name))
-  assert.ok(message.includes(practiceDay.time))
+  assert.ok(message.includes(training.location.name))
+  assert.ok(message.includes(training.time))
 })
 
 test('the announcement names the throwing time when there is one', async () => {
-  const message = await generator.generateMessage({ ...season, throwingMinutesBefore: 30 }, {}, { day: 2, time: '20:30' })
+  const message = await generator.generateMessage({ ...training, time: '20:30', throwingTime: '20:00' })
 
   assert.ok(message.includes('20:00'))
   assert.ok(message.includes('20:30'))
 })
 
 test('the trainer request asks for a 👍', async () => {
-  const message = await generator.generateTrainerMessage(season, { useLLM: false }, practiceDay)
+  const message = await generator.generateTrainerMessage(training, { useLLM: false })
   assert.ok(message.includes(EMOJIS.THUMBS_UP))
 })
 
@@ -56,11 +56,11 @@ test('the key request is recognised as the key message', () => {
 })
 
 test('the announcement is never mistaken for the key message', async () => {
-  assert.equal(isKeyMessage(await generator.generateMessage(season, {}, practiceDay)), false)
+  assert.equal(isKeyMessage(await generator.generateMessage(training, {})), false)
 })
 
 test('the cancellation carries the signature, count and threshold', () => {
-  const message = generator.generateCancellationMessage(season, practiceDay, attendance)
+  const message = generator.generateCancellationMessage(training, attendance)
 
   assert.ok(message.includes(CANCELLATION_SIGNATURE))
   assert.ok(message.includes(`<b>${attendance.count}</b>`))
@@ -68,7 +68,7 @@ test('the cancellation carries the signature, count and threshold', () => {
 })
 
 test('the template reminder carries the marker, count and threshold', async () => {
-  const message = await generator.generateReminderMessage(season, { useLLM: false }, practiceDay, attendance)
+  const message = await generator.generateReminderMessage(training, { useLLM: false }, attendance)
 
   assert.ok(message.startsWith(MARKERS.REMINDER))
   assert.ok(message.includes(String(attendance.count)))
@@ -76,7 +76,7 @@ test('the template reminder carries the marker, count and threshold', async () =
 })
 
 test('the LLM reminder gets the marker when the LLM leaves it out', async () => {
-  const message = await generator.generateReminderMessage(season, { useLLM: true }, practiceDay, attendance)
+  const message = await generator.generateReminderMessage(training, { useLLM: true }, attendance)
 
   assert.ok(message.startsWith(MARKERS.REMINDER))
   assert.ok(message.includes('Come play!'))
@@ -84,7 +84,7 @@ test('the LLM reminder gets the marker when the LLM leaves it out', async () => 
 
 test('the LLM reminder keeps a single marker when the LLM already wrote it', async () => {
   reply.content = `${MARKERS.REMINDER} Come play!`
-  const message = await generator.generateReminderMessage(season, { useLLM: true }, practiceDay, attendance)
+  const message = await generator.generateReminderMessage(training, { useLLM: true }, attendance)
 
   assert.ok(message.startsWith(MARKERS.REMINDER))
   assert.equal(message.split(MARKERS.REMINDER).length, 2)
@@ -93,8 +93,8 @@ test('the LLM reminder keeps a single marker when the LLM already wrote it', asy
 test('a failing LLM falls back to the templates', async () => {
   reply = { status: 500, content: '' }
 
-  const reminder = await generator.generateReminderMessage(season, { useLLM: true }, practiceDay, attendance)
-  const announcement = await generator.generateMessage(season, { useLLM: true }, practiceDay)
+  const reminder = await generator.generateReminderMessage(training, { useLLM: true }, attendance)
+  const announcement = await generator.generateMessage(training, { useLLM: true })
 
   assert.ok(reminder.startsWith(MARKERS.REMINDER))
   assert.ok(reminder.includes(String(attendance.threshold)))
@@ -103,27 +103,27 @@ test('a failing LLM falls back to the templates', async () => {
 
 test('an empty LLM reply falls back to the template', async () => {
   reply.content = '  '
-  const message = await generator.generateTrainerMessage(season, { useLLM: true }, practiceDay)
+  const message = await generator.generateTrainerMessage(training, { useLLM: true })
   assert.ok(message.includes(EMOJIS.THUMBS_UP))
 })
 
-const stPauli = { ...season, location: parseLocation('[St. Pauli (Halle 2)](https://maps.example/st-pauli?a=1&b=2)') }
+const stPauli = { ...training, location: parseLocation('[St. Pauli (Halle 2)](https://maps.example/st-pauli?a=1&b=2)') }
 const stPauliLink = '<a href="https://maps.example/st-pauli?a=1&amp;b=2">St. Pauli (Halle 2)</a>'
 
 test('a location link with pattern characters is linked in the template announcement', async () => {
-  const message = await generator.generateMessage(stPauli, { useLLM: false }, practiceDay)
+  const message = await generator.generateMessage(stPauli, { useLLM: false })
   assert.ok(message.includes(stPauliLink))
 })
 
 test('a location link with pattern characters is linked in the LLM announcement', async () => {
   reply.content = 'Training at St. Pauli (Halle 2) tomorrow, react 👍'
-  const message = await generator.generateMessage(stPauli, { useLLM: true }, practiceDay)
+  const message = await generator.generateMessage(stPauli, { useLLM: true })
   assert.ok(message.includes(stPauliLink))
 })
 
 test('LLM text with markup characters reaches the announcement escaped and intact', async () => {
   reply.content = 'Sky_plastic time * <3 & [go'
-  const message = await generator.generateMessage(season, { useLLM: true }, practiceDay)
+  const message = await generator.generateMessage(training, { useLLM: true })
   assert.ok(message.includes('Sky_plastic time * &lt;3 &amp; [go'))
 })
 

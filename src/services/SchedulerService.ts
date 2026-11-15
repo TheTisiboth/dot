@@ -6,7 +6,7 @@ import { config } from '../config'
 import type { Api } from 'grammy'
 import { errorMessage, log } from '../utils/logger'
 import { type RulesQuizService } from './RulesQuizService'
-import { type SeasonConfig, type PracticeDay, type Attendance, type PartResult, type TrainingInfo } from '../types'
+import { type SeasonConfig, type Attendance, type PartResult, type TrainingInfo } from '../types'
 import { CANCELLATION_SIGNATURE, EMOJIS } from '../utils/constants'
 import { atTime, hoursBefore, getEffectiveDate } from '../utils/dateHelpers'
 import { formatDateLocale, formatDateTimeLocale, getDayName } from '../utils/formatters'
@@ -110,14 +110,20 @@ export class SchedulerService {
   armAttendanceTimers(): void {
     this.clearTimers()
 
-    const trainingAt = this.getTrainingAt(this.seasonManager.getNextTrainingInfo())
+    const training = this.seasonManager.getNextTrainingInfo()
+    if (training.isCancelled) {
+      log.scheduler('⏭️  Attendance checks skipped - training cancelled')
+      return
+    }
+
+    const trainingAt = this.getTrainingAt(training)
     const { reminderHoursBefore, cancelHoursBefore } = config.attendance
 
     this.armTimer('Attendance reminder', hoursBefore(trainingAt, reminderHoursBefore), trainingAt, () =>
-      this.runReminderCheck(trainingAt)
+      this.runReminderCheck(training)
     )
     this.armTimer('Training cancellation', hoursBefore(trainingAt, cancelHoursBefore), trainingAt, () =>
-      this.runCancellationCheck(trainingAt)
+      this.runCancellationCheck(training)
     )
   }
 
@@ -149,8 +155,8 @@ export class SchedulerService {
    * Reads the live 👍 count off the training post.
    * Returns null when the post cannot be found, so a missing post never cancels a training.
    */
-  private async getAttendance(trainingAt: Date): Promise<AttendanceCheck | null> {
-    const training = this.seasonManager.getNextTrainingInfo()
+  private async getAttendance(training: TrainingInfo): Promise<AttendanceCheck | null> {
+    const trainingAt = this.getTrainingAt(training)
 
     if (this.trainingPost?.trainingAt.getTime() !== trainingAt.getTime()) {
       const messageId = await this.reactionReader.findPollMessage(this.chatId, this.chatThreadId, trainingAt)
@@ -171,12 +177,12 @@ export class SchedulerService {
     return { pollMessageId, count, threshold, training }
   }
 
-  private async runReminderCheck(trainingAt: Date): Promise<void> {
+  private async runReminderCheck(training: TrainingInfo): Promise<void> {
     try {
-      const attendance = await this.getAttendance(trainingAt)
+      const attendance = await this.getAttendance(training)
       if (!attendance) return
 
-      const { pollMessageId, count, threshold, training } = attendance
+      const { pollMessageId, count, threshold } = attendance
 
       if (count >= threshold) {
         log.scheduler(`⏭️  Reminder skipped - attendance reached (${count}/${threshold})`)
@@ -188,15 +194,13 @@ export class SchedulerService {
         return
       }
 
-      const seasonConfig = this.seasonManager.getCurrentSeasonConfig(trainingAt)
       const message = await this.messageGenerator.generateReminderMessage(
-        seasonConfig,
+        training,
         { useLLM: this.messageGenerator.isLLMAvailable() },
-        training.practiceDay,
         { count, threshold }
       )
 
-      await sendWithFallback(this.bot, this.chatId, message, () => this.messageGenerator.generateReminderTemplateMessage({ count, threshold }, training.practiceDay), {
+      await sendWithFallback(this.bot, this.chatId, message, () => this.messageGenerator.generateReminderTemplateMessage({ count, threshold }, training), {
         reply_to_message_id: pollMessageId,
         ...threadOptions(this.chatThreadId)
       })
@@ -207,12 +211,12 @@ export class SchedulerService {
     }
   }
 
-  private async runCancellationCheck(trainingAt: Date): Promise<void> {
+  private async runCancellationCheck(training: TrainingInfo): Promise<void> {
     try {
-      const attendance = await this.getAttendance(trainingAt)
+      const attendance = await this.getAttendance(training)
       if (!attendance) return
 
-      const { count, threshold, training } = attendance
+      const { count, threshold } = attendance
 
       if (count >= threshold) {
         log.scheduler(`⏭️  Cancellation skipped - attendance reached (${count}/${threshold})`)
@@ -224,7 +228,7 @@ export class SchedulerService {
         return
       }
 
-      const since = hoursBefore(trainingAt, config.attendance.cancelHoursBefore + 1)
+      const since = hoursBefore(this.getTrainingAt(training), config.attendance.cancelHoursBefore + 1)
       const alreadyCancelled = await this.reactionReader.hasBotMessageContaining(
         this.trainerChatId,
         this.trainerChatThreadId,
@@ -236,11 +240,7 @@ export class SchedulerService {
         return
       }
 
-      const seasonConfig = this.seasonManager.getCurrentSeasonConfig(trainingAt)
-      const message = this.messageGenerator.generateCancellationMessage(seasonConfig, training.practiceDay, {
-        count,
-        threshold
-      })
+      const message = this.messageGenerator.generateCancellationMessage(training, { count, threshold })
 
       await this.bot.sendMessage(this.trainerChatId, message, {
         parse_mode: 'HTML',
@@ -255,7 +255,7 @@ export class SchedulerService {
 
   /** Exposed for the /attendance admin command. */
   async inspectAttendance(): Promise<AttendanceCheck | null> {
-    return await this.getAttendance(this.getTrainingAt(this.seasonManager.getNextTrainingInfo()))
+    return await this.getAttendance(this.seasonManager.getNextTrainingInfo())
   }
 
   private logNextScheduledMessage(): void {
@@ -322,22 +322,27 @@ export class SchedulerService {
   /** Key and trainer requests wait for the announcement, so a retry never posts them twice. */
   private async announce(): Promise<Omit<AnnounceReport, 'quiz'>> {
     const nextTraining = this.seasonManager.getNextTrainingInfo()
+    if (nextTraining.isCancelled) {
+      log.scheduler('⏭️  Training cancelled - nothing sent to team or trainers')
+      const cancelled: PartResult = { status: 'skipped', reason: 'training cancelled' }
+      return { announcement: cancelled, keyRequest: cancelled, trainerRequest: cancelled }
+    }
+
     const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
-    const practiceDay = nextTraining.practiceDay
     const useLLM = this.messageGenerator.isLLMAvailable()
 
     const announcement = await attempt('Sending announcement', async () => {
-      const message = await this.messageGenerator.generateMessage(seasonConfig, { useLLM }, practiceDay)
+      const message = await this.messageGenerator.generateMessage(nextTraining, { useLLM })
 
       log.bot(`Sending message to chat ${this.chatId}`)
-      const sent = await sendWithFallback(this.bot, this.chatId, message, () => this.messageGenerator.generateTemplateMessage(seasonConfig, practiceDay), threadOptions(this.chatThreadId))
+      const sent = await sendWithFallback(this.bot, this.chatId, message, () => this.messageGenerator.generateTemplateMessage(nextTraining), threadOptions(this.chatThreadId))
 
       // The training post is the poll: its 👍 reactions are the attendance count
       this.trainingPost = { trainingAt: this.getTrainingAt(nextTraining), messageId: sent.message_id }
       this.armAttendanceTimers()
 
       const threadInfo = this.chatThreadId ? ` (thread ${this.chatThreadId})` : ''
-      log.scheduler(`Scheduled message sent to team${threadInfo} - ${seasonConfig.season} at ${seasonConfig.location.name} (${practiceDay.time}) using ${useLLM ? 'LLM' : 'template'}`)
+      log.scheduler(`Scheduled message sent to team${threadInfo} - ${nextTraining.season} at ${nextTraining.location.name} (${nextTraining.time}) using ${useLLM ? 'LLM' : 'template'}`)
     })
 
     if (announcement.status === 'failed') {
@@ -348,7 +353,7 @@ export class SchedulerService {
     return {
       announcement,
       keyRequest: await this.sendKeyMessage(seasonConfig),
-      trainerRequest: await this.sendTrainerCheckMessage(seasonConfig, practiceDay, useLLM)
+      trainerRequest: await this.sendTrainerCheckMessage(nextTraining, useLLM)
     }
   }
 
@@ -372,28 +377,20 @@ export class SchedulerService {
     })
   }
 
-  private async sendTrainerCheckMessage(
-    seasonConfig: SeasonConfig,
-    practiceDay: PracticeDay,
-    useLLM: boolean
-  ): Promise<PartResult> {
+  private async sendTrainerCheckMessage(training: TrainingInfo, useLLM: boolean): Promise<PartResult> {
     if (!this.enableTrainerMessages) {
       log.scheduler('Trainer messages disabled, skipping trainer check message')
       return { status: 'skipped', reason: 'trainer messages disabled' }
     }
 
     return await attempt('Sending trainer check message', async () => {
-      const trainerMessage = await this.messageGenerator.generateTrainerMessage(
-        seasonConfig,
-        { useLLM },
-        practiceDay
-      )
+      const trainerMessage = await this.messageGenerator.generateTrainerMessage(training, { useLLM })
 
       log.bot(`Sending message to chat ${this.trainerChatId}`)
-      await sendWithFallback(this.bot, this.trainerChatId, trainerMessage, () => this.messageGenerator.generateTrainerTemplateMessage(seasonConfig, practiceDay), threadOptions(this.trainerChatThreadId))
+      await sendWithFallback(this.bot, this.trainerChatId, trainerMessage, () => this.messageGenerator.generateTrainerTemplateMessage(training), threadOptions(this.trainerChatThreadId))
 
       const threadInfo = this.trainerChatThreadId ? ` (thread ${this.trainerChatThreadId})` : ''
-      log.scheduler(`Trainer check message sent${threadInfo} - ${seasonConfig.season} at ${seasonConfig.location.name} (${practiceDay.time}) using ${useLLM ? 'LLM' : 'template'}`)
+      log.scheduler(`Trainer check message sent${threadInfo} - ${training.season} at ${training.location.name} (${training.time}) using ${useLLM ? 'LLM' : 'template'}`)
     })
   }
 }
