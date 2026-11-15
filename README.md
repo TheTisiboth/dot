@@ -228,13 +228,26 @@ See [Rules quiz](#rules-quiz).
 
 ## Health Monitoring
 
-Bot exposes health endpoints on port 3004:
+Bot exposes health endpoints on port 3004. Each dependency is `ok`, `disabled` or `down`; probes time out after 5s.
 
-- **`GET /health`** - Full health check (Telegram API connectivity)
-  - Returns 200 with `{status: 'ok', telegram: 'connected', ollama: 'provider'}`
+- **`GET /health`** - "the bot works": 503 only when Telegram is down (MTProto and Ollama are optional, templates are the LLM fallback)
+  ```json
+  {
+    "status": "ok",
+    "checks": {
+      "telegram": { "status": "ok", "responseTimeMs": 112 },
+      "mtproto": { "status": "down" },
+      "ollama": { "status": "disabled" }
+    },
+    "timestamp": "2026-11-15T23:50:01.000Z"
+  }
+  ```
+- **`GET /health/telegram`**, **`/health/mtproto`**, **`/health/ollama`** - one dependency, 503 when it is not `ok` (Ollama disabled included)
+  ```json
+  { "name": "ollama", "status": "down", "responseTimeMs": 5001, "error": "Ollama did not answer within 5000ms", "timestamp": "..." }
+  ```
 
-- **`GET /health/ollama`** - Ollama status only
-  - Returns 200 if enabled, 503 if disabled/error
+MTProto status is the reader's connection state (no request); it reconnects on the next attendance check.
 
 **Uptime-kuma setup:**
 ```yaml
@@ -245,7 +258,7 @@ Bot monitor:
 
 Ollama monitor:
   Type: HTTP(s)
-  URL: http://ollama:11434/api/tags
+  URL: http://frisbee-bot:3004/health/ollama
   Interval: 60s
 ```
 

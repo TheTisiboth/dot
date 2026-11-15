@@ -46,9 +46,5 @@ USER nodejs
 # Health server port
 EXPOSE 3004
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "console.log('Bot is healthy')" || exit 1
-
 # Start the application
 CMD ["node", "dist/app.js"]

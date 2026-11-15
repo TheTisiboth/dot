@@ -1,143 +1,77 @@
-import express, { type Application } from 'express'
+import { createServer, type Server } from 'node:http'
 import type { Api } from 'grammy'
+import { withTimeout } from '../utils/async'
 import { EMOJIS } from '../utils/constants'
-import { log } from '../utils/logger'
+import { errorMessage, log } from '../utils/logger'
 import type { MessageGenerator } from './MessageGenerator'
+import type { ReactionReader } from './ReactionReader'
 
-export class HealthServer {
-  private readonly app: Application
-  private readonly bot: Api
-  private readonly messageGenerator: MessageGenerator
+// Fixed: the compose port mapping and healthcheck use it
+export const HEALTH_PORT = 3004
+// Below the compose healthcheck timeout (10s), so a hanging dependency answers 503 instead of no answer
+export const PROBE_TIMEOUT_MS = 5_000
 
-  constructor(bot: Api, messageGenerator: MessageGenerator) {
-    this.bot = bot
-    this.messageGenerator = messageGenerator
-    this.app = express()
-    this.setupRoutes()
+type Status = 'ok' | 'disabled' | 'down'
+
+interface Check {
+  status: Status;
+  responseTimeMs?: number;
+  error?: string;
+}
+
+export interface HealthDependencies {
+  api: Pick<Api, 'getMe'>;
+  reader: Pick<ReactionReader, 'isConnected'>;
+  messageGenerator: Pick<MessageGenerator, 'isLLMAvailable' | 'testOllamaConnection'>;
+}
+
+const probe = async (name: string, run: () => Promise<unknown>, timeoutMs: number): Promise<Check> => {
+  const startedAt = Date.now()
+  try {
+    await withTimeout(run(), timeoutMs, `${name} did not answer within ${timeoutMs}ms`)
+    return { status: 'ok', responseTimeMs: Date.now() - startedAt }
+  } catch (error) {
+    return { status: 'down', responseTimeMs: Date.now() - startedAt, error: errorMessage(error) }
   }
+}
 
-  private setupRoutes(): void {
-    // Aggregate health check - tests all services
-    this.app.get('/health', async (_req, res) => {
-      const checks = {
-        telegram: { status: 'unknown', responseTime: 0 },
-        ollama: { status: 'unknown', responseTime: 0 }
-      }
-      let overallStatus = 'ok'
-      let errorMessage: string | undefined
+const dependencyChecks = ({ api, reader, messageGenerator }: HealthDependencies, timeoutMs: number): Record<string, () => Promise<Check>> => ({
+  telegram: () => probe('Telegram', () => api.getMe(), timeoutMs),
+  mtproto: async () => ({ status: reader.isConnected() ? 'ok' : 'down' }),
+  ollama: async () => messageGenerator.isLLMAvailable()
+    ? probe('Ollama', () => messageGenerator.testOllamaConnection(), timeoutMs)
+    : { status: 'disabled' }
+})
 
-      // Test Telegram connection
-      try {
-        const telegramStartTime = Date.now()
-        await this.bot.getMe()
-        checks.telegram = {
-          status: 'connected',
-          responseTime: Date.now() - telegramStartTime
-        }
-      } catch (error) {
-        checks.telegram.status = 'disconnected'
-        overallStatus = 'error'
-        errorMessage = `Telegram: ${(error as Error).message}`
-      }
+const respond = async (path: string, checks: Record<string, () => Promise<Check>>): Promise<{ code: number; body: object }> => {
+  const timestamp = new Date().toISOString()
+  if (path === '/health') {
+    const results = Object.fromEntries(await Promise.all(Object.entries(checks).map(async ([name, check]) => [name, await check()] as const)))
+    // Only Telegram is vital: without MTProto or Ollama the bot still posts, with templates as the LLM fallback
+    const status = results.telegram.status === 'ok' ? 'ok' : 'down'
+    return { code: status === 'ok' ? 200 : 503, body: { status, checks: results, timestamp } }
+  }
+  const name = path.startsWith('/health/') ? path.slice('/health/'.length) : ''
+  if (!Object.hasOwn(checks, name)) return { code: 404, body: { error: 'Not found' } }
+  const result = await checks[name]()
+  return { code: result.status === 'ok' ? 200 : 503, body: { name, ...result, timestamp } }
+}
 
-      // Test Ollama connection
-      try {
-        const ollamaStartTime = Date.now()
-        if (!this.messageGenerator.isLLMAvailable()) {
-          checks.ollama = { status: 'disabled', responseTime: 0 }
-          overallStatus = 'error'
-          errorMessage = errorMessage ? `${errorMessage}; Ollama: disabled` : 'Ollama: disabled'
-        } else {
-          // Actually test connectivity by calling Ollama
-          await this.messageGenerator.testOllamaConnection()
-          checks.ollama = {
-            status: 'connected',
-            responseTime: Date.now() - ollamaStartTime
-          }
-        }
-      } catch (error) {
-        checks.ollama.status = 'disconnected'
-        overallStatus = 'error'
-        errorMessage = errorMessage ? `${errorMessage}; Ollama: ${(error as Error).message}` : `Ollama: ${(error as Error).message}`
-      }
-
-      const statusCode = overallStatus === 'ok' ? 200 : 503
-
-      res.status(statusCode).json({
-        status: overallStatus,
-        checks: {
-          telegram: checks.telegram.status,
-          telegramResponseTime: `${checks.telegram.responseTime}ms`,
-          ollama: checks.ollama.status,
-          ollamaResponseTime: `${checks.ollama.responseTime}ms`
-        },
-        ...(errorMessage && { error: errorMessage }),
-        timestamp: new Date().toISOString()
+/** `GET /health`: 503 only when Telegram is down. `GET /health/<telegram|mtproto|ollama>`: 503 when that one is not ok. */
+export const startHealthServer = (dependencies: HealthDependencies, port: number, timeoutMs: number): Server => {
+  const checks = dependencyChecks(dependencies, timeoutMs)
+  const server = createServer((req, res) => {
+    const { pathname } = new URL(req.url ?? '/', 'http://localhost')
+    respond(pathname, checks)
+      .then(({ code, body }) => {
+        res.writeHead(code, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify(body))
       })
-    })
-
-    // Telegram-only health check
-    this.app.get('/health/telegram', async (_req, res) => {
-      try {
-        const startTime = Date.now()
-        await this.bot.getMe()
-        const responseTime = Date.now() - startTime
-
-        res.json({
-          status: 'ok',
-          service: 'telegram',
-          responseTime: `${responseTime}ms`,
-          timestamp: new Date().toISOString()
-        })
-      } catch (error) {
-        res.status(503).json({
-          status: 'error',
-          service: 'telegram',
-          error: (error as Error).message,
-          timestamp: new Date().toISOString()
-        })
-      }
-    })
-
-    // Ollama-only health check
-    this.app.get('/health/ollama', async (_req, res) => {
-      try {
-        const startTime = Date.now()
-        if (!this.messageGenerator.isLLMAvailable()) {
-          res.status(503).json({
-            status: 'disabled',
-            service: 'ollama',
-            provider: 'disabled',
-            timestamp: new Date().toISOString()
-          })
-        } else {
-          // Actually test connectivity by calling Ollama
-          await this.messageGenerator.testOllamaConnection()
-          const provider = this.messageGenerator.getLLMProvider()
-          const responseTime = Date.now() - startTime
-          res.json({
-            status: 'ok',
-            service: 'ollama',
-            provider,
-            responseTime: `${responseTime}ms`,
-            timestamp: new Date().toISOString()
-          })
-        }
-      } catch (error) {
-        res.status(503).json({
-          status: 'error',
-          service: 'ollama',
-          error: (error as Error).message,
-          timestamp: new Date().toISOString()
-        })
-      }
-    })
-  }
-
-  start(): void {
-    const port = process.env.HEALTH_PORT || 3004
-    this.app.listen(port, () => {
-      log.bot(`${EMOJIS.ROBOT} Health server listening on port ${port}`)
-    })
-  }
+      .catch((error: unknown) => {
+        log.error('Health check', error)
+        res.writeHead(500).end()
+      })
+  })
+  server.listen(port, () => { log.bot(`${EMOJIS.ROBOT} Health server listening on port ${port}`) })
+  return server
 }

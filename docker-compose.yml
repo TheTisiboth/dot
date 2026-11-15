@@ -98,8 +98,6 @@ services:
       - EXCEPTIONAL_TIME=${EXCEPTIONAL_TIME:-}
       - EXCEPTIONAL_CANCELLED=${EXCEPTIONAL_CANCELLED:-false}
 
-      # Health server: fixed, the port mapping and healthcheck below use 3004
-      - HEALTH_PORT=3004
 
     # Optional: Add volume for logs or persistent data
     # volumes:
