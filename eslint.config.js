@@ -1,4 +1,5 @@
 import js from '@eslint/js'
+import stylistic from '@stylistic/eslint-plugin'
 import importX from 'eslint-plugin-import-x'
 import sonarjs from 'eslint-plugin-sonarjs'
 import globals from 'globals'
@@ -8,6 +9,7 @@ export default tseslint.config(
   { ignores: ['dist/', '**/*.js'] },
   js.configs.recommended,
   tseslint.configs.recommended,
+  stylistic.configs.customize({ indent: 2, quotes: 'single', semi: false, braceStyle: '1tbs' }),
   {
     linterOptions: { noInlineConfig: true },
     languageOptions: {
@@ -16,8 +18,13 @@ export default tseslint.config(
     },
     plugins: { 'import-x': importX, sonarjs },
     rules: {
-      semi: ['error', 'never'],
-      quotes: ['error', 'single', { avoidEscape: true }],
+      '@stylistic/quotes': ['error', 'single', { avoidEscape: true }],
+      // whitespace only: the code mixes these, and a style churn is not worth a diff
+      '@stylistic/arrow-parens': 'off',
+      '@stylistic/comma-dangle': 'off',
+      '@stylistic/member-delimiter-style': 'off',
+      '@stylistic/list-style': 'off',
+      '@stylistic/max-statements-per-line': 'off',
       'no-useless-escape': 'error',
       'no-throw-literal': 'off',
       '@typescript-eslint/only-throw-error': 'error',
