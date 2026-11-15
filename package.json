@@ -10,7 +10,7 @@
     "dev": "tsx watch src/app.ts",
     "mtproto:login": "tsx scripts/mtproto-login.ts",
     "test": "tsx --test test/*.test.ts",
-    "test:coverage": "tsx --test --experimental-test-coverage --test-coverage-include-all --test-coverage-include='src/**' --test-coverage-exclude='src/data/**' test/*.test.ts",
+    "test:coverage": "tsx --test --experimental-test-coverage --test-coverage-lines=84 --test-coverage-branches=87 --test-coverage-functions=93 --test-coverage-include-all --test-coverage-include='src/**' --test-coverage-exclude='src/data/**' test/*.test.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "type-check": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json",
