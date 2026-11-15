@@ -49,6 +49,7 @@ services:
       - ADMIN_CHAT_ID=${ADMIN_CHAT_ID}
       - TRAINER_CHAT_ID=${TRAINER_CHAT_ID}
       - TRAINER_CHAT_THREAD_ID=${TRAINER_CHAT_THREAD_ID}
+      - ENABLE_TRAINER_MESSAGES=${ENABLE_TRAINER_MESSAGES:-true}
 
       # MTProto user account (required to read reactions - bots cannot)
       - TELEGRAM_API_ID=${TELEGRAM_API_ID}
@@ -66,10 +67,11 @@ services:
       - SUMMER_KEY_MESSAGE_ENABLED=${SUMMER_KEY_MESSAGE_ENABLED:-true}
 
       # Timezone configuration
-      - TZ=Europe/Brussels
+      - TZ=${TZ:-Europe/Brussels}
 
       # Ollama Configuration
-      - OLLAMA_ENABLED=true
+      - OLLAMA_ENABLED=${OLLAMA_ENABLED:-true}
+      # The ollama service on the compose network, whatever .env says for local dev
       - OLLAMA_HOST=http://ollama:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
 
@@ -77,13 +79,11 @@ services:
       - WINTER_START_DATE=${WINTER_START_DATE:-9:15}
       - WINTER_LOCATION=${WINTER_LOCATION:-Park Arena}
       - WINTER_PRACTICE_DAYS=${WINTER_PRACTICE_DAYS:-2:20:30,6:20:30}
-      - WINTER_SCHEDULE_TIME=${WINTER_SCHEDULE_TIME:-20:00}
       - WINTER_THROWING_MINUTES_BEFORE=${WINTER_THROWING_MINUTES_BEFORE:-0}
 
       - SUMMER_START_DATE=${SUMMER_START_DATE:-5:20}
       - SUMMER_LOCATION=${SUMMER_LOCATION:-Beach Courts}
       - SUMMER_PRACTICE_DAYS=${SUMMER_PRACTICE_DAYS:-0:19:00,3:19:00}
-      - SUMMER_SCHEDULE_TIME=${SUMMER_SCHEDULE_TIME:-20:00}
       - SUMMER_THROWING_MINUTES_BEFORE=${SUMMER_THROWING_MINUTES_BEFORE:-0}
 
       # Rules quiz
@@ -97,7 +97,12 @@ services:
       - TEST_MODE=${TEST_MODE:-false}
       - OVERRIDE_DATE=${OVERRIDE_DATE:-}
 
-      # Health server
+      # Exceptional training overrides
+      - EXCEPTIONAL_LOCATION=${EXCEPTIONAL_LOCATION:-}
+      - EXCEPTIONAL_TIME=${EXCEPTIONAL_TIME:-}
+      - EXCEPTIONAL_CANCELLED=${EXCEPTIONAL_CANCELLED:-false}
+
+      # Health server: fixed, the port mapping and healthcheck below use 3004
       - HEALTH_PORT=3004
 
     # Optional: Add volume for logs or persistent data
