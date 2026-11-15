@@ -1,7 +1,7 @@
 import './helpers/testEnv'
 import { test, afterEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
-import type TelegramBot from 'node-telegram-bot-api'
+import type { Api } from 'grammy'
 import { config } from '../src/config'
 import { MessageGenerator } from '../src/services/MessageGenerator'
 import { type ReactionReader } from '../src/services/ReactionReader'
@@ -20,14 +20,14 @@ const TEAM_CHAT = config.telegram.chatId
 const TRAINER_CHAT = config.telegram.trainerChatId
 const threshold = () => config.seasons.summer.minAttendance
 
-const schedulerFor = (bot: TelegramBot, reader: ReactionReader, quiz = makeFakeRulesQuiz()) =>
+const schedulerFor = (bot: Api, reader: ReactionReader, quiz = makeFakeRulesQuiz()) =>
   new SchedulerService(new SeasonManager(), new MessageGenerator(), reader, bot, quiz)
 
 const build = ({ failingChat, history }: { failingChat?: string; history?: Partial<ChatHistory> } = {}) => {
   const bot = makeFakeBot({ failingChat })
   const reader = makeFakeReader(history)
   const quiz = makeFakeRulesQuiz()
-  return { scheduler: schedulerFor(bot, reader, quiz), bot, reader, quiz }
+  return { scheduler: schedulerFor(bot.api, reader, quiz), bot, reader, quiz }
 }
 
 restoreConfigAfterEach()
@@ -202,7 +202,7 @@ test('a restart after the reminder time catches the reminder up once', async () 
   assert.equal(bot.sentTo(TEAM_CHAT).length, 1)
 
   reader.chat.reminder = true
-  schedulerFor(bot, reader).armAttendanceTimers()
+  schedulerFor(bot.api, reader).armAttendanceTimers()
   await advance(30 * MINUTE_MS)
 
   assert.equal(bot.sentTo(TEAM_CHAT).length, 1)
@@ -217,7 +217,7 @@ test('a restart after both boundaries catches each up once', async () => {
   assert.equal(bot.sentTo(TRAINER_CHAT).length, 1)
 
   Object.assign(reader.chat, { reminder: true, cancellation: true })
-  schedulerFor(bot, reader).armAttendanceTimers()
+  schedulerFor(bot.api, reader).armAttendanceTimers()
   await advance(20 * MINUTE_MS)
 
   assert.equal(bot.sent.length, 2)

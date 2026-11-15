@@ -1,15 +1,15 @@
 import express, { type Application } from 'express'
-import type TelegramBot from 'node-telegram-bot-api'
+import type { Api } from 'grammy'
 import { EMOJIS } from '../utils/constants'
 import { log } from '../utils/logger'
 import type { MessageGenerator } from './MessageGenerator'
 
 export class HealthServer {
   private readonly app: Application
-  private readonly bot: TelegramBot
+  private readonly bot: Api
   private readonly messageGenerator: MessageGenerator
 
-  constructor(bot: TelegramBot, messageGenerator: MessageGenerator) {
+  constructor(bot: Api, messageGenerator: MessageGenerator) {
     this.bot = bot
     this.messageGenerator = messageGenerator
     this.app = express()

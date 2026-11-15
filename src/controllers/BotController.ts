@@ -1,4 +1,5 @@
-import type TelegramBot from 'node-telegram-bot-api'
+import type { Api, Bot } from 'grammy'
+import type { Message } from 'grammy/types'
 import { type SeasonManager } from '../services/SeasonManager'
 import { type MessageGenerator } from '../services/MessageGenerator'
 import { type SchedulerService } from '../services/SchedulerService'
@@ -13,7 +14,7 @@ import { log } from '../utils/logger'
 import { threadOptions } from '../utils/telegram'
 
 export class BotController {
-  private readonly bot: TelegramBot
+  private readonly bot: Bot
   private readonly seasonManager: SeasonManager
   private readonly messageGenerator: MessageGenerator
   private readonly rulesQuiz: RulesQuizService
@@ -21,7 +22,7 @@ export class BotController {
   private schedulerService?: SchedulerService
 
   constructor(
-    bot: TelegramBot,
+    bot: Bot,
     seasonManager: SeasonManager,
     messageGenerator: MessageGenerator,
     rulesQuiz: RulesQuizService
@@ -42,24 +43,32 @@ export class BotController {
 
   private setupCommands(): void {
     // Public commands
-    this.bot.onText(/\/start/, (msg) => this.handleStart(msg))
-    this.bot.onText(/\/help/, (msg) => this.handleHelp(msg))
-    this.bot.onText(/\/info/, (msg) => this.handleInfo(msg))
-    this.bot.onText(/\/training/, (msg) => this.handleTraining(msg))
+    this.onText(/\/start/, (msg) => this.handleStart(msg))
+    this.onText(/\/help/, (msg) => this.handleHelp(msg))
+    this.onText(/\/info/, (msg) => this.handleInfo(msg))
+    this.onText(/\/training/, (msg) => this.handleTraining(msg))
 
     // Admin-only commands
-    this.bot.onText(/\/test_template/, (msg) => this.requireAdmin(msg, () => this.handleTestTemplate(msg)))
-    this.bot.onText(/\/test_llm/, (msg) => this.requireAdmin(msg, () => this.handleTestLLM(msg)))
-    this.bot.onText(/\/test_trainer/, (msg) => this.requireAdmin(msg, () => this.handleTestTrainer(msg)))
-    this.bot.onText(/\/test_key/, (msg) => this.requireAdmin(msg, () => this.handleTestKey(msg)))
-    this.bot.onText(/\/preview_team/, (msg) => this.requireAdmin(msg, () => this.handlePreviewTeam(msg)))
-    this.bot.onText(/\/preview_all/, (msg) => this.requireAdmin(msg, () => this.handlePreviewAll(msg)))
-    this.bot.onText(/\/send_to_team/, (msg) => this.requireAdmin(msg, () => this.handleSendToTeam(msg)))
-    this.bot.onText(/\/send_to_all/, (msg) => this.requireAdmin(msg, () => this.handleSendToAll(msg)))
-    this.bot.onText(/\/attendance/, (msg) => this.requireAdmin(msg, () => this.handleAttendance(msg)))
-    this.bot.onText(/\/send_rule/, (msg) => this.requireAdmin(msg, () => this.handleSendRule(msg)))
-    this.bot.onText(/\/answer_rule/, (msg) => this.requireAdmin(msg, () => this.handleAnswerRule(msg)))
-    this.bot.onText(/\/test_rule(?:@\w+)?(?:\s+(\S+))?/, (msg, match) => this.requireAdmin(msg, () => this.handleTestRule(msg, match?.[1])))
+    this.onText(/\/test_template/, (msg) => this.requireAdmin(msg, () => this.handleTestTemplate(msg)))
+    this.onText(/\/test_llm/, (msg) => this.requireAdmin(msg, () => this.handleTestLLM(msg)))
+    this.onText(/\/test_trainer/, (msg) => this.requireAdmin(msg, () => this.handleTestTrainer(msg)))
+    this.onText(/\/test_key/, (msg) => this.requireAdmin(msg, () => this.handleTestKey(msg)))
+    this.onText(/\/preview_team/, (msg) => this.requireAdmin(msg, () => this.handlePreviewTeam(msg)))
+    this.onText(/\/preview_all/, (msg) => this.requireAdmin(msg, () => this.handlePreviewAll(msg)))
+    this.onText(/\/send_to_team/, (msg) => this.requireAdmin(msg, () => this.handleSendToTeam(msg)))
+    this.onText(/\/send_to_all/, (msg) => this.requireAdmin(msg, () => this.handleSendToAll(msg)))
+    this.onText(/\/attendance/, (msg) => this.requireAdmin(msg, () => this.handleAttendance(msg)))
+    this.onText(/\/send_rule/, (msg) => this.requireAdmin(msg, () => this.handleSendRule(msg)))
+    this.onText(/\/answer_rule/, (msg) => this.requireAdmin(msg, () => this.handleAnswerRule(msg)))
+    this.onText(/\/test_rule(?:@\w+)?(?:\s+(\S+))?/, (msg, match) => this.requireAdmin(msg, () => this.handleTestRule(msg, match?.[1])))
+  }
+
+  /** Passed on after the handler: every matching pattern runs. */
+  private onText(pattern: RegExp, handler: (msg: Message, match: RegExpMatchArray | string) => Promise<void>): void {
+    this.bot.on('message:text').hears(pattern, async (ctx, next) => {
+      await handler(ctx.msg, ctx.match)
+      await next()
+    })
   }
 
   private async registerBotCommands() {
@@ -89,10 +98,10 @@ export class BotController {
 
     try {
       // Set public commands for all other chats
-      await this.bot.setMyCommands(publicCommands)
+      await this.bot.api.setMyCommands(publicCommands)
 
       // Set admin commands for admin chat (public + admin)
-      await this.bot.setMyCommands(adminCommands, {
+      await this.bot.api.setMyCommands(adminCommands, {
         scope: {type: 'chat', chat_id: parseInt(this.adminChatId)}
       })
     } catch (err) {
@@ -104,7 +113,7 @@ export class BotController {
     return chatId.toString() === this.adminChatId
   }
 
-  private async requireAdmin(msg: TelegramBot.Message, handler: () => Promise<void>): Promise<void> {
+  private async requireAdmin(msg: Message, handler: () => Promise<void>): Promise<void> {
     if (!this.isAdmin(msg.chat.id)) {
       log.auth('Non-admin attempted admin command', msg.from?.username || msg.from?.id, msg.chat.id)
       await this.reply(msg, `${EMOJIS.CROSS_MARK} ${MESSAGES.ADMIN_ONLY_COMMAND}`)
@@ -113,7 +122,7 @@ export class BotController {
     await handler()
   }
 
-  private async handleStart(msg: TelegramBot.Message): Promise<void> {
+  private async handleStart(msg: Message): Promise<void> {
     log.command('/start', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
     const helpText = `${EMOJIS.FRISBEE} Welcome to Ultimate Frisbee Training Bot!
 
@@ -124,7 +133,7 @@ Type /help to see available commands.`
     await this.reply(msg, helpText)
   }
 
-  private async handleInfo(msg: TelegramBot.Message): Promise<void> {
+  private async handleInfo(msg: Message): Promise<void> {
     log.command('/info', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
     const winterInfo = this.formatSeasonInfo('winter', config.seasons.winter, config.seasons.summer.startDate)
     const summerInfo = this.formatSeasonInfo('summer', config.seasons.summer, config.seasons.winter.startDate)
@@ -138,7 +147,7 @@ ${summerInfo}`
     await this.reply(msg, infoText, { parse_mode: 'Markdown' })
   }
 
-  private async handleTestTemplate(msg: TelegramBot.Message): Promise<void> {
+  private async handleTestTemplate(msg: Message): Promise<void> {
     log.command('/test_template', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
     const nextTraining = this.seasonManager.getNextTrainingInfo()
     const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
@@ -147,7 +156,7 @@ ${summerInfo}`
     await this.reply(msg, `${EMOJIS.MEMO} Template Message:\n\n${message}`, { parse_mode: 'Markdown' })
   }
 
-  private async handleTestLLM(msg: TelegramBot.Message): Promise<void> {
+  private async handleTestLLM(msg: Message): Promise<void> {
     log.command('/test_llm', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
     await this.reply(msg, `${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
 
@@ -158,7 +167,7 @@ ${summerInfo}`
     await this.reply(msg, `${EMOJIS.ROBOT} LLM Generated Message:\n\n${message}`, { parse_mode: 'Markdown' })
   }
 
-  private async handleTestTrainer(msg: TelegramBot.Message): Promise<void> {
+  private async handleTestTrainer(msg: Message): Promise<void> {
     log.command('/test_trainer', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
     await this.reply(msg, `${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
 
@@ -169,7 +178,7 @@ ${summerInfo}`
     await this.reply(msg, `${EMOJIS.ROBOT} Trainer LLM Generated Message:\n\n${message}`, { parse_mode: 'Markdown' })
   }
 
-  private async handleTestKey(msg: TelegramBot.Message): Promise<void> {
+  private async handleTestKey(msg: Message): Promise<void> {
     log.command('/test_key', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
 
     const nextTraining = this.seasonManager.getNextTrainingInfo()
@@ -180,7 +189,7 @@ ${summerInfo}`
     await this.reply(msg, `${EMOJIS.KEY} Key Message:\n\n${message}${status}`, { parse_mode: 'Markdown' })
   }
 
-  private async handleTraining(msg: TelegramBot.Message): Promise<void> {
+  private async handleTraining(msg: Message): Promise<void> {
     log.command('/training', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
     const nextTraining = this.seasonManager.getNextTrainingInfo()
     const timeLines = nextTraining.throwingTime
@@ -196,7 +205,7 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
     await this.reply(msg, trainingText, { parse_mode: 'Markdown' })
   }
 
-  private async handlePreviewTeam(msg: TelegramBot.Message): Promise<void> {
+  private async handlePreviewTeam(msg: Message): Promise<void> {
     log.command('/preview_team', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
     const nextTraining = this.seasonManager.getNextTrainingInfo()
     const seasonConfig = this.seasonManager.getCurrentSeasonConfig(nextTraining.date)
@@ -210,7 +219,7 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
     return error instanceof Error ? error.message : 'Unknown error'
   }
 
-  private async handlePreviewAll(msg: TelegramBot.Message): Promise<void> {
+  private async handlePreviewAll(msg: Message): Promise<void> {
     log.command('/preview_all', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
     await this.reply(msg, `${EMOJIS.ROBOT} Generating preview messages...`)
 
@@ -241,7 +250,7 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
     }
   }
 
-  private async handleSendToTeam(msg: TelegramBot.Message): Promise<void> {
+  private async handleSendToTeam(msg: Message): Promise<void> {
     log.command('/send_to_team', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
     await this.reply(msg, `${EMOJIS.ROBOT} Sending message to team chat...`)
 
@@ -253,7 +262,7 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
 
       const chatId = config.telegram.chatId
       const threadId = config.telegram.chatThreadId
-      await this.bot.sendMessage(chatId, message, {
+      await this.bot.api.sendMessage(chatId, message, {
         parse_mode: 'Markdown',
         ...threadOptions(threadId)
       })
@@ -264,7 +273,7 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
     }
   }
 
-  private async handleSendToAll(msg: TelegramBot.Message): Promise<void> {
+  private async handleSendToAll(msg: Message): Promise<void> {
     log.command('/send_to_all', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
 
     if (!this.schedulerService) {
@@ -283,7 +292,7 @@ ${EMOJIS.LOCATION} ${nextTraining.location}`
     }
   }
 
-  private async handleAttendance(msg: TelegramBot.Message): Promise<void> {
+  private async handleAttendance(msg: Message): Promise<void> {
     log.command('/attendance', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
 
     if (!this.schedulerService) {
@@ -317,7 +326,7 @@ ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHo
     }
   }
 
-  private async handleSendRule(msg: TelegramBot.Message): Promise<void> {
+  private async handleSendRule(msg: Message): Promise<void> {
     log.command('/send_rule', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
 
     try {
@@ -328,7 +337,7 @@ ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHo
     }
   }
 
-  private async handleAnswerRule(msg: TelegramBot.Message): Promise<void> {
+  private async handleAnswerRule(msg: Message): Promise<void> {
     log.command('/answer_rule', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
 
     try {
@@ -342,7 +351,7 @@ ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHo
     }
   }
 
-  private async handleTestRule(msg: TelegramBot.Message, id?: string): Promise<void> {
+  private async handleTestRule(msg: Message, id?: string): Promise<void> {
     log.command('/test_rule', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
 
     try {
@@ -359,7 +368,7 @@ ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHo
     }
   }
 
-  private async handleHelp(msg: TelegramBot.Message): Promise<void> {
+  private async handleHelp(msg: Message): Promise<void> {
     log.command('/help', msg.chat.id, msg.from?.username || msg.from?.id, msg.message_thread_id)
     const helpText = `${EMOJIS.FRISBEE} Available Commands
 
@@ -369,17 +378,17 @@ ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHo
     await this.reply(msg, helpText)
   }
 
-  private async reply(msg: TelegramBot.Message, text: string, options?: TelegramBot.SendMessageOptions): Promise<void> {
+  private async reply(msg: Message, text: string, options?: Parameters<Api['sendMessage']>[2]): Promise<void> {
     const threadId = this.topicId(msg)
     log.bot(`Sending message to chat ${msg.chat.id}${threadId ? ` (thread ${threadId})` : ''}`)
-    await this.bot.sendMessage(msg.chat.id, text, {
+    await this.bot.api.sendMessage(msg.chat.id, text, {
       ...options,
       ...threadOptions(threadId)
     })
   }
 
   /** The topic a command came from; outside forum topics message_thread_id points at a reply thread instead. */
-  private topicId(msg: TelegramBot.Message): number | undefined {
+  private topicId(msg: Message): number | undefined {
     return msg.is_topic_message ? msg.message_thread_id : undefined
   }
 

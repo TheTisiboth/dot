@@ -1,4 +1,4 @@
-import TelegramBot from 'node-telegram-bot-api'
+import { Bot } from 'grammy'
 import { config } from './config'
 import { SeasonManager } from './services/SeasonManager'
 import { MessageGenerator } from './services/MessageGenerator'
@@ -6,33 +6,34 @@ import { ReactionReader } from './services/ReactionReader'
 import { SchedulerService } from './services/SchedulerService'
 import { RulesQuizService } from './services/RulesQuizService'
 import { HealthServer } from './services/HealthServer'
-import { PollingGuard } from './services/PollingGuard'
 import { BotController } from './controllers/BotController'
 import { MESSAGES, EMOJIS } from './utils/constants'
 import { log } from './utils/logger'
 import { extractLocationName } from './utils/formatters'
 
 class UltimateFrisbeeBot {
-  private readonly bot: TelegramBot
+  private readonly bot: Bot
   private readonly seasonManager: SeasonManager
   private readonly messageGenerator: MessageGenerator
   private readonly reactionReader: ReactionReader
   private readonly schedulerService: SchedulerService
   private readonly healthServer: HealthServer
-  private readonly pollingGuard: PollingGuard
 
   constructor() {
-    this.bot = new TelegramBot(config.telegram.token, { polling: true })
-    this.pollingGuard = new PollingGuard(this.bot)
+    this.bot = new Bot(config.telegram.token)
+    // grammY awaits each update before the next: not awaiting keeps a slow command (LLM) from holding up the others
+    this.bot.use((_ctx, next) => {
+      next().catch((error: unknown) => { log.error('Bot error', error) })
+    })
     this.seasonManager = new SeasonManager()
     this.messageGenerator = new MessageGenerator()
     this.reactionReader = new ReactionReader()
-    const rulesQuiz = new RulesQuizService(this.bot, this.seasonManager, this.reactionReader)
+    const rulesQuiz = new RulesQuizService(this.bot.api, this.seasonManager, this.reactionReader)
     this.schedulerService = new SchedulerService(
       this.seasonManager,
       this.messageGenerator,
       this.reactionReader,
-      this.bot,
+      this.bot.api,
       rulesQuiz
     )
     const botController = new BotController(
@@ -43,7 +44,7 @@ class UltimateFrisbeeBot {
     )
     botController.setSchedulerService(this.schedulerService)
 
-    this.healthServer = new HealthServer(this.bot, this.messageGenerator)
+    this.healthServer = new HealthServer(this.bot.api, this.messageGenerator)
     this.setupErrorHandlers()
   }
 
@@ -57,18 +58,13 @@ class UltimateFrisbeeBot {
       process.exit(1)
     })
 
-    this.bot.on('error', (error) => {
-      log.error('Bot error', error)
-    })
-
     let shuttingDown = false
     const shutdown = (signal: string): void => {
       if (shuttingDown) return
       shuttingDown = true
 
       log.bot(`Received ${signal}, stopping polling...`)
-      this.pollingGuard.stop()
-      void Promise.all([this.bot.stopPolling(), this.reactionReader.disconnect()]).then(() => {
+      void Promise.all([this.bot.stop(), this.reactionReader.disconnect()]).then(() => {
         log.bot('Polling stopped, exiting')
         process.exit(0)
       })
@@ -101,6 +97,12 @@ class UltimateFrisbeeBot {
     }
 
     this.schedulerService.setupScheduler()
+
+    // Polling only gives up on a rejected token or a second poller (409, e.g. a deploy overlap): exit so Docker restarts it
+    this.bot.start().catch((error: unknown) => {
+      log.error('Telegram polling stopped', error)
+      process.exit(1)
+    })
   }
 }
 
