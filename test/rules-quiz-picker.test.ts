@@ -69,7 +69,7 @@ test('signals every other: falls back to the whole bank when a side is empty', (
 test('hidden tag round-trips every id and stays invisible', () => {
   QUIZ_QUESTIONS.forEach(({ id }) => {
     assert.equal(parseQuizTag(`text${quizTag(id)}\n\nmore`), id)
-    assert.match(quizTag(id), /^[\u2063\u200B\u200C\u200D\u2060]+$/u)
+    assert.match(quizTag(id), /^(?:\u2063|\u200B|\u200C|\u200D|\u2060)+$/u)
   })
   assert.equal(parseQuizTag('no tag here'), undefined)
 })

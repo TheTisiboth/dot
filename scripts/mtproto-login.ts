@@ -1,7 +1,6 @@
 import { createInterface } from 'node:readline/promises'
 import { stdin, stdout } from 'node:process'
-import { Api, TelegramClient } from 'telegram'
-import { StringSession } from 'telegram/sessions/index.js'
+import { Api, TelegramClient, sessions } from 'telegram'
 import QRCode from 'qrcode'
 import dotenv from 'dotenv'
 
@@ -47,7 +46,7 @@ async function main(): Promise<void> {
   const ask = async (question: string): Promise<string> => (await rl.question(question)).trim()
 
   // WebSocket on 443: networks that filter MTProto's raw TCP still let HTTPS through
-  const client = new TelegramClient(new StringSession(''), apiId, apiHash, { connectionRetries: 5, useWSS: true })
+  const client = new TelegramClient(new sessions.StringSession(''), apiId, apiHash, { connectionRetries: 5, useWSS: true })
 
   try {
     await client.connect()

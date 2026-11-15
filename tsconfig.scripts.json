@@ -6,5 +6,6 @@
     "declaration": false,
     "declarationMap": false
   },
-  "include": ["scripts/**/*", "test/**/*"]
+  "include": ["scripts/**/*", "test/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
