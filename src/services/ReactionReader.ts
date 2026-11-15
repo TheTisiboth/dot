@@ -133,6 +133,11 @@ export class ReactionReader {
     await this.stopClient()
   }
 
+  /** Whether the reader holds a live connection, without asking Telegram. */
+  isConnected(): boolean {
+    return this.connected && this.client.connected === true
+  }
+
   async disconnect(): Promise<void> {
     if (!this.connected) return
     await this.client.disconnect()

@@ -5,13 +5,14 @@ import { MessageGenerator } from './services/MessageGenerator'
 import { ReactionReader } from './services/ReactionReader'
 import { SchedulerService } from './services/SchedulerService'
 import { RulesQuizService } from './services/RulesQuizService'
-import { HealthServer } from './services/HealthServer'
+import { HEALTH_PORT, PROBE_TIMEOUT_MS, startHealthServer } from './services/HealthServer'
 import { type Command, publishCommandMenus, routeCommands } from './commands/registry'
 import { publicCommands } from './commands/public'
 import { trainingCommands } from './commands/training'
 import { quizCommands } from './commands/quiz'
 import { MESSAGES, EMOJIS } from './utils/constants'
 import { log } from './utils/logger'
+import { pollingOutageLogger } from './utils/telegram'
 
 class UltimateFrisbeeBot {
   private readonly bot: Bot
@@ -19,11 +20,11 @@ class UltimateFrisbeeBot {
   private readonly messageGenerator: MessageGenerator
   private readonly reactionReader: ReactionReader
   private readonly schedulerService: SchedulerService
-  private readonly healthServer: HealthServer
   private readonly commands: Command[]
 
   constructor() {
     this.bot = new Bot(config.telegram.token)
+    this.bot.api.config.use(pollingOutageLogger())
     // grammY awaits each update before the next: not awaiting keeps a slow command (LLM) from holding up the others
     this.bot.use((_ctx, next) => {
       next().catch((error: unknown) => { log.error('Bot error', error) })
@@ -46,7 +47,6 @@ class UltimateFrisbeeBot {
     ]
     routeCommands(this.bot, this.commands, config.telegram.adminChatId)
 
-    this.healthServer = new HealthServer(this.bot.api, this.messageGenerator)
     this.setupErrorHandlers()
   }
 
@@ -87,7 +87,7 @@ class UltimateFrisbeeBot {
     log.bot(`${EMOJIS.ROBOT} LLM: ${this.messageGenerator.getLLMProvider()}`)
     log.bot(`${EMOJIS.THUMBS_UP} Min attendance: ${seasonConfig.minAttendance}`)
 
-    this.healthServer.start()
+    startHealthServer({ api: this.bot.api, reader: this.reactionReader, messageGenerator: this.messageGenerator }, HEALTH_PORT, PROBE_TIMEOUT_MS)
     publishCommandMenus(this.bot.api, this.commands, config.telegram.adminChatId).catch((error: unknown) => {
       log.error('Registering bot commands', error)
     })
