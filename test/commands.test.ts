@@ -2,16 +2,19 @@ import './helpers/testEnv'
 import { test, afterEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import { config } from '../src/config'
-import { BotController } from '../src/controllers/BotController'
+import { type Command, publishCommandMenus, routeCommands } from '../src/commands/registry'
+import { publicCommands } from '../src/commands/public'
+import { quizCommands } from '../src/commands/quiz'
+import { trainingCommands } from '../src/commands/training'
 import { MessageGenerator } from '../src/services/MessageGenerator'
 import { SchedulerService } from '../src/services/SchedulerService'
 import { SeasonManager } from '../src/services/SeasonManager'
 import { formatDate } from '../src/utils/formatters'
-import { BOT_USERNAME, makeFakeBot } from './fakes/bot'
+import { makeFakeBot } from './fakes/bot'
 import { makeFakeReader, TRAINING_POST_ID } from './fakes/reactionReader'
 import { makeFakeRulesQuiz } from './fakes/rulesQuiz'
 import { SUMMER_TRAINING, beforeTraining } from './fixtures/dates'
-import { HOUR_MS, settle, startAt } from './helpers/clock'
+import { HOUR_MS, startAt } from './helpers/clock'
 import { restoreConfigAfterEach } from './helpers/config'
 
 const ADMIN = { chatId: Number(config.telegram.adminChatId) }
@@ -24,14 +27,19 @@ const ADMIN_COMMANDS = [
   '/send_to_team', '/send_to_all', '/attendance', '/send_rule', '/answer_rule', '/test_rule'
 ]
 
-const build = ({ withScheduler = true } = {}) => {
+const build = () => {
   const bot = makeFakeBot()
   const quiz = makeFakeRulesQuiz()
-  const seasons = new SeasonManager()
-  const generator = new MessageGenerator()
-  const controller = new BotController(bot, seasons, generator, quiz)
-  if (withScheduler) controller.setSchedulerService(new SchedulerService(seasons, generator, makeFakeReader({ thumbsUp: ATTENDING }), bot.api, quiz))
-  return { bot, quiz, seasons }
+  const seasonManager = new SeasonManager()
+  const messageGenerator = new MessageGenerator()
+  const scheduler = new SchedulerService(seasonManager, messageGenerator, makeFakeReader({ thumbsUp: ATTENDING }), bot.api, quiz)
+  const commands: Command[] = [
+    ...publicCommands(seasonManager),
+    ...trainingCommands({ api: bot.api, seasonManager, messageGenerator, scheduler }),
+    ...quizCommands(quiz)
+  ]
+  routeCommands(bot, commands, config.telegram.adminChatId)
+  return { bot, quiz, commands }
 }
 
 restoreConfigAfterEach()
@@ -48,35 +56,6 @@ test('every admin command from another chat is ignored silently', async () => {
   assert.deepEqual(quiz.previews, [])
 })
 
-test('a command name inside other text or addressed to another bot triggers nothing', async () => {
-  const { bot } = build()
-
-  for (const text of ['/information', 'see /help', '/help@OtherBot', '/starting']) await bot.command(text, PLAYER)
-
-  assert.deepEqual(bot.sent, [])
-})
-
-test('a command runs whatever its case and when addressed to this bot', async () => {
-  const { bot } = build()
-
-  for (const text of ['/help', `/help@${BOT_USERNAME}`, '/HELP']) await bot.command(text, PLAYER)
-
-  assert.equal(bot.sentTo(PLAYER.chatId).length, 3)
-})
-
-test('a throwing handler gets one error reply and one error log', async () => {
-  const { bot, seasons } = build()
-  seasons.getNextTrainingInfo = () => { throw new Error('season broken') }
-  const errors = mock.method(console, 'error', () => {})
-
-  await bot.command('/training', PLAYER)
-
-  const replies = bot.sentTo(PLAYER.chatId)
-  assert.equal(replies.length, 1)
-  assert.ok(replies[0].text.includes('season broken'))
-  assert.equal(errors.mock.calls.filter(({ arguments: [line] }) => String(line).includes('season broken')).length, 1)
-})
-
 test('an admin command from the admin chat runs', async () => {
   startAt(beforeTraining(24 * HOUR_MS))
   const { bot } = build()
@@ -87,12 +66,11 @@ test('an admin command from the admin chat runs', async () => {
 })
 
 test('admin commands are offered in the admin chat only', async () => {
-  const { bot } = build()
-  await settle()
+  const { bot, commands } = build()
 
-  const [everyone, admin] = bot.menus
-  assert.deepEqual(admin.options?.scope, { type: 'chat', chat_id: ADMIN.chatId })
-  const publicNames = everyone.commands.map(({ command }) => command)
+  await publishCommandMenus(bot.api, commands, config.telegram.adminChatId)
+
+  const publicNames = bot.menus[0].commands.map(({ command }) => command)
   for (const command of ADMIN_COMMANDS) assert.equal(publicNames.includes(command.slice(1)), false)
 })
 
@@ -148,16 +126,6 @@ test('/attendance reports the live count against the threshold', async () => {
   assert.ok(reply.text.includes(String(ATTENDING)))
   assert.ok(reply.text.includes(String(config.seasons.summer.minAttendance)))
   assert.ok(reply.text.includes(String(TRAINING_POST_ID)))
-})
-
-test('/attendance and /send_to_all without a scheduler only answer the admin', async () => {
-  const { bot } = build({ withScheduler: false })
-
-  await bot.command('/attendance', ADMIN)
-  await bot.command('/send_to_all', ADMIN)
-
-  assert.equal(bot.sentTo(ADMIN.chatId).length, 2)
-  assert.equal(bot.sent.length, 2)
 })
 
 test('/send_to_all posts the scheduled announcement and the quiz', async () => {

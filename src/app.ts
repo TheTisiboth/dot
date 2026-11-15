@@ -6,7 +6,10 @@ import { ReactionReader } from './services/ReactionReader'
 import { SchedulerService } from './services/SchedulerService'
 import { RulesQuizService } from './services/RulesQuizService'
 import { HealthServer } from './services/HealthServer'
-import { BotController } from './controllers/BotController'
+import { type Command, publishCommandMenus, routeCommands } from './commands/registry'
+import { publicCommands } from './commands/public'
+import { trainingCommands } from './commands/training'
+import { quizCommands } from './commands/quiz'
 import { MESSAGES, EMOJIS } from './utils/constants'
 import { log } from './utils/logger'
 import { extractLocationName } from './utils/formatters'
@@ -18,6 +21,7 @@ class UltimateFrisbeeBot {
   private readonly reactionReader: ReactionReader
   private readonly schedulerService: SchedulerService
   private readonly healthServer: HealthServer
+  private readonly commands: Command[]
 
   constructor() {
     this.bot = new Bot(config.telegram.token)
@@ -36,13 +40,12 @@ class UltimateFrisbeeBot {
       this.bot.api,
       rulesQuiz
     )
-    const botController = new BotController(
-      this.bot,
-      this.seasonManager,
-      this.messageGenerator,
-      rulesQuiz
-    )
-    botController.setSchedulerService(this.schedulerService)
+    this.commands = [
+      ...publicCommands(this.seasonManager),
+      ...trainingCommands({ api: this.bot.api, seasonManager: this.seasonManager, messageGenerator: this.messageGenerator, scheduler: this.schedulerService }),
+      ...quizCommands(rulesQuiz)
+    ]
+    routeCommands(this.bot, this.commands, config.telegram.adminChatId)
 
     this.healthServer = new HealthServer(this.bot.api, this.messageGenerator)
     this.setupErrorHandlers()
@@ -86,6 +89,9 @@ class UltimateFrisbeeBot {
     log.bot(`${EMOJIS.THUMBS_UP} Min attendance: ${seasonConfig.minAttendance}`)
 
     this.healthServer.start()
+    publishCommandMenus(this.bot.api, this.commands, config.telegram.adminChatId).catch((error: unknown) => {
+      log.error('Registering bot commands', error)
+    })
 
     // Connect first: a catch-up attendance check can fire as soon as the timers are armed.
     // A failure here must not take the scheduler down with it - training posts still go out,

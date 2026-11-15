@@ -10,17 +10,12 @@ import { withTimeout } from '../utils/async'
 import { getEffectiveDate } from '../utils/dateHelpers'
 import { formatDateTimeLocale } from '../utils/formatters'
 import { log } from '../utils/logger'
-import { noLinkPreview, replyOptions, threadOptions } from '../utils/telegram'
+import { type ChatTarget, noLinkPreview, replyOptions, threadOptions } from '../utils/telegram'
 
 // Above the history read's own bound (each MTProto request times out and retries once), so a stuck
 // post always ends in a logged error rather than silence. It also frees the queue for the next post.
 const POST_TIMEOUT_MS = 3 * 60_000
 const RETRY_DELAY_MS = 10 * 60_000
-
-interface Chat {
-  chatId: string;
-  threadId?: string;
-}
 
 /**
  * Posts the rules quiz: one poll the day before each training, picked from the rules chat history,
@@ -193,11 +188,11 @@ export class RulesQuizService {
     return post
   }
 
-  private async findLatestQuiz(chat: Chat): Promise<LatestQuiz | undefined> {
+  private async findLatestQuiz(chat: ChatTarget): Promise<LatestQuiz | undefined> {
     return await this.reactionReader.getLatestQuiz(chat.chatId, chat.threadId, await this.getBotUsername())
   }
 
-  private async sendAnswer(chat: Chat, question: QuizQuestion, text: string, pollMessageId: number): Promise<void> {
+  private async sendAnswer(chat: ChatTarget, question: QuizQuestion, text: string, pollMessageId: number): Promise<void> {
     if (question.answerImage) {
       await this.sendImage(chat, question.answerImage, pollMessageId, { htmlCaption: text, spoiler: true })
     } else {
@@ -206,7 +201,7 @@ export class RulesQuizService {
   }
 
   /** Picks the way the scheduler does: the next training's season mode, minus what the rules chat already got (hand signals every other one with RULES_SIGNALS_EVERY_OTHER). */
-  async pickNext(chat: Chat = this.rulesChat()): Promise<QuizQuestion> {
+  async pickNext(chat: ChatTarget = this.rulesChat()): Promise<QuizQuestion> {
     const mode = modeFor(this.seasonManager.getNextTrainingInfo().season)
     const askedIds = await this.reactionReader.getAskedQuizIds(chat.chatId, chat.threadId, await this.getBotUsername())
     const isFocus = config.rulesQuiz.signalsEveryOther ? isSignalQuestion : undefined
@@ -229,7 +224,7 @@ export class RulesQuizService {
   }
 
   /** Image, then the long question text if any, then the poll: each one replying to the previous. */
-  async post(chat: Chat, question: QuizQuestion): Promise<number> {
+  async post(chat: ChatTarget, question: QuizQuestion): Promise<number> {
     const { intro, poll, options, correctOptionId } = buildQuizPost(question)
 
     let replyTo = question.image ? await this.sendImage(chat, question.image) : undefined
@@ -238,13 +233,13 @@ export class RulesQuizService {
   }
 
   /** The question and its answer right away (used by /test_rule). */
-  async preview(chat: Chat, question: QuizQuestion): Promise<void> {
+  async preview(chat: ChatTarget, question: QuizQuestion): Promise<void> {
     const pollMessageId = await this.post(chat, question)
     await this.sendAnswer(chat, question, buildAnswer(question, this.sourceOf(question)), pollMessageId)
   }
 
   private async sendImage(
-    { chatId, threadId }: Chat,
+    { chatId, threadId }: ChatTarget,
     image: string,
     replyTo?: number,
     { htmlCaption, spoiler }: { htmlCaption?: string; spoiler?: boolean } = {}
@@ -262,14 +257,14 @@ export class RulesQuizService {
     return sent.message_id
   }
 
-  private async sendText({ chatId, threadId }: Chat, text: string, replyTo?: number, options?: Parameters<Api['sendMessage']>[2]): Promise<number> {
+  private async sendText({ chatId, threadId }: ChatTarget, text: string, replyTo?: number, options?: Parameters<Api['sendMessage']>[2]): Promise<number> {
     const sent = await this.bot.sendMessage(chatId, text, { ...threadOptions(threadId), ...replyOptions(replyTo), ...options })
     return sent.message_id
   }
 
   /** Anonymous quiz-type poll: each voter sees the right option as soon as they vote. */
   private async sendPoll(
-    { chatId, threadId }: Chat,
+    { chatId, threadId }: ChatTarget,
     question: string,
     options: string[],
     correctOptionId: number,
@@ -285,7 +280,7 @@ export class RulesQuizService {
     return sent.message_id
   }
 
-  private rulesChat(): Chat {
+  private rulesChat(): ChatTarget {
     const { chatId, chatThreadId } = config.rulesQuiz
     if (!chatId) throw new Error('RULES_CHAT_ID is not set')
     return { chatId, threadId: chatThreadId }
