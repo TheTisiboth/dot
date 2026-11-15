@@ -1,4 +1,4 @@
-# Multi-stage build for Node.js app
+# Multi-stage build for Node.js app; keep node version in sync with .nvmrc
 FROM node:20-alpine AS builder
 
 WORKDIR /app
