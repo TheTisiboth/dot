@@ -31,11 +31,21 @@ export function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
-const pad = (n: number): string => String(n).padStart(2, '0')
+export function formatDateLocale(date: Date): string {
+  // Format as DD/MM/YYYY using French locale
+  return date.toLocaleDateString('fr-FR')
+}
 
-export const formatLogDate = (date: Date): string => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-
-export const formatLogDateTime = (date: Date): string => `${formatLogDate(date)} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+export function formatDateTimeLocale(date: Date): string {
+  // Format as DD/MM/YYYY HH:MM using French locale
+  return date.toLocaleString('fr-FR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
 
 const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }
 
