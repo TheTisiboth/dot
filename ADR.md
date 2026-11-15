@@ -65,7 +65,7 @@ wires it. A class only when there is state or a lifecycle; otherwise functions.
 
 **Why:** what a unit needs is visible in its signature, and a test swaps any collaborator.
 
-**Consequence:** reading the environment happens once, at the entry point.
+**Consequence:** the environment is read once, by the config module the entry point loads.
 
 **Enforced by:** lint (environment access restricted to the config module), review.
 
@@ -105,7 +105,8 @@ stops another. Losing a user-visible action reaches a human, not only a log.
 
 **Why:** a failure is seen exactly once, where its context is complete, and never hidden.
 
-**Consequence:** no `catch` in inner code except to add context and rethrow.
+**Consequence:** inner code catches only to recover (retry, fallback) or to add context and
+rethrow.
 
 **Enforced by:** test (failing dependency → error reported, other jobs run), review.
 
