@@ -203,6 +203,13 @@ OLLAMA_MODEL=llama3.2:3b
 **Admin only (attendance):**
 - `/attendance` - Live 👍 count on the current training post, vs the season threshold
 
+**Admin only (rules quiz):**
+- `/test_rule [id]` - Preview a question and its answer here
+- `/send_rule` - Post the next question to the rules chat
+- `/answer_rule` - Answer the latest poll in the rules chat
+
+See [Rules quiz](#rules-quiz).
+
 ## Health Monitoring
 
 Bot exposes health endpoints on port 3004:
@@ -249,15 +256,61 @@ All messages can be:
 
 ## Rules quiz
 
-The question bank lives in `src/data/rules-quiz/`, one file per source document. Each
-file exports its source (`title`, `url`) and its questions. Question ids are hashtag-safe
-and must never be renamed once posted: the bot remembers which questions it asked by id.
-`npm test` checks the bank against Telegram's poll limits.
+With each training post (the day before training), the bot posts a quiz poll on the rules of
+Ultimate to the rules chat. Voters see the right option as soon as they vote. After
+`RULES_ANSWER_DELAY_MINUTES`, the bot replies with the answer, explanation and rule link,
+hidden behind a spoiler. The quiz goes out even if training is cancelled.
+
+Questions match the season. In winter, only questions that hold indoors (EUF) are picked;
+in summer, only those that hold outdoors. The least-asked questions come first, counted from
+the rules chat history. The difficulty changes from one quiz to the next when possible.
+
+### Configuration
+
+```env
+RULES_QUIZ_ENABLED=false
+RULES_CHAT_ID=                    # Group/channel ID (starts with -100), not a private chat
+RULES_CHAT_THREAD_ID=             # Optional: topic ID
+RULES_ANSWER_DELAY_MINUTES=60     # Minutes between the poll and its answer
+RULES_SIGNALS_EVERY_OTHER=false   # Every other quiz is a hand signal (50%), else full random
+```
+
+The bot must be able to post in `RULES_CHAT_ID`. The MTProto account
+([setup](#4-mtproto-setup-required-for-attendance)) must be a member, because it reads the
+history to know which questions were already asked.
+
+Admin commands:
+- `/test_rule [id]` - Preview a question and its answer in the current chat. Without an id, it
+  picks the way the scheduler would. Nothing is posted to the rules chat.
+- `/send_rule` - Post the next question to the rules chat now
+- `/answer_rule` - Answer the latest unanswered poll in the rules chat now
+
+### Adding questions
+
+The question bank lives in `src/data/rules-quiz/`, one `QuizBatch` file per source document:
+its `source` (`title`, `url`) and its `questions`. A new file must be added to
+`QUIZ_BATCHES` in `index.ts`.
+
+```ts
+{
+  id: 'in_01',               // Hashtag-safe, never renamed once posted
+  difficulty: 'easy',        // easy | medium | hard
+  modes: INDOOR_ONLY,        // ALL_MODES, OUTDOOR_ONLY or INDOOR_ONLY
+  ref: '9.5.1',              // Optional: WFDF rule number, linked on urules.org
+  question: 'What is the standard size of an indoor field (EUF)?',
+  answer: '40 × 20 metres',
+  wrong: ['100 × 37 metres', '60 × 30 metres', '30 × 15 metres'],  // Shuffled with the answer
+  explanation: 'Indoors (EUF), the field is 40 × 20 metres...',     // Optional
+  image: 'assets/signals/01-foul.png',  // Optional: photo sent before the poll
+  answerImage: 'assets/...png'          // Optional: photo sent with the answer
+}
+```
+
+The bot remembers which questions it asked by id, so an id must never be renamed once posted.
+`npm test` checks the bank against Telegram's poll limits. Preview a new question with
+`/test_rule <id>`.
 
 Hand-signal images in `assets/signals/` are cropped from the WFDF Hand Signals PDF.
-
-With `RULES_SIGNALS_EVERY_OTHER=true`, every other quiz is a hand signal (50%); otherwise
-questions are picked at random from the whole bank.
 
 **Sources and licence.** Questions are adapted from the
 [WFDF Rules of Ultimate 2025-2028](https://rules.wfdf.sport/) and related WFDF rules
@@ -287,7 +340,9 @@ src/
 ├── services/
 │   ├── SeasonManager.ts       # Season logic
 │   ├── MessageGenerator.ts    # Message creation
-│   └── SchedulerService.ts    # Cron scheduling
+│   ├── SchedulerService.ts    # Cron scheduling
+│   └── RulesQuizService.ts    # Rules quiz post and answer
+├── data/rules-quiz/           # Quiz question bank
 └── utils/                     # Helpers
 ```
 
