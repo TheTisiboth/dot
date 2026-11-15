@@ -38,7 +38,7 @@ Only 👍 counts — 👎 is ignored. Admins can check the live count anytime wi
 
 ### 1. Prerequisites
 
-- Node.js 18+ (for local setup)
+- Node.js at the `NODE_VERSION` in `Dockerfile` (for local setup)
 - Docker & Docker Compose (for deployment)
 - Telegram bot token from [@BotFather](https://t.me/BotFather)
 
