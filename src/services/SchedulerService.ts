@@ -9,7 +9,7 @@ import { type RulesQuizService } from './RulesQuizService'
 import { type SeasonConfig, type PracticeDay, type Attendance, type TrainingInfo } from '../types'
 import { CANCELLATION_SIGNATURE } from '../utils/constants'
 import { atTime, hoursBefore, getEffectiveDate } from '../utils/dateHelpers'
-import { formatDateLocale, formatDateTimeLocale, extractLocationName } from '../utils/formatters'
+import { formatDateLocale, formatDateTimeLocale, extractLocationName, getDayName } from '../utils/formatters'
 import { threadOptions } from '../utils/telegram'
 
 interface AttendanceCheck extends Attendance {
@@ -267,7 +267,7 @@ export class SchedulerService {
     const reminderDayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][reminderDate.getDay()]
 
     log.scheduler(`🔔 Next reminder: ${reminderDayName}, ${formatDateLocale(reminderDate)} at ${reminderDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} (in ${daysUntilReminder} days)`)
-    log.scheduler(`📅 For training: ${nextTraining.dayName}, ${formatDateLocale(nextTraining.date)} at ${nextTraining.time}`)
+    log.scheduler(`📅 For training: ${getDayName(nextTraining.date.getDay())}, ${formatDateLocale(nextTraining.date)} at ${nextTraining.time}`)
   }
 
   async sendScheduledMessage(): Promise<void> {

@@ -4,27 +4,20 @@ export const log = {
     console.log(`⚡ [Command] ${command} - Chat: ${chatId}${threadStr}, User: ${userId || 'unknown'}`)
   },
 
-  scheduler: (action: string, details?: Record<string, unknown>) => {
-    const detailsStr = details ? ` - ${JSON.stringify(details)}` : ''
-    console.log(`⏰ [Scheduler] ${action}${detailsStr}`)
+  scheduler: (action: string) => {
+    console.log(`⏰ [Scheduler] ${action}`)
   },
 
-  messageGen: (action: string, details?: Record<string, unknown>) => {
-    const detailsStr = details ? ` - ${JSON.stringify(details)}` : ''
-    console.log(`✍️  [MessageGen] ${action}${detailsStr}`)
+  messageGen: (action: string) => {
+    console.log(`✍️  [MessageGen] ${action}`)
   },
 
   auth: (message: string, userId?: string | number, chatId?: number) => {
     console.log(`🔐 [Auth] ${message} - User: ${userId || 'unknown'}, Chat: ${chatId || 'unknown'}`)
   },
 
-  bot: (message: string, details?: Record<string, unknown>) => {
-    const detailsStr = details ? ` - ${JSON.stringify(details)}` : ''
-    console.log(`🤖 [Bot] ${message}${detailsStr}`)
-  },
-
-  config: (message: string) => {
-    console.log(`⚙️  [Config] ${message}`)
+  bot: (message: string) => {
+    console.log(`🤖 [Bot] ${message}`)
   },
 
   warn: (context: string, message: string) => {

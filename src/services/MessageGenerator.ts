@@ -10,9 +10,11 @@ export class MessageGenerator {
   private readonly ollama: Ollama | null
 
   constructor() {
-    this.ollama = config.ollama.enabled ? new Ollama({
-      host: config.ollama.host
-    }) : null
+    this.ollama = config.ollama.enabled
+      ? new Ollama({
+          host: config.ollama.host
+        })
+      : null
   }
 
   private getLocationAndTime(seasonConfig: SeasonConfig, practiceDay: PracticeDay): { location: string; time: string; startTime: string } {
@@ -49,19 +51,6 @@ ${EMOJIS.BULB} Can you lead the session? React with ${EMOJIS.THUMBS_UP} if you'r
 Thanks for helping out! ${EMOJIS.FRISBEE}`
   }
 
-  async generateLLMMessage(
-    seasonConfig: SeasonConfig,
-    options: MessageGenerationOptions = {},
-    practiceDay: PracticeDay
-  ): Promise<string> {
-    if (this.ollama) {
-      return await this.generateOllamaMessage(seasonConfig, options, practiceDay, false)
-    } else {
-      log.messageGen('No LLM configured, using template')
-      return this.generateTemplateMessage(seasonConfig, practiceDay)
-    }
-  }
-
   private normalizeWhitespace(message: string): string {
     // Normalize whitespace: remove empty lines and ensure exactly one empty line between sections
     const lines = message
@@ -91,10 +80,8 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     prompt: string,
     fallback: () => string,
     label: string,
-    location: string,
-    options: MessageGenerationOptions = {}
+    location: string
   ): Promise<string> {
-    const { temperature = 0.6, maxTokens = 150 } = options
     const model = config.ollama.model
 
     try {
@@ -102,8 +89,8 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
         model,
         messages: [{ role: 'user', content: prompt }],
         options: {
-          temperature, // Randomness (0=deterministic, 1=creative)
-          num_predict: maxTokens, // Max tokens to generate
+          temperature: 0.6, // Randomness (0=deterministic, 1=creative)
+          num_predict: 150, // Max tokens to generate
           num_thread: 4, // CPU threads for generation
           frequency_penalty: 0.8, // Reduce repetition based on token frequency
           presence_penalty: 0.2 // Encourage topic diversity
@@ -130,7 +117,6 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
 
   private async generateOllamaMessage(
     seasonConfig: SeasonConfig,
-    options: MessageGenerationOptions = {},
     practiceDay: PracticeDay,
     isTrainerMessage = false
   ): Promise<string> {
@@ -146,7 +132,7 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
       ? () => this.generateTrainerTemplateMessage(seasonConfig, practiceDay)
       : () => this.generateTemplateMessage(seasonConfig, practiceDay)
 
-    return await this.runOllama(prompt, fallback, isTrainerMessage ? 'Trainer LLM' : 'LLM', location, options)
+    return await this.runOllama(prompt, fallback, isTrainerMessage ? 'Trainer LLM' : 'LLM', location)
   }
 
   async generateMessage(
@@ -156,11 +142,11 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
   ): Promise<string> {
     const { useLLM = false } = options
 
-    if (useLLM) {
-      return await this.generateLLMMessage(seasonConfig, options, practiceDay)
-    } else {
-      return this.generateTemplateMessage(seasonConfig, practiceDay)
+    if (useLLM && this.ollama) {
+      return await this.generateOllamaMessage(seasonConfig, practiceDay, false)
     }
+    if (useLLM) log.messageGen('No LLM configured, using template')
+    return this.generateTemplateMessage(seasonConfig, practiceDay)
   }
 
   async generateTrainerMessage(
@@ -171,7 +157,7 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     const { useLLM = false } = options
 
     if (useLLM && this.ollama) {
-      return await this.generateOllamaMessage(seasonConfig, options, practiceDay, true)
+      return await this.generateOllamaMessage(seasonConfig, practiceDay, true)
     } else {
       return this.generateTrainerTemplateMessage(seasonConfig, practiceDay)
     }
@@ -200,7 +186,7 @@ ${EMOJIS.WARNING} If we don't reach ${threshold}, the training might have to be 
     if (!useLLM || !this.ollama) return fallback()
 
     const prompt = this.createReminderLLMPrompt(attendance, practiceDay.time)
-    const message = await this.runOllama(prompt, fallback, 'Reminder LLM', seasonConfig.location, options)
+    const message = await this.runOllama(prompt, fallback, 'Reminder LLM', seasonConfig.location)
 
     // The marker must never depend on the LLM: it is how we recognise our own reminder in chat history
     return message.startsWith(MARKERS.REMINDER) ? message : `${MARKERS.REMINDER} ${message}`

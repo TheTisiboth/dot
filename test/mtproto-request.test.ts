@@ -27,11 +27,11 @@ const readerWith = (read: (attempt: number) => Promise<unknown[]>, state: Partia
     getMessages: async () => await read(++client.reads)
   }
   // Skips the constructor, which would open an MTProto client
-  const reader = Object.assign(Object.create(ReactionReader.prototype) as ReactionReader, {
+  const reader = Object.assign(Object.create(ReactionReader.prototype), {
     client,
     connected: true,
     botId: '1000'
-  })
+  }) as ReactionReader
   return { reader, client }
 }
 

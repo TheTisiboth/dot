@@ -174,7 +174,7 @@ lines do. Validation, error handling and security are never what gets cut.
 
 **Consequence:** removing unused code is always a valid change.
 
-**Enforced by:** lint (unused code), review.
+**Enforced by:** knip (unused files, exports, dependencies), review.
 
 ---
 

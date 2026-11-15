@@ -163,20 +163,20 @@ export const rulesCh01to08: QuizBatch = {
       explanation: 'Eight brightly-coloured, flexible objects (such as cones) mark the corners of the central zone and the end zones.'
     },
 
-	{	
-  id: 'r2_06',
-  difficulty: 'medium',
-  modes: OUTDOOR_ONLY,
-  ref: '2.1',
-  question: 'What are the dimensions of the outdoor playing field, including the end zones according to WFDF Rules?',
-  answer: '100 m long and 37 m wide, with two end zones of 18 m each.',
-  wrong: [
-    '100 m long and 37 m wide, with two end zones of at least 18 m each.',
-    '100 m long and 40 m wide, with two end zones of maximum 20 m each.',
-    'twice as Long as wide, with two end zones of 18 m each.'
-  ],
-  explanation: 'The playing field is 100 m long and 37 m wide. Each end zone is 18 m deep, leaving a central zone of 64 m (100 − 2 × 18 m).'
-},
+    {
+      id: 'r2_06',
+      difficulty: 'medium',
+      modes: OUTDOOR_ONLY,
+      ref: '2.1',
+      question: 'What are the dimensions of the outdoor playing field, including the end zones according to WFDF Rules?',
+      answer: '100 m long and 37 m wide, with two end zones of 18 m each.',
+      wrong: [
+        '100 m long and 37 m wide, with two end zones of at least 18 m each.',
+        '100 m long and 40 m wide, with two end zones of maximum 20 m each.',
+        'twice as Long as wide, with two end zones of 18 m each.'
+      ],
+      explanation: 'The playing field is 100 m long and 37 m wide. Each end zone is 18 m deep, leaving a central zone of 64 m (100 − 2 × 18 m).'
+    },
 
     // 3. Equipment
     {

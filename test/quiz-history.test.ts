@@ -17,7 +17,7 @@ const message = (fields: { media?: Api.TypeMessageMedia; message?: string }): Ap
 test('history: ids of the quiz polls among the bot messages, newest first', async () => {
   let searched: unknown[] = []
   // Skips the constructor, which would open an MTProto client
-  const reader = Object.assign(Object.create(ReactionReader.prototype) as ReactionReader, {
+  const reader = Object.assign(Object.create(ReactionReader.prototype), {
     searchBotMessages: async (...args: unknown[]) => {
       searched = args
       return [
@@ -28,7 +28,7 @@ test('history: ids of the quiz polls among the bot messages, newest first', asyn
         message({ media: poll(`🟡 Medium${quizTag('sig_01')}\n\nQ?`) })
       ]
     }
-  })
+  }) as ReactionReader
 
   assert.deepEqual(await reader.getAskedQuizIds('-400', '7', 'quiz_bot'), ['r1_01', 'sig_01'])
   assert.deepEqual(searched, ['-400', '7', 'quiz_bot'])
@@ -38,7 +38,7 @@ const reply = (id: number, replyToMsgId: number): Api.Message =>
   ({ id, date: 1_800_000_000, replyTo: new Api.MessageReplyHeader({ replyToMsgId }) }) as unknown as Api.Message
 
 const readerReturning = (messages: Api.Message[]): ReactionReader =>
-  Object.assign(Object.create(ReactionReader.prototype) as ReactionReader, { searchBotMessages: async () => messages })
+  Object.assign(Object.create(ReactionReader.prototype), { searchBotMessages: async () => messages }) as ReactionReader
 
 const quizPoll = (id: number, questionId: string, fields: { replyToMsgId?: number } = {}): Api.Message =>
   ({

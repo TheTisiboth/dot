@@ -1,5 +1,5 @@
 import { config } from '../config'
-import { type SeasonConfig, type SeasonType, type TrainingInfo, type PracticeDay } from '../types'
+import { type SeasonConfig, type SeasonType, type TrainingInfo } from '../types'
 import { getEffectiveDate, createDateFromMonthDay, atTime, getThrowingTime } from '../utils/dateHelpers'
 import { getDayName } from '../utils/formatters'
 
@@ -62,24 +62,6 @@ export class SeasonManager {
     return [...new Set(practices.map(practice => practice.time))]
   }
 
-  getPracticeForDay(date: Date = new Date()): PracticeDay {
-    date = getEffectiveDate(date)
-
-    const tomorrow = new Date(date)
-    tomorrow.setDate(date.getDate() + 1)
-
-    const seasonConfig = this.getCurrentSeasonConfig(tomorrow)
-    const tomorrowDayOfWeek = tomorrow.getDay()
-
-    const practiceDay = seasonConfig.practices.find(practice => practice.day === tomorrowDayOfWeek)
-
-    if (!practiceDay) {
-      throw new Error(`No practice day found for day ${tomorrowDayOfWeek}`)
-    }
-
-    return practiceDay
-  }
-
   /** Walks day by day so each candidate uses its own season's practices (season switches change the weekdays). */
   getNextTrainingDate(date: Date = new Date()): Date {
     for (let offset = 0; offset < 14; offset++) {
@@ -115,7 +97,6 @@ export class SeasonManager {
 
     return {
       date: nextDate,
-      dayName: getDayName(nextDate.getDay()),
       location: exceptionalTraining.location || seasonConfig.location,
       time,
       throwingTime: getThrowingTime(time, seasonConfig.throwingMinutesBefore),
@@ -126,9 +107,9 @@ export class SeasonManager {
   }
 
   getTrainingDaysString(season?: SeasonType): string {
-    const seasonConfig = season ?
-      { season, ...this.seasons[season] } :
-      this.getCurrentSeasonConfig()
+    const seasonConfig = season
+      ? { season, ...this.seasons[season] }
+      : this.getCurrentSeasonConfig()
 
     return seasonConfig.practices
       .map(practice => `${getDayName(practice.day)} at ${practice.time}`)
