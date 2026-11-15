@@ -11,7 +11,7 @@ import { CANCELLATION_SIGNATURE, EMOJIS, isKeyMessage } from '../src/utils/const
 import { makeFakeBot } from './fakes/bot'
 import { makeFakeReader, TRAINING_POST_ID, type ChatHistory } from './fakes/reactionReader'
 import { makeFakeRulesQuiz } from './fakes/rulesQuiz'
-import { SUMMER_TRAINING, beforeTraining } from './fixtures/dates'
+import { beforeTraining } from './fixtures/dates'
 import { HOUR_MS, MINUTE_MS, advance, startAt } from './helpers/clock'
 import { restoreConfigAfterEach } from './helpers/config'
 
@@ -152,9 +152,7 @@ test('an announcement Telegram cannot parse is sent again as the template', asyn
 
   const [announcement] = bot.sentTo(TEAM_CHAT)
   assert.equal(report.announcement.status, 'sent')
-  const summer = { season: 'summer' as const, ...config.seasons.summer }
-  const wednesday = summer.practices.find(({ time }) => time === SUMMER_TRAINING.time)!
-  assert.equal(announcement.text, new MessageGenerator().generateTemplateMessage(summer, wednesday))
+  assert.equal(announcement.text, new MessageGenerator().generateTemplateMessage(new SeasonManager().getNextTrainingInfo()))
   assert.equal(announcement.options.parse_mode, 'HTML')
 })
 
@@ -310,6 +308,57 @@ test('a training moved earlier that already started arms no check', async () => 
   await advance(HOUR_MS)
 
   assert.equal(bot.sent.length, 0)
+})
+
+const moveTraining = () => {
+  config.exceptionalTraining = { location: { name: 'Beach' }, time: '20:15' }
+}
+
+test('a moved training is announced to team and trainers with its new place and time', async () => {
+  moveTraining()
+  startAt(beforeTraining(24 * HOUR_MS + 30_000))
+  const { scheduler, bot } = build()
+  scheduler.setupScheduler()
+
+  await advance(30_000)
+
+  const [announcement] = bot.sentTo(TEAM_CHAT)
+  assert.ok(announcement.text.includes('Beach'))
+  assert.ok(announcement.text.includes('20:15'))
+  assert.ok(bot.sentTo(TRAINER_CHAT)[0].text.includes('20:15'))
+})
+
+test('the checks of a moved training fire relative to its new start and quote it', async () => {
+  moveTraining()
+  startAt(beforeTraining(4 * HOUR_MS))
+  const { scheduler, bot } = build()
+  scheduler.armAttendanceTimers()
+
+  // Regular 19:30 start: reminder due in 1h; moved to 20:15: in 1h45
+  await advance(HOUR_MS)
+  assert.equal(bot.sent.length, 0)
+  await advance(45 * MINUTE_MS)
+  assert.equal(bot.sentTo(TEAM_CHAT).length, 1)
+  assert.ok(bot.sentTo(TEAM_CHAT)[0].text.includes('20:15'))
+
+  await advance(2 * HOUR_MS)
+  const [cancellation] = bot.sentTo(TRAINER_CHAT)
+  assert.ok(cancellation.text.includes(CANCELLATION_SIGNATURE))
+  assert.ok(cancellation.text.includes('Beach'))
+  assert.ok(cancellation.text.includes('20:15'))
+})
+
+test('a cancelled training sends nothing to team or trainers, but the quiz still goes out', async () => {
+  config.exceptionalTraining.isCancelled = true
+  startAt(beforeTraining(24 * HOUR_MS + 30_000))
+  const { scheduler, bot, quiz } = build()
+  scheduler.setupScheduler()
+
+  await advance(30_000)
+  await advance(24 * HOUR_MS)
+
+  assert.deepEqual(bot.sent, [])
+  assert.deepEqual(quiz.calls, ['armAnswer', 'sendScheduled'])
 })
 
 test('the attendance inspection reports count, threshold and post', async () => {

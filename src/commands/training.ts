@@ -23,14 +23,10 @@ export const trainingCommands = ({ api, seasonManager, messageGenerator, schedul
     const training = seasonManager.getNextTrainingInfo()
     return { training, season: seasonManager.getCurrentSeasonConfig(training.date) }
   }
-  const teamMessage = (useLLM = messageGenerator.isLLMAvailable()) => {
-    const { training, season } = nextTraining()
-    return messageGenerator.generateMessage(season, { useLLM }, training.practiceDay)
-  }
-  const trainerMessage = (useLLM = messageGenerator.isLLMAvailable()) => {
-    const { training, season } = nextTraining()
-    return messageGenerator.generateTrainerMessage(season, { useLLM }, training.practiceDay)
-  }
+  const teamMessage = (useLLM = messageGenerator.isLLMAvailable()) =>
+    messageGenerator.generateMessage(seasonManager.getNextTrainingInfo(), { useLLM })
+  const trainerMessage = (useLLM = messageGenerator.isLLMAvailable()) =>
+    messageGenerator.generateTrainerMessage(seasonManager.getNextTrainingInfo(), { useLLM })
 
   return [
     {
@@ -102,8 +98,7 @@ export const trainingCommands = ({ api, seasonManager, messageGenerator, schedul
       adminOnly: true,
       run: async ({ reply }) => {
         await reply(`${EMOJIS.ROBOT} Sending message to team chat...`)
-        const { training, season } = nextTraining()
-        const fallback = () => messageGenerator.generateTemplateMessage(season, training.practiceDay)
+        const fallback = () => messageGenerator.generateTemplateMessage(seasonManager.getNextTrainingInfo())
         await sendWithFallback(api, config.telegram.chatId, await teamMessage(), fallback, threadOptions(config.telegram.chatThreadId))
         await reply(`${EMOJIS.CHECK_MARK} Message sent to team chat!`)
       }

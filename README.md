@@ -171,6 +171,22 @@ With Ollama enabled the text is LLM-generated, but it falls back to the template
 drifts (wrong, missing or swapped emojis, no mention of the key). The bot adds a 🔑 marker itself,
 which keeps this message from being mistaken for the training post after a restart.
 
+### Exceptional Training
+
+Moves or cancels training without touching the season settings:
+
+```env
+EXCEPTIONAL_LOCATION=Beach     # replaces the season location
+EXCEPTIONAL_TIME=18:30         # replaces the practice start time
+EXCEPTIONAL_CANCELLED=true     # sends nothing to team or trainers
+```
+
+The announcement still goes out 24h before the regular time, quoting the new place and time;
+reminder and cancellation checks count from the new start. A cancelled training gets no
+announcement, key or trainer request, no checks and no notice; `/training` says it is cancelled.
+The rules quiz still goes out. An override applies to **every** training until it is removed from
+`.env` and the service redeployed.
+
 ### AI Messages (Optional)
 
 Enable Ollama for AI-generated messages:
