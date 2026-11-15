@@ -22,7 +22,9 @@
     "ollama:logs": "docker-compose logs -f ollama",
     "ollama:pull": "docker-compose up ollama-setup",
     "docker:dev": "docker-compose up --build",
-    "deploy": "npm run build && docker-compose down && docker-compose up --build -d && docker-compose up ollama-setup"
+    "deploy": "npm run build && docker-compose down && docker-compose up --build -d && docker-compose up ollama-setup",
+    "verify": "npm run check && npm test",
+    "smoke": "tsx scripts/smoke.ts"
   },
   "keywords": [
     "telegram",

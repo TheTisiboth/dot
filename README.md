@@ -322,6 +322,7 @@ from the [EUF Indoor Rules Appendix](https://www.ultimatefederation.eu/rules-of-
 
 ```bash
 npm run dev             # Watch mode
+npm run verify          # Type-check, lint, tests (run before every push; CI also builds + docker build)
 npm test               # Run tests
 npm run lint           # Check code quality
 npm run type-check     # Check types
