@@ -41,7 +41,8 @@ export class SchedulerService {
   private readonly trainerChatThreadId?: string
   private readonly enableTrainerMessages: boolean
 
-  private pollMessageId?: number
+  // Keyed by training: once that training starts, the post no longer counts for the next one
+  private trainingPost?: { trainingAt: Date; messageId: number }
   private timers: NodeJS.Timeout[] = []
   private retryTimer?: NodeJS.Timeout
 
@@ -151,19 +152,23 @@ export class SchedulerService {
   private async getAttendance(trainingAt: Date): Promise<AttendanceCheck | null> {
     const training = this.seasonManager.getNextTrainingInfo()
 
-    this.pollMessageId ??= await this.reactionReader.findPollMessage(this.chatId, this.chatThreadId, trainingAt)
+    if (this.trainingPost?.trainingAt.getTime() !== trainingAt.getTime()) {
+      const messageId = await this.reactionReader.findPollMessage(this.chatId, this.chatThreadId, trainingAt)
+      this.trainingPost = messageId ? { trainingAt, messageId } : undefined
+    }
 
-    if (!this.pollMessageId) {
+    if (!this.trainingPost) {
       log.warn('Attendance', 'Training post not found - skipping check')
       return null
     }
 
-    const count = await this.reactionReader.getThumbsUpCount(this.chatId, this.pollMessageId)
+    const pollMessageId = this.trainingPost.messageId
+    const count = await this.reactionReader.getThumbsUpCount(this.chatId, pollMessageId)
     const threshold = this.seasonManager.getCurrentSeasonConfig(trainingAt).minAttendance
 
     log.scheduler(`👍 Attendance: ${count}/${threshold} for training at ${formatDateTimeLocale(trainingAt)}`)
 
-    return { pollMessageId: this.pollMessageId, count, threshold, training }
+    return { pollMessageId, count, threshold, training }
   }
 
   private async runReminderCheck(trainingAt: Date): Promise<void> {
@@ -328,7 +333,7 @@ export class SchedulerService {
       const sent = await sendWithFallback(this.bot, this.chatId, message, () => this.messageGenerator.generateTemplateMessage(seasonConfig, practiceDay), threadOptions(this.chatThreadId))
 
       // The training post is the poll: its 👍 reactions are the attendance count
-      this.pollMessageId = sent.message_id
+      this.trainingPost = { trainingAt: this.getTrainingAt(nextTraining), messageId: sent.message_id }
       this.armAttendanceTimers()
 
       const threadInfo = this.chatThreadId ? ` (thread ${this.chatThreadId})` : ''

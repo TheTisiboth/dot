@@ -30,7 +30,7 @@ class UltimateFrisbeeBot {
     })
     this.seasonManager = new SeasonManager()
     this.messageGenerator = new MessageGenerator()
-    this.reactionReader = new ReactionReader()
+    this.reactionReader = new ReactionReader(this.bot.api)
     const rulesQuiz = new RulesQuizService(this.bot.api, this.seasonManager, this.reactionReader)
     this.schedulerService = new SchedulerService(
       this.seasonManager,

@@ -1,5 +1,6 @@
 // sessions comes from the package root: Node's ESM loader cannot import the 'telegram/sessions' directory
 import { TelegramClient, Api, sessions, Logger, helpers } from 'telegram'
+import type { Api as BotApi } from 'grammy'
 // Type-only: the LogLevel enum is not re-exported from the root, and ESM cannot deep-import it without an extension
 import type { LogLevel } from 'telegram/extensions/Logger'
 import { config } from '../config'
@@ -13,7 +14,7 @@ import { parseQuizTag } from '../utils/quizTag'
 // manually triggered one can land earlier, so leave room. Messages come back newest-first, so
 // an older training post caught by a wide window never wins over the current one.
 const POLL_LOOKBACK_HOURS = 48
-const HISTORY_LIMIT = 100
+const DIALOGS_LIMIT = 100
 const CONNECT_TIMEOUT_MS = 20_000
 // A request on a connection that died silently never settles: GramJS has no request timeout
 const REQUEST_TIMEOUT_MS = 30_000
@@ -35,11 +36,13 @@ export interface LatestQuiz {
  */
 export class ReactionReader {
   private readonly client: TelegramClient
-  private readonly botId: string
+  private readonly bot: Pick<BotApi, 'getMe'>
+  private botUsername?: Promise<string>
   private connected = false
   private connecting?: Promise<void>
 
-  constructor() {
+  constructor(bot: Pick<BotApi, 'getMe'>) {
+    this.bot = bot
     this.client = new TelegramClient(
       new sessions.StringSession(config.mtproto.session),
       config.mtproto.apiId,
@@ -56,8 +59,6 @@ export class ReactionReader {
       if (error.message === 'TIMEOUT') return
       log.warn('MTProto', `Connection issue, GramJS retries on its own: ${error.message}`)
     }
-    // A bot token is "<botId>:<hash>" - cheaper than a getMe() round trip
-    this.botId = config.telegram.token.split(':')[0]
   }
 
   async connect(): Promise<void> {
@@ -89,7 +90,7 @@ export class ReactionReader {
   private async establish(): Promise<void> {
     await this.client.connect()
     // Warms the entity cache, without which getInputEntity() cannot resolve a chat id to its access hash
-    await this.client.getDialogs({ limit: HISTORY_LIMIT })
+    await this.client.getDialogs({ limit: DIALOGS_LIMIT })
   }
 
   /** Stops the background reconnect loop GramJS leaves running after a failed connect. */
@@ -140,7 +141,7 @@ export class ReactionReader {
   }
 
   async getThumbsUpCount(chatId: string, messageId: number): Promise<number> {
-    const [message] = await this.fetchMessages(chatId, { ids: [messageId] })
+    const [message] = await this.fetchMessages(chatId, [messageId])
 
     const thumbsUp = message?.reactions?.results.find(
       result => result.reaction instanceof Api.ReactionEmoji && result.reaction.emoticon === EMOJIS.THUMBS_UP
@@ -156,15 +157,13 @@ export class ReactionReader {
    * right after it, also carries a 👍 and is skipped explicitly.
    */
   async findPollMessage(chatId: string, threadId: string | undefined, trainingAt: Date): Promise<number | undefined> {
-    const messages = await this.fetchMessages(chatId, { limit: HISTORY_LIMIT }, threadId)
     const windowStart = hoursBefore(trainingAt, POLL_LOOKBACK_HOURS)
+    const messages = await this.searchBotMessages(chatId, threadId, { isRecent: message => this.sentAt(message) >= windowStart })
 
     const poll = messages.find(message =>
-      this.isFromBot(message)
-      && !this.isReplyToMessage(message, threadId)
+      !this.isReplyToMessage(message, threadId)
       && message.message?.includes(EMOJIS.THUMBS_UP)
       && !isKeyMessage(message.message)
-      && this.sentAt(message) >= windowStart
       && this.sentAt(message) <= trainingAt
     )
 
@@ -179,9 +178,10 @@ export class ReactionReader {
    * we use as a marker - which would make the post look like a reminder that had already been sent.
    */
   async hasBotReplyTo(chatId: string, threadId: string | undefined, replyToId: number): Promise<boolean> {
-    const messages = await this.fetchMessages(chatId, { limit: HISTORY_LIMIT }, threadId)
+    // A reply is newer than the message it replies to, and message ids grow with time
+    const messages = await this.searchBotMessages(chatId, threadId, { isRecent: message => message.id > replyToId })
 
-    return messages.some(message => this.isFromBot(message) && this.repliesTo(message, replyToId))
+    return messages.some(message => this.repliesTo(message, replyToId))
   }
 
   /** Whether the bot already posted a message containing `needle`, used for the template-only cancellation. */
@@ -191,18 +191,14 @@ export class ReactionReader {
     needle: string,
     since: Date
   ): Promise<boolean> {
-    const messages = await this.fetchMessages(chatId, { limit: HISTORY_LIMIT }, threadId)
+    const messages = await this.searchBotMessages(chatId, threadId, { isRecent: message => this.sentAt(message) >= since })
 
-    return messages.some(message =>
-      this.isFromBot(message)
-      && message.message?.includes(needle)
-      && this.sentAt(message) >= since
-    )
+    return messages.some(message => message.message?.includes(needle))
   }
 
   /** Ids of the quiz questions already posted, newest first: the chat history is the quiz memory. */
-  async getAskedQuizIds(chatId: string, threadId: string | undefined, botUsername: string): Promise<string[]> {
-    const messages = await this.searchBotMessages(chatId, threadId, botUsername)
+  async getAskedQuizIds(chatId: string, threadId: string | undefined): Promise<string[]> {
+    const messages = await this.searchBotMessages(chatId, threadId)
 
     return messages.flatMap(message => {
       const id = this.quizIdOf(message)
@@ -214,9 +210,9 @@ export class ReactionReader {
    * The newest quiz poll, and whether the bot already replied to it (the answer). Found from the
    * history, so a restart loses neither the poll nor the fact it was answered.
    */
-  async getLatestQuiz(chatId: string, threadId: string | undefined, botUsername: string): Promise<LatestQuiz | undefined> {
+  async getLatestQuiz(chatId: string, threadId: string | undefined): Promise<LatestQuiz | undefined> {
     // Recent enough: the poll is the newest quiz, and its answer comes right after it
-    const messages = await this.searchBotMessages(chatId, threadId, botUsername, SEARCH_PAGE_SIZE)
+    const messages = await this.searchBotMessages(chatId, threadId, { maxMessages: SEARCH_PAGE_SIZE })
     for (const message of messages) {
       const questionId = this.quizIdOf(message)
       if (!questionId) continue
@@ -243,28 +239,44 @@ export class ReactionReader {
   }
 
   /**
-   * The messages the bot sent in the chat, newest first, up to `maxMessages`. Filtered on the sender
-   * server-side, so discussion in the chat is never read, and paged until done. Built on messages.search directly:
-   * GramJS's getMessages ignores the sender filter inside a forum topic.
+   * The messages the bot sent in the chat, newest first, up to `maxMessages` and while `isRecent`.
+   * Filtered on the sender server-side, so discussion in the chat is never read and cannot push a
+   * message out of reach, and paged until done. Built on messages.search directly: GramJS's
+   * getMessages ignores the sender filter inside a forum topic.
    */
   private async searchBotMessages(
     chatId: string,
     threadId: string | undefined,
-    botUsername: string,
-    maxMessages = Infinity
+    { maxMessages = Infinity, isRecent = () => true }: { maxMessages?: number; isRecent?: (message: Api.Message) => boolean } = {}
   ): Promise<Api.Message[]> {
     const peer = await this.request('chat lookup', () => this.client.getInputEntity(Number(chatId)))
     // By username: the account may never have seen the bot's access hash, which the search needs
-    const bot = await this.request('bot lookup', () => this.client.getInputEntity(botUsername))
+    const username = await this.getBotUsername()
+    const bot = await this.request('bot lookup', () => this.client.getInputEntity(username))
     const messages: Api.Message[] = []
-    let page: Api.Message[]
+    let page: Api.Message[] = []
 
     do {
-      page = await this.searchPage(peer, bot, threadId, messages.at(-1)?.id ?? 0)
-      messages.push(...page)
-    } while (page.length > 0 && messages.length < maxMessages)
+      page = await this.searchPage(peer, bot, threadId, page.at(-1)?.id ?? 0)
+      messages.push(...page.filter(isRecent))
+    } while (page.length > 0 && page.every(isRecent) && messages.length < maxMessages)
 
     return messages
+  }
+
+  /** Fetched once; a failure is not cached, so the next search retries it. */
+  private async getBotUsername(): Promise<string> {
+    this.botUsername ??= this.bot.getMe().then(me => {
+      if (!me.username) throw new Error('The bot has no username')
+      return me.username
+    })
+
+    try {
+      return await this.botUsername
+    } catch (error) {
+      this.botUsername = undefined
+      throw error
+    }
   }
 
   private async searchPage(
@@ -293,22 +305,11 @@ export class ReactionReader {
     return result.messages.filter((message): message is Api.Message => message instanceof Api.Message)
   }
 
-  private async fetchMessages(
-    chatId: string,
-    params: { ids?: number[]; limit?: number },
-    threadId?: string
-  ): Promise<Api.Message[]> {
+  private async fetchMessages(chatId: string, ids: number[]): Promise<Api.Message[]> {
     return await this.request('history read', async () => {
       const entity = await this.client.getInputEntity(Number(chatId))
-      return await this.client.getMessages(entity, {
-        ...params,
-        ...(threadId && { replyTo: Number(threadId) })
-      })
+      return await this.client.getMessages(entity, { ids })
     })
-  }
-
-  private isFromBot(message: Api.Message): boolean {
-    return message.senderId?.toString() === this.botId
   }
 
   private sentAt(message: Api.Message): Date {
