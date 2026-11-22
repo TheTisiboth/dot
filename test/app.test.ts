@@ -45,6 +45,8 @@ const fakeMtproto = ({ disconnect = async () => {} }: { disconnect?: () => Promi
 const openedSince = (before: string[]) => {
   const left = [...before]
   return process.getActiveResourcesInfo().filter(handle => {
+    // A file read or write in flight (the coverage writer's) ends by itself: it is no open handle
+    if (handle.startsWith('FSReq')) return false
     const index = left.indexOf(handle)
     if (index === -1) return true
     left.splice(index, 1)
