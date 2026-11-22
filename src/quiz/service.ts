@@ -117,6 +117,12 @@ export class RulesQuizService {
     this.answerTimer = armAt(answerAt, () => { void this.answerOnTimer(quizMessageId) })
   }
 
+  /** Disarms the pending answer and retry. */
+  stop(): void {
+    clearTimeout(this.answerTimer)
+    clearTimeout(this.retryTimer)
+  }
+
   /**
    * Answers only the poll the timer was armed for: a post queued just before it fires makes a
    * newer poll the latest, and that one's answer is not due yet.

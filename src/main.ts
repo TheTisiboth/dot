@@ -4,6 +4,7 @@ import { readEnv } from './config'
 import { type BotConfig, loadConfig } from './config/env'
 import { createMtprotoClient } from './telegram/mtproto/client'
 import { buildApp } from './app'
+import { HEALTH_PORT } from './health/server'
 import { log } from './shared/logger'
 
 const loadConfigOrExit = (): BotConfig => {
@@ -20,7 +21,7 @@ const app = buildApp(config, {
   bot: new Bot(config.telegram.token),
   mtproto: createMtprotoClient(config.mtproto),
   ollama: config.ollama.enabled ? new Ollama({ host: config.ollama.host }) : null
-})
+}, HEALTH_PORT)
 
 process.on('unhandledRejection', (reason) => {
   log.error('Unhandled Rejection', reason)
@@ -36,9 +37,9 @@ const shutdown = (signal: string): void => {
   if (shuttingDown) return
   shuttingDown = true
 
-  log.bot(`Received ${signal}, stopping polling...`)
+  log.bot(`Received ${signal}, stopping...`)
   void app.stop().then(() => {
-    log.bot('Polling stopped, exiting')
+    log.bot('Stopped, exiting')
     process.exit(0)
   })
 }
