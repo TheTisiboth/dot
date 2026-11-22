@@ -6,12 +6,16 @@ import { type Attendance } from './messages/templates'
 import { type TrainingHistory } from './history'
 import { CANCELLATION_SIGNATURE } from './markers'
 import type { BotConfig } from '../config/env'
+import { withTimeout } from '../shared/async'
 import { log } from '../shared/logger'
 import { armAt, hoursBefore } from '../shared/time'
 import { formatDateTimeLocale } from '../shared/formatters'
 import { type Sender, senderFor } from '../telegram/sender'
 
 type CheckName = 'reminder' | 'cancellation'
+
+// A command reply waits for it: past this, the reply goes out without the count
+export const LIVE_COUNT_TIMEOUT_MS = 5_000
 
 export const CHECK_LABELS: Record<CheckName, string> = { reminder: 'Attendance reminder', cancellation: 'Cancellation notice' }
 
@@ -135,7 +139,7 @@ export class AttendanceMonitor {
   async liveCount(readable: boolean): Promise<LiveCount> {
     if (!readable) return 'unreadable'
     try {
-      return await this.inspect() ?? 'no announcement'
+      return await withTimeout(this.inspect(), LIVE_COUNT_TIMEOUT_MS, `Live attendance not read within ${LIVE_COUNT_TIMEOUT_MS / 1000}s`) ?? 'no announcement'
     } catch (error) {
       log.error('Reading the live attendance', error)
       return 'unreadable'

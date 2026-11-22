@@ -67,7 +67,7 @@ export const buildApp = (config: BotConfig, { bot, mtproto: mtprotoClient, ollam
   const trainingAnnouncer = announcer({ config, seasonManager, messages, attendance, bot: bot.api, rulesQuiz })
   const dependencies = { api: bot.api, reader: mtproto, llm }
   const commands = [
-    ...publicCommands(seasonManager),
+    ...publicCommands({ teamChat, seasonManager, attendance, mtprotoUp: () => mtproto.isConnected() }),
     ...trainingCommands({ config, api: bot.api, seasonManager, messages, announcer: trainingAnnouncer, attendance, llmEnabled: llm.enabled }),
     ...quizCommands(rulesQuiz, publisher),
     statusCommand({ config, seasonManager, attendance, rulesQuiz, dependencies: () => checkDependencies(dependencies, PROBE_TIMEOUT_MS), startedAt: new Date(), version })
