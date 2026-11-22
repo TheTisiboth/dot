@@ -24,6 +24,9 @@ class Dot {
   private readonly seasonManager: SeasonManager
   private readonly messageGenerator: MessageGenerator
   private readonly mtproto: MtprotoConnection
+  private readonly history: History
+  // The chats the history is read in, so a startup check can flag one the account cannot see
+  private readonly readChats: Record<string, string>
   private readonly schedulerService: SchedulerService
   private readonly commands: Command[]
   private readonly adminChatId: string
@@ -39,13 +42,20 @@ class Dot {
     this.seasonManager = new SeasonManager(config)
     this.messageGenerator = new MessageGenerator(config, config.ollama.enabled ? new Ollama({ host: config.ollama.host }) : null)
     this.mtproto = new MtprotoConnection(createMtprotoClient(config.mtproto))
-    const history = new History(this.bot.api, this.mtproto)
-    const rulesQuiz = new RulesQuizService(config.rulesQuiz, this.bot.api, this.seasonManager, quizHistory(history))
+    this.history = new History(this.bot.api, this.mtproto)
+    const { teamChat, trainerChat, enableTrainerMessages } = config.telegram
+    const rulesChat = config.rulesQuiz.enabled ? config.rulesQuiz.chat : undefined
+    this.readChats = {
+      team: teamChat.chatId,
+      ...(enableTrainerMessages && { trainer: trainerChat.chatId }),
+      ...(rulesChat && { rules: rulesChat.chatId })
+    }
+    const rulesQuiz = new RulesQuizService(config.rulesQuiz, this.bot.api, this.seasonManager, quizHistory(this.history))
     this.schedulerService = new SchedulerService(
       config,
       this.seasonManager,
       this.messageGenerator,
-      trainingHistory(history),
+      trainingHistory(this.history),
       this.bot.api,
       rulesQuiz
     )
@@ -85,6 +95,12 @@ class Dot {
     process.on('SIGINT', () => { shutdown('SIGINT') })
   }
 
+  private async reportUnresolvedChats(): Promise<void> {
+    for (const { name, error } of await this.history.unresolvedChats(this.readChats)) {
+      log.error(`MTProto account cannot resolve the ${name} chat ${this.readChats[name]} - history reads there will fail (is the account a member, the chat among its 100 latest dialogs?)`, error)
+    }
+  }
+
   async start(): Promise<void> {
     const currentSeason = this.seasonManager.seasonOn()
     const trainingDays = this.seasonManager.getTrainingDaysString()
@@ -106,6 +122,7 @@ class Dot {
     // and the attendance checks retry the connection on their next run.
     try {
       await this.mtproto.connect()
+      void this.reportUnresolvedChats()
     } catch (error) {
       log.error('Connecting MTProto reader - attendance checks will not run until it recovers', error)
     }
