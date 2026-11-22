@@ -3,7 +3,7 @@ import type { Api } from 'grammy'
 import { withTimeout } from '../shared/async'
 import { EMOJIS } from '../shared/emojis'
 import { errorMessage, log } from '../shared/logger'
-import type { MessageGenerator } from '../training/messages/messageGenerator'
+import type { LlmWriter } from '../training/messages/llmWriter'
 import type { MtprotoConnection } from '../telegram/mtproto/client'
 
 // Fixed: the compose port mapping and healthcheck use it
@@ -22,7 +22,7 @@ interface Check {
 export interface HealthDependencies {
   api: Pick<Api, 'getMe'>;
   reader: Pick<MtprotoConnection, 'isConnected'>;
-  messageGenerator: Pick<MessageGenerator, 'isLLMAvailable' | 'testOllamaConnection'>;
+  llm: Pick<LlmWriter, 'enabled' | 'ping'>;
 }
 
 const probe = async (name: string, run: () => Promise<unknown>, timeoutMs: number): Promise<Check> => {
@@ -35,11 +35,11 @@ const probe = async (name: string, run: () => Promise<unknown>, timeoutMs: numbe
   }
 }
 
-const dependencyChecks = ({ api, reader, messageGenerator }: HealthDependencies, timeoutMs: number): Record<string, () => Promise<Check>> => ({
+const dependencyChecks = ({ api, reader, llm }: HealthDependencies, timeoutMs: number): Record<string, () => Promise<Check>> => ({
   telegram: () => probe('Telegram', () => api.getMe(), timeoutMs),
   mtproto: async () => ({ status: reader.isConnected() ? 'ok' : 'down' }),
-  ollama: async () => messageGenerator.isLLMAvailable()
-    ? probe('Ollama', () => messageGenerator.testOllamaConnection(), timeoutMs)
+  ollama: async () => llm.enabled
+    ? probe('Ollama', () => llm.ping(), timeoutMs)
     : { status: 'disabled' }
 })
 

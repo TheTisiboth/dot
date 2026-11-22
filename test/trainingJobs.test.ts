@@ -2,7 +2,9 @@ import './helpers/testEnv'
 import { test, afterEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import type { Api } from 'grammy'
-import { MessageGenerator } from '../src/training/messages/messageGenerator'
+import { llmWriter } from '../src/training/messages/llmWriter'
+import { trainingMessages } from '../src/training/messages/messages'
+import * as templates from '../src/training/messages/templates'
 import { type TrainingHistory } from '../src/training/history'
 import { AttendanceMonitor } from '../src/training/attendance'
 import { PART_NAMES, announcer } from '../src/training/announcer'
@@ -26,7 +28,7 @@ const RETRY_DELAY_MS = 10 * MINUTE_MS
 const THRESHOLD = config.seasons.summer.minAttendance
 
 const attendanceFor = (bot: Api, reader: TrainingHistory) =>
-  new AttendanceMonitor(config, new SeasonManager(config), new MessageGenerator(config, null), reader, bot)
+  new AttendanceMonitor(config, new SeasonManager(config), trainingMessages(llmWriter(config.ollama, null)), reader, bot)
 
 const build = ({ failingChat, history, env }: { failingChat?: string; history?: Partial<ChatHistory>; env?: Record<string, string> } = {}) => {
   const botConfig = testConfig(env)
@@ -34,9 +36,9 @@ const build = ({ failingChat, history, env }: { failingChat?: string; history?: 
   const reader = makeFakeTrainingHistory(history)
   const quiz = makeFakeRulesQuiz()
   const seasonManager = new SeasonManager(botConfig)
-  const messageGenerator = new MessageGenerator(botConfig, null)
-  const attendance = new AttendanceMonitor(botConfig, seasonManager, messageGenerator, reader, bot.api)
-  const trainingAnnouncer = announcer({ config: botConfig, seasonManager, messageGenerator, attendance, bot: bot.api, rulesQuiz: quiz })
+  const messages = trainingMessages(llmWriter(botConfig.ollama, null))
+  const attendance = new AttendanceMonitor(botConfig, seasonManager, messages, reader, bot.api)
+  const trainingAnnouncer = announcer({ config: botConfig, seasonManager, messages, attendance, bot: bot.api, rulesQuiz: quiz })
   const start = () => { startSchedule({ config: botConfig, seasonManager, announcer: trainingAnnouncer, attendance, rulesQuiz: quiz, bot: bot.api }) }
   return { start, announcer: trainingAnnouncer, attendance, bot, reader, quiz }
 }
@@ -158,7 +160,7 @@ test('an announcement Telegram cannot parse is sent again as the template', asyn
 
   const [announcement] = bot.sentTo(TEAM_CHAT)
   assert.equal(report.announcement.status, 'sent')
-  assert.equal(announcement.text, new MessageGenerator(config, null).announcementTemplate(new SeasonManager(config).nextTraining()))
+  assert.equal(announcement.text, templates.announcement(new SeasonManager(config).nextTraining()))
   assert.equal(announcement.options.parse_mode, 'HTML')
 })
 

@@ -6,7 +6,8 @@ import { type Command, publishCommandMenus, routeCommands } from '../src/command
 import { publicCommands } from '../src/commands/public'
 import { quizCommands } from '../src/commands/quiz'
 import { trainingCommands } from '../src/commands/training'
-import { MessageGenerator } from '../src/training/messages/messageGenerator'
+import { llmWriter } from '../src/training/messages/llmWriter'
+import { trainingMessages } from '../src/training/messages/messages'
 import { AttendanceMonitor } from '../src/training/attendance'
 import { announcer } from '../src/training/announcer'
 import { SeasonManager } from '../src/training/season'
@@ -35,12 +36,12 @@ const build = ({ failingChat, env }: { failingChat?: string; env?: Record<string
   const bot = makeFakeBot({ failingChat })
   const quiz = makeFakeRulesQuiz()
   const seasonManager = new SeasonManager(botConfig)
-  const messageGenerator = new MessageGenerator(botConfig, null)
-  const attendance = new AttendanceMonitor(botConfig, seasonManager, messageGenerator, makeFakeTrainingHistory({ thumbsUp: ATTENDING }), bot.api)
-  const trainingAnnouncer = announcer({ config: botConfig, seasonManager, messageGenerator, attendance, bot: bot.api, rulesQuiz: quiz })
+  const messages = trainingMessages(llmWriter(botConfig.ollama, null))
+  const attendance = new AttendanceMonitor(botConfig, seasonManager, messages, makeFakeTrainingHistory({ thumbsUp: ATTENDING }), bot.api)
+  const trainingAnnouncer = announcer({ config: botConfig, seasonManager, messages, attendance, bot: bot.api, rulesQuiz: quiz })
   const commands: Command[] = [
     ...publicCommands(seasonManager),
-    ...trainingCommands({ config: botConfig, api: bot.api, seasonManager, messageGenerator, announcer: trainingAnnouncer, attendance }),
+    ...trainingCommands({ config: botConfig, api: bot.api, seasonManager, messages, announcer: trainingAnnouncer, attendance }),
     ...quizCommands(quiz)
   ]
   routeCommands(bot, commands, botConfig.telegram.adminChatId)
