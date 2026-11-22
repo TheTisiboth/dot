@@ -1,8 +1,8 @@
 import type { Api, Bot } from 'grammy'
 import type { Message } from 'grammy/types'
-import { EMOJIS } from '../utils/constants'
-import { errorMessage, log } from '../utils/logger'
-import { type ChatTarget, threadOptions } from '../utils/telegram'
+import { EMOJIS } from '../shared/emojis'
+import { errorMessage, log } from '../shared/logger'
+import { type ChatTarget, threadOptions } from '../telegram/botApi'
 
 type SendOptions = Parameters<Api['sendMessage']>[2]
 

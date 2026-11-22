@@ -1,6 +1,6 @@
-import { type SeasonManager } from '../services/SeasonManager'
-import { EMOJIS } from '../utils/constants'
-import { formatClock, formatDate, locationLink } from '../utils/formatters'
+import { type SeasonManager } from '../training/season'
+import { EMOJIS } from '../shared/emojis'
+import { formatClock, formatDate, locationLink } from '../shared/formatters'
 import { type Command } from './registry'
 
 const START_TEXT = `${EMOJIS.FRISBEE} Welcome to Ultimate Frisbee Training Bot!

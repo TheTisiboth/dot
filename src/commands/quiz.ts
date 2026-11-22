@@ -1,6 +1,6 @@
-import { type RulesQuizService } from '../services/RulesQuizService'
-import { findQuizQuestion } from '../data/rules-quiz'
-import { EMOJIS } from '../utils/constants'
+import { type RulesQuizService } from '../quiz/service'
+import { findQuizQuestion } from '../quiz/data'
+import { EMOJIS } from '../shared/emojis'
 import { type Command } from './registry'
 
 /** Admin commands to drive the rules quiz by hand. */

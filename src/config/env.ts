@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { type DateConfig, type TimeOfDay, type TrainingLocation } from '../types'
+import { type DateConfig, type TimeOfDay } from '../shared/time'
 
 const flag = z.string().transform(value => value === 'true')
 const number = z.coerce.number({ error: 'must be a number' })
@@ -25,6 +25,11 @@ const practiceDays = required
 const monthDay = required.regex(/^\d{1,2}:\d{1,2}$/, 'must be month:day')
   .transform((raw): DateConfig => { const [month, day] = raw.split(':').map(Number); return { month, day } })
   .refine(({ month, day }) => month >= 1 && month <= 12 && new Date(2025, month - 1, day).getMonth() === month - 1, 'must be a date that exists every year (month:day)')
+
+export interface TrainingLocation {
+  name: string;
+  url?: string;
+}
 
 const LOCATION_LINK = /^\[([^\]]+)\]\(([^)]+)\)$/
 

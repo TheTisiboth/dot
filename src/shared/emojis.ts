@@ -1,0 +1,22 @@
+export const EMOJIS = {
+  FRISBEE: '🥏',
+  ROCKET: '🚀',
+  BULB: '💡',
+  CALENDAR: '📅',
+  LOCATION: '📍',
+  CLOCK: '⏰',
+  FIRE: '🔥',
+  MEMO: '📝',
+  ROBOT: '🤖',
+  CROSS_MARK: '❌',
+  WARNING: '⚠️',
+  WINTER: '🏔️',
+  SUMMER: '🏖️',
+  RUNNER: '🏃',
+  THUMBS_UP: '👍',
+  CHECK_MARK: '✅',
+  COACH: '👨‍🏫',
+  MEGAPHONE: '📣',
+  KEY: '🔑',
+  CRYING: '😢'
+} as const

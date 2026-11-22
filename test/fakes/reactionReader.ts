@@ -1,5 +1,5 @@
-import { type ReactionReader } from '../../src/services/ReactionReader'
-import { CANCELLATION_SIGNATURE } from '../../src/utils/constants'
+import { type ReactionReader } from '../../src/telegram/mtproto/reactionReader'
+import { CANCELLATION_SIGNATURE } from '../../src/training/markers'
 
 /** What the chat history holds; tests change it between runs to play a restart. */
 export interface ChatHistory {
