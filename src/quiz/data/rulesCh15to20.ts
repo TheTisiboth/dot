@@ -13,6 +13,7 @@ const MAX_SIX = 'Where it stopped plus one, maximum 6'
 const MAX_NINE = 'Where it stopped plus one, maximum 9'
 
 export const rulesCh15to20: QuizBatch = {
+  name: 'Rules ch. 15-20',
   source: {
     title: 'WFDF Rules of Ultimate 2025-2028 (CC BY 4.0)',
     url: 'https://rules.wfdf.sport/wp-content/uploads/2024/12/WFDF-Rules-of-Ultimate-2025-2028.pdf'

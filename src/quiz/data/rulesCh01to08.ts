@@ -4,6 +4,7 @@ import { ALL_MODES, OUTDOOR_ONLY } from './modes'
 const AT_BRICK_MARK = 'At the brick mark'
 
 export const rulesCh01to08: QuizBatch = {
+  name: 'Rules ch. 1-8',
   source: {
     title: 'WFDF Rules of Ultimate 2025-2028 (CC BY 4.0)',
     url: 'https://rules.wfdf.sport/wp-content/uploads/2024/12/WFDF-Rules-of-Ultimate-2025-2028.pdf'

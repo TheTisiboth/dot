@@ -28,7 +28,7 @@ const TEAM_CHAT = config.telegram.teamChat.chatId
 // A count no other figure of the /attendance reply contains
 const ATTENDING = 6
 const ADMIN_COMMANDS = [
-  '/preview', '/send_to_team', '/send_to_all', '/attendance', '/quiz_post', '/quiz_answer', '/quiz_preview'
+  '/preview', '/send_to_team', '/send_to_all', '/attendance', '/quiz_post', '/quiz_answer', '/quiz_preview', '/quiz_stats'
 ]
 const LLM_TEXT = 'Written by the LLM'
 // The library boundary: the fake implements only the Ollama method the writer calls
@@ -47,7 +47,7 @@ const build = ({ failingChat, env, llm = null }: { failingChat?: string; env?: R
   const commands: Command[] = [
     ...publicCommands({ teamChat: botConfig.telegram.teamChat, seasonManager, attendance, mtprotoUp: () => true }),
     ...trainingCommands({ config: botConfig, api: bot.api, seasonManager, messages, announcer: trainingAnnouncer, attendance, llmEnabled: writer.enabled }),
-    ...quizCommands(quiz, publisher)
+    ...quizCommands(quiz, publisher, () => true)
   ]
   routeCommands(bot, commands, botConfig.telegram.adminChatId)
   return { bot, quiz, publisher, commands }
@@ -235,12 +235,12 @@ test('the old quiz command names run nothing and are offered nowhere', async () 
 test('a failing quiz action is reported back to the admin, without the exception text', async () => {
   const { bot, quiz } = build()
   const down = async () => { throw new Error('MTProto down') }
-  Object.assign(quiz, { postNext: down, answerLatest: down, pickNext: down })
+  Object.assign(quiz, { postNext: down, answerLatest: down, pickNext: down, stats: down })
 
-  for (const command of ['/quiz_post', '/quiz_answer', '/quiz_preview']) await bot.command(command, ADMIN)
+  for (const command of ['/quiz_post', '/quiz_answer', '/quiz_preview', '/quiz_stats']) await bot.command(command, ADMIN)
 
   const replies = bot.sentTo(ADMIN.chatId)
-  assert.equal(replies.length, 3)
+  assert.equal(replies.length, 4)
   assert.equal(replies.some(({ text }) => text.includes('MTProto down')), false)
 })
 

@@ -9,6 +9,11 @@ export interface LatestQuiz {
   answered: boolean;
 }
 
+export interface AskedQuiz {
+  questionId: string;
+  askedAt: Date;
+}
+
 export type QuizHistory = ReturnType<typeof quizHistory>
 
 const quizIdOf = (message: Api.Message): string | undefined => {
@@ -18,13 +23,13 @@ const quizIdOf = (message: Api.Message): string | undefined => {
 
 /** The chat history is the quiz memory: what was asked, and whether the latest was answered. */
 export const quizHistory = (history: History) => ({
-  /** Ids of the quiz questions already posted, newest first. */
-  async getAskedQuizIds(chatId: string, threadId: number | undefined): Promise<string[]> {
+  /** The quiz questions already posted, newest first. */
+  async getAskedQuizzes(chatId: string, threadId: number | undefined): Promise<AskedQuiz[]> {
     const messages = await history.searchBotMessages(chatId, threadId)
 
     return messages.flatMap(message => {
-      const id = quizIdOf(message)
-      return id ? [id] : []
+      const questionId = quizIdOf(message)
+      return questionId ? [{ questionId, askedAt: sentAt(message) }] : []
     })
   },
 

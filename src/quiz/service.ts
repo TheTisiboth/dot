@@ -4,9 +4,10 @@ import { modeFor, pickQuestion } from './picker'
 import { answerTimeFor } from './answer'
 import { type QuizPublisher } from './publisher'
 import type { BotConfig } from '../config/env'
-import { findQuizQuestion, isSignalQuestion, QUIZ_QUESTIONS } from './data'
+import { findQuizQuestion, isSignalQuestion, QUIZ_BATCHES, QUIZ_QUESTIONS } from './data'
 import { type PartResult } from '../training/announcer'
-import { type QuizQuestion } from './question'
+import { type QuizMode, type QuizQuestion } from './question'
+import { type QuizStats, quizStats } from './stats'
 import { withTimeout } from '../shared/async'
 import { armAt } from '../shared/time'
 import { formatDateTimeLocale } from '../shared/formatters'
@@ -208,10 +209,23 @@ export class RulesQuizService {
 
   /** Picks the way the scheduler does: the next training's season mode, minus what the rules chat already got (hand signals every other one with RULES_SIGNALS_EVERY_OTHER). */
   async pickNext(chat: ChatTarget = this.rulesChat()): Promise<QuizQuestion> {
-    const mode = modeFor(this.seasonManager.nextTraining().season)
-    const askedIds = await this.history.getAskedQuizIds(chat.chatId, chat.threadId)
-    const isFocus = this.config.signalsEveryOther ? isSignalQuestion : undefined
-    return pickQuestion(QUIZ_QUESTIONS, mode, askedIds, Math.random, isFocus)
+    const asked = await this.history.getAskedQuizzes(chat.chatId, chat.threadId)
+    return pickQuestion(QUIZ_QUESTIONS, this.mode(), asked.map(quiz => quiz.questionId), Math.random, this.focus())
+  }
+
+  /** Where the rounds stand, from one read of the rules chat history. */
+  async stats(): Promise<QuizStats> {
+    const chat = this.rulesChat()
+    const asked = await this.history.getAskedQuizzes(chat.chatId, chat.threadId)
+    return quizStats(QUIZ_BATCHES, asked, this.mode(), this.focus())
+  }
+
+  private mode(): QuizMode {
+    return modeFor(this.seasonManager.nextTraining().season)
+  }
+
+  private focus(): ((id: string) => boolean) | undefined {
+    return this.config.signalsEveryOther ? isSignalQuestion : undefined
   }
 
   private rulesChat(): ChatTarget {

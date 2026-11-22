@@ -13,6 +13,7 @@ const INVALID_BRICK = 'Invalid pull: the receivers may take a brick'
 
 // No ref: these rules are not in the WFDF rules, so answers link to the appendix itself
 export const indoor: QuizBatch = {
+  name: 'Indoor appendix',
   source: {
     title: 'EUF Indoor Rules Appendix v10',
     url: 'https://www.ultimatefederation.eu/s/EUF-Indoor-Rules-Appendix-version-10.pdf'

@@ -69,7 +69,7 @@ export const buildApp = (config: BotConfig, { bot, mtproto: mtprotoClient, ollam
   const commands = [
     ...publicCommands({ teamChat, seasonManager, attendance, mtprotoUp: () => mtproto.isConnected() }),
     ...trainingCommands({ config, api: bot.api, seasonManager, messages, announcer: trainingAnnouncer, attendance, llmEnabled: llm.enabled }),
-    ...quizCommands(rulesQuiz, publisher),
+    ...quizCommands(rulesQuiz, publisher, () => mtproto.isConnected()),
     statusCommand({ config, seasonManager, attendance, rulesQuiz, dependencies: () => checkDependencies(dependencies, PROBE_TIMEOUT_MS), startedAt: new Date(), version })
   ]
   routeCommands(bot, commands, adminChatId)

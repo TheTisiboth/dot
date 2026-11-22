@@ -12,6 +12,7 @@ const PASS_REPLAYED = 'The pass is replayed'
 const CENTRAL_ZONE_NEAREST = 'On the central zone, nearest to where it went out'
 
 export const rulesCh09to14: QuizBatch = {
+  name: 'Rules ch. 9-14',
   source: {
     title: 'WFDF Rules of Ultimate 2025-2028 (CC BY 4.0)',
     url: 'https://rules.wfdf.sport/wp-content/uploads/2024/12/WFDF-Rules-of-Ultimate-2025-2028.pdf'

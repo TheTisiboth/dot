@@ -50,11 +50,13 @@ const bot = (() => {
 const seasonOf = (season: SeasonType) =>
   ({ nextTraining: () => ({ season }) }) as unknown as SeasonManager
 
+const askedQuizzes = (ids: string[]) => ids.map(questionId => ({ questionId, askedAt: new Date() }))
+
 const reader = {
-  getAskedQuizIds: async (chatId: string, threadId: number | undefined) => {
+  getAskedQuizzes: async (chatId: string, threadId: number | undefined) => {
     historyReads.push({ chatId, threadId })
     if (historyError) throw historyError
-    return askedIds
+    return askedQuizzes(askedIds)
   },
   getLatestQuiz: async () => latestQuiz
 } as unknown as QuizHistory
@@ -164,7 +166,7 @@ test('a hung history read ends in an error, then one retry later posts the quiz'
   let hang = true
   const quiz = new RulesQuizService(RULES_QUIZ, publisher, seasonOf('winter'), {
     // Like a request on a dead MTProto connection: never settles
-    getAskedQuizIds: async () => hang ? await new Promise<string[]>(() => undefined) : []
+    getAskedQuizzes: async () => hang ? await new Promise<never>(() => undefined) : []
   } as unknown as QuizHistory)
 
   const sent = quiz.sendScheduled()
@@ -183,7 +185,7 @@ test('a hung history read ends in an error, then one retry later posts the quiz'
 test('a hung post does not block the next one', async () => {
   let hang = true
   const quiz = new RulesQuizService(RULES_QUIZ, publisher, seasonOf('winter'), {
-    getAskedQuizIds: async () => hang ? await new Promise<string[]>(() => undefined) : []
+    getAskedQuizzes: async () => hang ? await new Promise<never>(() => undefined) : []
   } as unknown as QuizHistory)
 
   const stuck = assert.rejects(quiz.postNext(), /timed out/)
@@ -212,10 +214,10 @@ test('overlapping posts run one after another, so they never read the same histo
   const indoor = QUIZ_QUESTIONS.filter(q => q.modes.includes('indoor')).map(q => q.id)
   const before = indoor.slice(1)
   const quiz = new RulesQuizService(RULES_QUIZ, publisher, seasonOf('winter'), {
-    getAskedQuizIds: async () => [
+    getAskedQuizzes: async () => askedQuizzes([
       ...calls.filter(c => c.method === 'sendPoll').map(c => parseQuizTag(c.content as string) as string).reverse(),
       ...before
-    ]
+    ])
   } as unknown as QuizHistory)
 
   const [first, second] = await Promise.all([quiz.postNext(), quiz.postNext()])
