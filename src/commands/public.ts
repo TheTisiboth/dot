@@ -18,22 +18,22 @@ export const publicCommands = (seasonManager: SeasonManager): Command[] => [
   {
     name: 'start',
     description: 'Start the bot',
-    run: ({ reply }) => reply(START_TEXT)
+    run: ({ reply }) => reply.plain(START_TEXT)
   },
   {
     name: 'help',
     description: 'Show available commands',
-    run: ({ reply }) => reply(HELP_TEXT)
+    run: ({ reply }) => reply.plain(HELP_TEXT)
   },
   {
     name: 'info',
     description: 'Show training schedule',
-    run: ({ reply }) => reply(seasonManager.scheduleText(), { parse_mode: 'HTML' })
+    run: ({ reply }) => reply.text(seasonManager.scheduleText())
   },
   {
     name: 'training',
     description: 'Show next training',
-    run: ({ reply }) => reply(nextTrainingText(seasonManager), { parse_mode: 'HTML' })
+    run: ({ reply }) => reply.text(nextTrainingText(seasonManager))
   }
 ]
 

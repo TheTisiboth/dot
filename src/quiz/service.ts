@@ -1,4 +1,4 @@
-import { type Api, InputFile } from 'grammy'
+import { type Api } from 'grammy'
 import { type SeasonManager } from '../training/season'
 import { type LatestQuiz, type ReactionReader } from '../telegram/mtproto/reactionReader'
 import { buildQuizPost, modeFor, pickQuestion } from './picker'
@@ -10,7 +10,7 @@ import { type QuizBatch, type QuizQuestion } from './question'
 import { withTimeout } from '../shared/async'
 import { formatDateTimeLocale } from '../shared/formatters'
 import { errorMessage, log } from '../shared/logger'
-import { type ChatTarget, noLinkPreview, replyOptions, threadOptions } from '../telegram/botApi'
+import { type ChatTarget, senderFor } from '../telegram/sender'
 
 // Above the history read's own bound (each MTProto request times out and retries once), so a stuck
 // post always ends in a logged error rather than silence. It also frees the queue for the next post.
@@ -195,11 +195,12 @@ export class RulesQuizService {
     return await this.reactionReader.getLatestQuiz(chat.chatId, chat.threadId)
   }
 
-  private async sendAnswer(chat: ChatTarget, question: QuizQuestion, text: string, quizMessageId: number): Promise<void> {
+  private async sendAnswer(chat: ChatTarget, question: QuizQuestion, html: string, quizMessageId: number): Promise<void> {
+    const to = senderFor(this.bot, chat)
     if (question.answerImage) {
-      await this.sendImage(chat, question.answerImage, quizMessageId, { htmlCaption: text, spoiler: true })
+      await to.photo(question.answerImage, { caption: html, spoiler: true, replyTo: quizMessageId })
     } else {
-      await this.sendText(chat, text, quizMessageId, { parse_mode: 'HTML', ...noLinkPreview() })
+      await to.text(html, { replyTo: quizMessageId, linkPreview: false })
     }
   }
 
@@ -214,58 +215,17 @@ export class RulesQuizService {
   /** Image, then the long question text if any, then the poll: each one replying to the previous. */
   async post(chat: ChatTarget, question: QuizQuestion): Promise<number> {
     const { intro, poll, options, correctOptionId } = buildQuizPost(question)
+    const to = senderFor(this.bot, chat)
 
-    let replyTo = question.image ? await this.sendImage(chat, question.image) : undefined
-    if (intro) replyTo = await this.sendText(chat, intro, replyTo)
-    return await this.sendPoll(chat, poll, options, correctOptionId, replyTo)
+    let replyTo = question.image ? await to.photo(question.image) : undefined
+    if (intro) replyTo = await to.plain(intro, { replyTo })
+    return await to.poll(poll, options, { correctOptionId, replyTo })
   }
 
   /** The question and its answer right away (used by /test_rule). */
   async preview(chat: ChatTarget, question: QuizQuestion): Promise<void> {
     const quizMessageId = await this.post(chat, question)
     await this.sendAnswer(chat, question, buildAnswer(question, this.sourceOf(question)), quizMessageId)
-  }
-
-  private async sendImage(
-    { chatId, threadId }: ChatTarget,
-    image: string,
-    replyTo?: number,
-    { htmlCaption, spoiler }: { htmlCaption?: string; spoiler?: boolean } = {}
-  ): Promise<number> {
-    const sent = await this.bot.sendPhoto(
-      chatId,
-      new InputFile(image),
-      {
-        ...threadOptions(threadId),
-        ...replyOptions(replyTo),
-        ...(htmlCaption && { caption: htmlCaption, parse_mode: 'HTML' }),
-        ...(spoiler && { has_spoiler: true })
-      }
-    )
-    return sent.message_id
-  }
-
-  private async sendText({ chatId, threadId }: ChatTarget, text: string, replyTo?: number, options?: Parameters<Api['sendMessage']>[2]): Promise<number> {
-    const sent = await this.bot.sendMessage(chatId, text, { ...threadOptions(threadId), ...replyOptions(replyTo), ...options })
-    return sent.message_id
-  }
-
-  /** Anonymous quiz-type poll: each voter sees the right option as soon as they vote. */
-  private async sendPoll(
-    { chatId, threadId }: ChatTarget,
-    question: string,
-    options: string[],
-    correctOptionId: number,
-    replyTo?: number
-  ): Promise<number> {
-    const sent = await this.bot.sendPoll(chatId, question, options, {
-      ...threadOptions(threadId),
-      ...replyOptions(replyTo),
-      is_anonymous: true,
-      type: 'quiz',
-      correct_option_ids: [correctOptionId]
-    })
-    return sent.message_id
   }
 
   private rulesChat(): ChatTarget {
