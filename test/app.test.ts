@@ -58,7 +58,7 @@ test('a started app, once stopped, leaves no open handle: polling, cron, timers,
   const before = process.getActiveResourcesInfo()
   const bot = offlineBot()
   let disconnected = false
-  const app = buildApp(testConfig(), { bot, mtproto: fakeMtproto({ disconnect: async () => { disconnected = true } }), ollama: null }, 0)
+  const app = buildApp(testConfig(), { bot, mtproto: fakeMtproto({ disconnect: async () => { disconnected = true } }), ollama: null }, 0, '0.0.0')
 
   await app.start(error => { assert.fail(`polling stopped: ${String(error)}`) })
   assert.ok(bot.isRunning())
@@ -75,7 +75,7 @@ test('a started app, once stopped, leaves no open handle: polling, cron, timers,
 test('stop resolves within the deadline when the MTProto disconnect hangs', async () => {
   // Before building: timers armed for real could not be cleared once setTimeout is mocked
   mock.timers.enable({ apis: ['setTimeout'] })
-  const app = buildApp(testConfig(), { bot: offlineBot(), mtproto: fakeMtproto({ disconnect: () => new Promise(() => {}) }), ollama: null }, 0)
+  const app = buildApp(testConfig(), { bot: offlineBot(), mtproto: fakeMtproto({ disconnect: () => new Promise(() => {}) }), ollama: null }, 0, '0.0.0')
   await app.start(error => { assert.fail(`polling stopped: ${String(error)}`) })
 
   let stopped = false

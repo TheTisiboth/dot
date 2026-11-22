@@ -422,3 +422,31 @@ test('with practices on consecutive days, each training checks the 👍 of its o
   const repliedTo = bot.sentTo(TEAM_CHAT).map(message => message.options.reply_to_message_id).filter(id => id !== undefined)
   assert.deepEqual(repliedTo, [tuesdayPost.messageId, wednesdayPost.messageId])
 })
+
+test('the check states follow the timers: armed for their time, then fired', async () => {
+  startAt(beforeTraining(4 * HOUR_MS))
+  const { attendance } = build({ history: { thumbsUp: THRESHOLD } })
+  attendance.armTimers()
+  const training = new SeasonManager(config).nextTraining()
+
+  assert.deepEqual(attendance.checksOf(training), {
+    reminder: { state: 'armed', at: beforeTraining(3 * HOUR_MS) },
+    cancellation: { state: 'armed', at: beforeTraining(HOUR_MS) }
+  })
+
+  await advance(HOUR_MS)
+  assert.deepEqual(attendance.checksOf(training).reminder, { state: 'fired', at: beforeTraining(3 * HOUR_MS) })
+  assert.equal(attendance.checksOf(training).cancellation?.state, 'armed')
+})
+
+test('the checks of a cancelled training are skipped, and a training not announced yet has none armed', () => {
+  startAt(beforeTraining(4 * HOUR_MS))
+  const { attendance } = build({ env: { EXCEPTIONAL_CANCELLED: 'true' } })
+  attendance.armTimers()
+  const seasonManager = new SeasonManager(config)
+  const training = seasonManager.nextTraining()
+
+  assert.equal(attendance.checksOf(training).reminder?.state, 'skipped')
+  assert.equal(attendance.checksOf(training).cancellation?.state, 'skipped')
+  assert.deepEqual(attendance.checksOf(seasonManager.nextTraining(training.startsAt)), {})
+})

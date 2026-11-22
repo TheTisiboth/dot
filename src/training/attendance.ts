@@ -11,6 +11,16 @@ import { armAt, hoursBefore } from '../shared/time'
 import { formatDateTimeLocale } from '../shared/formatters'
 import { type Sender, senderFor } from '../telegram/sender'
 
+type CheckName = 'reminder' | 'cancellation'
+
+export const CHECK_LABELS: Record<CheckName, string> = { reminder: 'Attendance reminder', cancellation: 'Cancellation notice' }
+
+/** Where one check of a training stands. */
+export type CheckStatus = { state: 'armed'; at: Date } | { state: 'fired'; at: Date } | { state: 'skipped'; reason: string }
+
+/** A check missing here is not armed (yet). */
+export type CheckStatuses = Partial<Record<CheckName, CheckStatus>>
+
 interface AttendanceCheck extends Attendance {
   announcementId: number
   training: Training
@@ -28,6 +38,7 @@ export class AttendanceMonitor {
   // Keyed by training start: consecutive days can have two trainings announced at once
   private readonly posts = new Map<number, number>()
   private readonly timers = new Map<number, NodeJS.Timeout[]>()
+  private readonly statuses = new Map<number, CheckStatuses>()
 
   constructor(config: Pick<BotConfig, 'telegram' | 'attendance'>, seasonManager: SeasonManager, messages: TrainingMessages, history: TrainingHistory, bot: Api) {
     this.config = config
@@ -41,7 +52,7 @@ export class AttendanceMonitor {
   /** The announcement just posted: its 👍 reactions are the attendance count. */
   track(training: Training, messageId: number): void {
     const now = Date.now()
-    for (const byTraining of [this.posts, this.timers]) for (const startsAt of byTraining.keys()) if (startsAt < now) byTraining.delete(startsAt)
+    for (const byTraining of [this.posts, this.timers, this.statuses]) for (const startsAt of byTraining.keys()) if (startsAt < now) byTraining.delete(startsAt)
 
     this.posts.set(training.startsAt.getTime(), messageId)
     this.arm(training)
@@ -63,32 +74,53 @@ export class AttendanceMonitor {
 
     if (training.cancelled) {
       log.scheduler('⏭️  Attendance checks skipped - training cancelled')
+      const skipped = { state: 'skipped', reason: 'training cancelled' } as const
+      this.statuses.set(key, { reminder: skipped, cancellation: skipped })
       return
     }
 
+    const statuses: CheckStatuses = {}
+    this.statuses.set(key, statuses)
     const { reminderHoursBefore, cancelHoursBefore } = this.config.attendance
     this.timers.set(key, [
-      this.armTimer('Attendance reminder', hoursBefore(training.startsAt, reminderHoursBefore), training.startsAt, () => this.runReminderCheck(training)),
-      this.armTimer('Cancellation notice', hoursBefore(training.startsAt, cancelHoursBefore), training.startsAt, () => this.runCancellationCheck(training))
+      this.armTimer(statuses, 'reminder', hoursBefore(training.startsAt, reminderHoursBefore), training.startsAt, () => this.runReminderCheck(training)),
+      this.armTimer(statuses, 'cancellation', hoursBefore(training.startsAt, cancelHoursBefore), training.startsAt, () => this.runCancellationCheck(training))
     ].filter(timer => timer !== undefined))
   }
 
-  private armTimer(label: string, firesAt: Date, trainingAt: Date, check: () => Promise<void>): NodeJS.Timeout | undefined {
+  private armTimer(statuses: CheckStatuses, name: CheckName, firesAt: Date, trainingAt: Date, check: () => Promise<void>): NodeJS.Timeout | undefined {
     const now = new Date()
+    const label = CHECK_LABELS[name]
 
     if (now > trainingAt) {
       log.scheduler(`⏭️  ${label} skipped - training already started`)
+      statuses[name] = { state: 'skipped', reason: 'training already started' }
       return undefined
     }
 
     log.scheduler(`⏰ ${label} armed for ${firesAt <= now ? 'now (catch-up)' : formatDateTimeLocale(firesAt)}`)
-    return armAt(firesAt, () => { void check() })
+    statuses[name] = { state: 'armed', at: firesAt }
+    return armAt(firesAt, () => {
+      statuses[name] = { state: 'fired', at: new Date() }
+      void check()
+    })
   }
 
   /** Disarms every pending check. */
   stop(): void {
     this.timers.forEach(timers => { timers.forEach(clearTimeout) })
     this.timers.clear()
+    this.statuses.clear()
+  }
+
+  /** Where the checks of `training` stand, as armed by this process. */
+  checksOf(training: Training): CheckStatuses {
+    return { ...this.statuses.get(training.startsAt.getTime()) }
+  }
+
+  /** The announcement of `training` this process posted or found, without reading the history. */
+  announcementOf(training: Training): number | undefined {
+    return this.posts.get(training.startsAt.getTime())
   }
 
   /** Exposed for the /attendance admin command. */

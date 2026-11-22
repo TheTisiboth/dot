@@ -216,6 +216,9 @@ OLLAMA_MODEL=llama3.2:3b
 **Admin only (attendance):**
 - `/attendance` - Show the live 👍 count on the announcement, vs the season threshold
 
+**Admin only (status):**
+- `/status` - Show what the bot will do next: next training, announcement (posted or due), players in, reminder and cancellation checks (armed, ran or skipped), quiz answer due, Telegram / MTProto / LLM up or down, version and uptime. Changes nothing
+
 **Admin only (rules quiz):**
 - `/quiz_preview [id]` - Preview a quiz question and its answer here
 - `/quiz_post` - Post the next quiz question to the rules chat

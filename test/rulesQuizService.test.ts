@@ -384,3 +384,24 @@ test('an answered poll is not answered again, even before search sees the answer
   await flush()
   assert.equal(calls.length, 0)
 })
+
+test('a posted quiz has its answer due after the delay, until it is answered', async () => {
+  const quiz = service()
+  const before = new Date()
+  const posted = await quiz.postNext()
+
+  const due = quiz.answerDue()
+  assert.equal(due?.questionId, posted.id)
+  assert.ok(due.at >= answerTimeFor(before, RULES_QUIZ.answerDelayMinutes))
+  await quiz.answerLatest()
+  assert.equal(quiz.answerDue(), undefined)
+})
+
+test('the answer is no longer due once its timer fired', async () => {
+  const quiz = service()
+  await quiz.postNext()
+
+  mock.timers.tick(RULES_QUIZ.answerDelayMinutes * 60_000)
+  await flush()
+  assert.equal(quiz.answerDue(), undefined)
+})
