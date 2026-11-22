@@ -51,7 +51,7 @@ export class RulesQuizService {
   async sendScheduled(): Promise<PartResult> {
     if (!this.config.enabled) {
       log.scheduler('Rules quiz disabled, skipping')
-      return { status: 'skipped', reason: 'disabled' }
+      return { status: 'skipped', reason: 'off' }
     }
 
     clearTimeout(this.retryTimer)

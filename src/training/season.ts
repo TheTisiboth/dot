@@ -140,7 +140,7 @@ export class SeasonManager {
   /** The /info schedule: every season with its dates, practices and location. */
   scheduleText(now: Date = new Date()): string {
     const { winter, summer } = this.seasons
-    return `${EMOJIS.CALENDAR} Training Schedule
+    return `${EMOJIS.CALENDAR} Training schedule
 
 ${seasonText('winter', winter, summer.startDate, now)}
 

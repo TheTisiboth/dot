@@ -201,30 +201,30 @@ OLLAMA_MODEL=llama3.2:3b
 ## Commands
 
 **Everyone:**
-- `/start` - Show welcome message
-- `/help` - List commands
-- `/info` - Show training schedule
-- `/training` - Show next training
+- `/start` - Meet dot
+- `/help` - List the commands
+- `/info` - Show the season schedules
+- `/training` - Show the next training
 
 **Admin only (preview commands):**
-- `/test_template` - Preview template message
-- `/test_llm` - Preview LLM team message
-- `/test_trainer` - Preview LLM trainer message
-- `/test_key` - Preview LLM key-holder message
-- `/preview_team` - Preview team message (template or LLM)
-- `/preview_all` - Preview team, key-holder and trainer messages
+- `/test_template` - Preview the template announcement
+- `/test_llm` - Preview the LLM announcement
+- `/test_trainer` - Preview the LLM trainer request
+- `/test_key` - Preview the key request
+- `/preview_team` - Preview the announcement as it would be posted
+- `/preview_all` - Preview the announcement, key and trainer requests
 
 **Admin only (send commands):**
-- `/send_to_team` - Send message to team chat
-- `/send_to_all` - Send messages to team and trainer chats
+- `/send_to_team` - Post the announcement to the team chat
+- `/send_to_all` - Post the announcement, requests and quiz question now
 
 **Admin only (attendance):**
-- `/attendance` - Live 👍 count on the current training post, vs the season threshold
+- `/attendance` - Show the live 👍 count on the announcement, vs the season threshold
 
 **Admin only (rules quiz):**
-- `/test_rule [id]` - Preview a question and its answer here
-- `/send_rule` - Post the next question to the rules chat
-- `/answer_rule` - Answer the latest poll in the rules chat
+- `/test_rule [id]` - Preview a quiz question and its answer here
+- `/send_rule` - Post the next quiz question to the rules chat
+- `/answer_rule` - Post the answer to the latest quiz question now
 
 See [Rules quiz](#rules-quiz).
 

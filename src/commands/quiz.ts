@@ -8,12 +8,12 @@ import { type Command } from './registry'
 export const quizCommands = (rulesQuiz: RulesQuizService, publisher: QuizPublisher): Command[] => [
   {
     name: 'test_rule',
-    description: 'Preview a rules quiz question and its answer here: /test_rule [id]',
+    description: 'Preview a quiz question and its answer here: /test_rule [id]',
     adminOnly: true,
     run: async ({ args: id, chat, reply }) => {
       const question = id ? findQuizQuestion(id) : await rulesQuiz.pickNext()
       if (!question) {
-        await reply.plain(`${EMOJIS.CROSS_MARK} Unknown question id: ${id}`)
+        await reply.plain(`${EMOJIS.CROSS_MARK} No quiz question with id ${id}.`)
         return
       }
       await publisher.preview(chat, question)
@@ -21,22 +21,22 @@ export const quizCommands = (rulesQuiz: RulesQuizService, publisher: QuizPublish
   },
   {
     name: 'send_rule',
-    description: 'Post the next rules quiz question to the rules chat',
+    description: 'Post the next quiz question to the rules chat',
     adminOnly: true,
     run: async ({ reply }) => {
       const question = await rulesQuiz.postNext()
-      await reply.plain(`${EMOJIS.CHECK_MARK} Rules quiz posted: ${question.id} (${question.difficulty})`)
+      await reply.plain(`${EMOJIS.CHECK_MARK} Quiz question posted: ${question.id} (${question.difficulty})`)
     }
   },
   {
     name: 'answer_rule',
-    description: 'Answer the latest rules quiz poll now',
+    description: 'Post the answer to the latest quiz question now',
     adminOnly: true,
     run: async ({ reply }) => {
       const question = await rulesQuiz.answerLatest()
       await reply.plain(question
-        ? `${EMOJIS.CHECK_MARK} Rules quiz answered: ${question.id}`
-        : `${EMOJIS.WARNING} Nothing to answer in the rules chat: no quiz poll there, or the latest one is already answered. (/test_rule previews come with their answer.)`)
+        ? `${EMOJIS.CHECK_MARK} Quiz answer posted: ${question.id}`
+        : `${EMOJIS.WARNING} Nothing to answer: no quiz question in the rules chat, or the latest one is answered already. /test_rule previews come with their answer.`)
     }
   }
 ]
