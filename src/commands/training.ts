@@ -4,7 +4,7 @@ import { type MessageGenerator } from '../services/MessageGenerator'
 import { describeReport, hasFailure, type SchedulerService } from '../services/SchedulerService'
 import type { BotConfig } from '../config/env'
 import { EMOJIS, MESSAGES } from '../utils/constants'
-import { formatDate, formatTime } from '../utils/formatters'
+import { formatClock, formatDate } from '../utils/formatters'
 import { sendWithFallback, threadOptions } from '../utils/telegram'
 import { type Command } from './registry'
 
@@ -20,14 +20,10 @@ const HTML = { parse_mode: 'HTML' } as const
 
 /** Admin commands to preview and send the training messages before the scheduler does. */
 export const trainingCommands = ({ config, api, seasonManager, messageGenerator, scheduler }: TrainingCommandsDeps): Command[] => {
-  const nextTraining = () => {
-    const training = seasonManager.getNextTrainingInfo()
-    return { training, season: seasonManager.seasonConfigOn(training.date) }
-  }
   const announcement = (useLLM = messageGenerator.isLLMAvailable()) =>
-    messageGenerator.announcement(seasonManager.getNextTrainingInfo(), { useLLM })
+    messageGenerator.announcement(seasonManager.nextTraining(), { useLLM })
   const trainerRequest = (useLLM = messageGenerator.isLLMAvailable()) =>
-    messageGenerator.trainerRequest(seasonManager.getNextTrainingInfo(), { useLLM })
+    messageGenerator.trainerRequest(seasonManager.nextTraining(), { useLLM })
 
   return [
     {
@@ -61,8 +57,8 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       description: 'Preview key-holder message',
       adminOnly: true,
       run: async ({ reply }) => {
-        const { season } = nextTraining()
-        const status = season.keyRequestEnabled ? '' : `\n\n${EMOJIS.WARNING} Disabled for ${season.season}: it will not be sent.`
+        const { keyRequestEnabled, season } = seasonManager.nextTraining()
+        const status = keyRequestEnabled ? '' : `\n\n${EMOJIS.WARNING} Disabled for ${season}: it will not be sent.`
         await reply(`${EMOJIS.KEY} Key Message:\n\n${messageGenerator.keyRequest()}${status}`, HTML)
       }
     },
@@ -82,11 +78,11 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
         await reply(`${EMOJIS.ROBOT} Generating preview messages...`)
         await reply(`${EMOJIS.FRISBEE} <b>Team Message Preview:</b>\n\n${await announcement()}`, HTML)
 
-        const { season } = nextTraining()
-        if (season.keyRequestEnabled) {
+        const { keyRequestEnabled, season } = seasonManager.nextTraining()
+        if (keyRequestEnabled) {
           await reply(`${EMOJIS.KEY} <b>Key Message Preview:</b>\n\n${messageGenerator.keyRequest()}`, HTML)
         } else {
-          await reply(`${EMOJIS.KEY} Key message disabled for ${season.season}`)
+          await reply(`${EMOJIS.KEY} Key message disabled for ${season}`)
         }
 
         await reply(`${EMOJIS.RUNNER} <b>Trainer Message Preview:</b>\n\n${await trainerRequest()}`, HTML)
@@ -99,7 +95,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       adminOnly: true,
       run: async ({ reply }) => {
         await reply(`${EMOJIS.ROBOT} Sending message to team chat...`)
-        const fallback = () => messageGenerator.announcementTemplate(seasonManager.getNextTrainingInfo())
+        const fallback = () => messageGenerator.announcementTemplate(seasonManager.nextTraining())
         await sendWithFallback(api, config.telegram.teamChat.chatId, await announcement(), fallback, threadOptions(config.telegram.teamChat.threadId))
         await reply(`${EMOJIS.CHECK_MARK} Message sent to team chat!`)
       }
@@ -134,7 +130,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
 
 ${status}: <b>${count}</b> / <b>${threshold}</b>
 
-${EMOJIS.CALENDAR} Training: ${formatDate(training.date)} at ${formatTime(training.time)}
+${EMOJIS.CALENDAR} Training: ${formatDate(training.startsAt)} at ${formatClock(training.startsAt)}
 ${EMOJIS.MEMO} Poll message id: <code>${announcementId}</code>
 ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHoursBefore}h before`, HTML)
       }

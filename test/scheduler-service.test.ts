@@ -149,7 +149,7 @@ test('an announcement Telegram cannot parse is sent again as the template', asyn
 
   const [announcement] = bot.sentTo(TEAM_CHAT)
   assert.equal(report.announcement.status, 'sent')
-  assert.equal(announcement.text, new MessageGenerator(config, null).announcementTemplate(new SeasonManager(config).getNextTrainingInfo()))
+  assert.equal(announcement.text, new MessageGenerator(config, null).announcementTemplate(new SeasonManager(config).nextTraining()))
   assert.equal(announcement.options.parse_mode, 'HTML')
 })
 

@@ -1,18 +1,6 @@
-import type { BotConfig } from '../config/env'
-
-export interface SeasonConfig extends SeasonConfigBase {
-  season: SeasonType;
-}
-
 export interface TimeOfDay {
   hour: number;
   minute: number;
-}
-
-export interface PracticeDay {
-  /** 0 = Sunday */
-  day: number;
-  time: TimeOfDay;
 }
 
 export interface DateConfig {
@@ -25,8 +13,6 @@ export interface TrainingLocation {
   url?: string;
 }
 
-export type SeasonConfigBase = BotConfig['seasons']['winter']
-
 export type SeasonType = 'winter' | 'summer'
 
 export interface MessageGenerationOptions {
@@ -38,15 +24,6 @@ export interface Attendance {
   threshold: number;
 }
 
-export interface TrainingInfo {
-  date: Date;
-  location: TrainingLocation;
-  time: TimeOfDay;
-  throwingTime?: TimeOfDay;
-  season: SeasonType;
-  practiceDay: PracticeDay;
-  isCancelled?: boolean;
-}
 export type QuizDifficulty = 'easy' | 'medium' | 'hard'
 export type QuizMode = 'outdoor' | 'indoor'
 

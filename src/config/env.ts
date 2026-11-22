@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { type DateConfig, type PracticeDay, type TimeOfDay, type TrainingLocation } from '../types'
+import { type DateConfig, type TimeOfDay, type TrainingLocation } from '../types'
 
 const flag = z.string().transform(value => value === 'true')
 const number = z.coerce.number({ error: 'must be a number' })
@@ -15,7 +15,7 @@ const PRACTICE = new RegExp(`^[0-6]:${TIME}$`)
 const practiceDays = required
   .transform(raw => raw.split(',').map(entry => entry.trim()))
   .pipe(z.array(z.string().regex(PRACTICE, 'must be day:HH:MM,… (day 0-6, Sunday = 0; time 00:00 to 23:59)')))
-  .transform(entries => entries.map((entry): PracticeDay => {
+  .transform(entries => entries.map(entry => {
     const [day, hour, minute] = entry.split(':').map(Number)
     return { day, time: { hour, minute } }
   }))

@@ -1,8 +1,6 @@
 import { type SeasonManager } from '../services/SeasonManager'
-import { type SeasonConfigBase, type DateConfig } from '../types'
 import { EMOJIS } from '../utils/constants'
-import { getDateBefore } from '../utils/dateHelpers'
-import { capitalize, formatDateShort, formatDate, formatPracticeDays, formatTime, locationLink } from '../utils/formatters'
+import { formatClock, formatDate, locationLink } from '../utils/formatters'
 import { type Command } from './registry'
 
 const START_TEXT = `${EMOJIS.FRISBEE} Welcome to Ultimate Frisbee Training Bot!
@@ -30,7 +28,7 @@ export const publicCommands = (seasonManager: SeasonManager): Command[] => [
   {
     name: 'info',
     description: 'Show training schedule',
-    run: ({ reply }) => reply(scheduleText(seasonManager), { parse_mode: 'HTML' })
+    run: ({ reply }) => reply(seasonManager.scheduleText(), { parse_mode: 'HTML' })
   },
   {
     name: 'training',
@@ -39,35 +37,16 @@ export const publicCommands = (seasonManager: SeasonManager): Command[] => [
   }
 ]
 
-const scheduleText = (seasonManager: SeasonManager): string => {
-  const { winter, summer } = seasonManager.seasons
-  return `${EMOJIS.CALENDAR} Training Schedule
-
-${seasonText('winter', winter, summer.startDate)}
-
-${seasonText('summer', summer, winter.startDate)}`
-}
-
-const seasonText = (season: 'winter' | 'summer', seasonConfig: SeasonConfigBase, nextSeasonStart: DateConfig): string => {
-  const emoji = season === 'winter' ? EMOJIS.WINTER : EMOJIS.SUMMER
-  const start = formatDateShort(seasonConfig.startDate)
-  const end = formatDateShort(getDateBefore(nextSeasonStart))
-
-  return `${emoji} ${capitalize(season)} (${start} - ${end}):
-${formatPracticeDays(seasonConfig.practices)}
-   ${EMOJIS.LOCATION} ${locationLink(seasonConfig.location)}`
-}
-
 const nextTrainingText = (seasonManager: SeasonManager): string => {
-  const training = seasonManager.getNextTrainingInfo()
-  const cancelled = training.isCancelled ? `\n\n${EMOJIS.CROSS_MARK} <b>Cancelled</b>` : ''
-  const timeLines = training.throwingTime
-    ? `${EMOJIS.FIRE} Throwing: ${formatTime(training.throwingTime)}\n${EMOJIS.CLOCK} Training: ${formatTime(training.time)}`
-    : `${EMOJIS.CLOCK} ${formatTime(training.time)}`
+  const training = seasonManager.nextTraining()
+  const cancelled = training.cancelled ? `\n\n${EMOJIS.CROSS_MARK} <b>Cancelled</b>` : ''
+  const timeLines = training.throwingAt
+    ? `${EMOJIS.FIRE} Throwing: ${formatClock(training.throwingAt)}\n${EMOJIS.CLOCK} Training: ${formatClock(training.startsAt)}`
+    : `${EMOJIS.CLOCK} ${formatClock(training.startsAt)}`
 
   return `${EMOJIS.RUNNER} Next Training:
 
-${EMOJIS.CALENDAR} ${formatDate(training.date)}
+${EMOJIS.CALENDAR} ${formatDate(training.startsAt)}
 ${timeLines}
 ${EMOJIS.LOCATION} ${locationLink(training.location)}${cancelled}`
 }
