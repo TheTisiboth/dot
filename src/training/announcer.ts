@@ -68,9 +68,8 @@ export const announcer = ({ config, seasonManager, messageGenerator, attendance,
   }
 
   /** Key and trainer requests wait for the announcement, so a retry never posts them twice. */
-  const announce = async (): Promise<Omit<AnnounceReport, 'quiz'>> => {
-    const nextTraining = seasonManager.nextTraining()
-    if (nextTraining.cancelled) {
+  const announce = async (training: Training): Promise<Omit<AnnounceReport, 'quiz'>> => {
+    if (training.cancelled) {
       log.scheduler('⏭️  Training cancelled - nothing sent to team or trainers')
       const cancelled: PartResult = { status: 'skipped', reason: 'training cancelled' }
       return { announcement: cancelled, keyRequest: cancelled, trainerRequest: cancelled }
@@ -79,11 +78,11 @@ export const announcer = ({ config, seasonManager, messageGenerator, attendance,
     const useLLM = messageGenerator.isLLMAvailable()
 
     const announcement = await attempt('Sending announcement', async () => {
-      const message = await messageGenerator.announcement(nextTraining, { useLLM })
-      const messageId = await toTeam.text(message, { fallback: () => messageGenerator.announcementTemplate(nextTraining) })
-      attendance.track(nextTraining.startsAt, messageId)
+      const message = await messageGenerator.announcement(training, { useLLM })
+      const messageId = await toTeam.text(message, { fallback: () => messageGenerator.announcementTemplate(training) })
+      attendance.track(training, messageId)
 
-      log.scheduler(`Announcement sent to team - ${nextTraining.season} at ${nextTraining.location.name} (${formatClock(nextTraining.startsAt)}) using ${useLLM ? 'LLM' : 'template'}`)
+      log.scheduler(`Announcement sent to team - ${training.season} at ${training.location.name} (${formatClock(training.startsAt)}) using ${useLLM ? 'LLM' : 'template'}`)
     })
 
     if (announcement.status === 'failed') {
@@ -93,8 +92,8 @@ export const announcer = ({ config, seasonManager, messageGenerator, attendance,
 
     return {
       announcement,
-      keyRequest: await sendKeyRequest(nextTraining),
-      trainerRequest: await sendTrainerRequest(nextTraining, useLLM)
+      keyRequest: await sendKeyRequest(training),
+      trainerRequest: await sendTrainerRequest(training, useLLM)
     }
   }
 
@@ -102,10 +101,10 @@ export const announcer = ({ config, seasonManager, messageGenerator, attendance,
     announce,
 
     /** Posts the announcement, key and trainer requests, then the quiz, and says what happened to each (used by /send_to_all). */
-    async announceTraining(): Promise<AnnounceReport> {
-      const training = await announce()
+    async announceTraining(training = seasonManager.nextTraining()): Promise<AnnounceReport> {
+      const parts = await announce(training)
       // A failed announcement must not skip the quiz, which goes out even if training is cancelled
-      return { ...training, quiz: await rulesQuiz.sendScheduled() }
+      return { ...parts, quiz: await rulesQuiz.sendScheduled() }
     }
   }
 }

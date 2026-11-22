@@ -1,7 +1,7 @@
 import { type BotConfig, type TrainingLocation } from '../config/env'
 import { EMOJIS } from '../shared/emojis'
 import { type DateConfig, type TimeOfDay, createDateFromMonthDay, atTime, getDateBefore, minutesBefore } from '../shared/time'
-import { capitalize, formatDateShort, formatTime, getDayName, locationLink } from '../shared/formatters'
+import { capitalize, formatClock, formatDateShort, formatTime, getDayName, locationLink } from '../shared/formatters'
 
 export type SeasonType = 'winter' | 'summer'
 
@@ -74,14 +74,11 @@ export class SeasonManager {
     }
   }
 
-  /** Whether a training starts tomorrow at `time`: the post goes out exactly 24h before it. */
-  isAnnouncementDue(time: TimeOfDay, date: Date = new Date()): boolean {
-    const tomorrow = addDays(date, 1)
-
-    const seasonConfig = this.seasonConfigOn(tomorrow)
-    const tomorrowDayOfWeek = tomorrow.getDay()
-
-    return seasonConfig.practices.some(practice => practice.day === tomorrowDayOfWeek && formatTime(practice.time) === formatTime(time))
+  /** The training whose configured start is `at`, if any: what the cron tick 24h before announces. */
+  trainingStartingAt(at: Date): Training | undefined {
+    const seasonConfig = this.seasonConfigOn(at)
+    const isPractice = seasonConfig.practices.some(({ day, time }) => day === at.getDay() && formatTime(time) === formatClock(at))
+    return isPractice ? this.toTraining({ at, seasonConfig }) : undefined
   }
 
   /** Practice times of every season, so a season switch never lands on a time with no check registered. */

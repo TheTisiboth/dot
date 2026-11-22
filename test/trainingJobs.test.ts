@@ -13,7 +13,7 @@ import { EMOJIS } from '../src/shared/emojis'
 import { makeFakeBot } from './fakes/bot'
 import { makeFakeTrainingHistory, TRAINING_POST_ID, type ChatHistory } from './fakes/trainingHistory'
 import { makeFakeRulesQuiz } from './fakes/rulesQuiz'
-import { beforeTraining } from './fixtures/dates'
+import { at, beforeTraining } from './fixtures/dates'
 import { HOUR_MS, MINUTE_MS, advance, startAt } from './helpers/clock'
 import { testConfig } from './fixtures/config'
 
@@ -381,4 +381,42 @@ test('once the training started, the inspection finds no post until the next ann
 
   await announcer.announceTraining()
   assert.equal((await attendance.inspect())?.announcementId, bot.sentTo(TEAM_CHAT).at(-2)?.messageId)
+})
+
+// Tue 20:30 and Wed 19:00: the Tuesday 19:00 tick is for Wednesday, while Tuesday's training is still ahead
+const CONSECUTIVE = { SUMMER_PRACTICE_DAYS: '2:20:30,3:19:00' }
+const TUESDAY = at(2027, 6, 8, 20, 30)
+const WEDNESDAY = at(2027, 6, 9, 19, 0)
+
+test('with practices on consecutive days, the tick the day before announces the later training', async () => {
+  startAt(new Date(WEDNESDAY.getTime() - 24 * HOUR_MS - 30_000))
+  const { start, bot } = build({ env: CONSECUTIVE })
+  start()
+
+  await advance(30_000)
+
+  const [announcement] = bot.sentTo(TEAM_CHAT)
+  assert.ok(announcement.text.includes('19:00'))
+  assert.equal(announcement.text.includes('20:30'), false)
+  assert.ok(bot.sentTo(TRAINER_CHAT)[0].text.includes('19:00'))
+})
+
+test('with practices on consecutive days, each training checks the 👍 of its own announcement', async () => {
+  startAt(new Date(TUESDAY.getTime() - 24 * HOUR_MS - 30_000))
+  const { start, bot } = build({ env: CONSECUTIVE, history: { postId: undefined, thumbsUp: 1 } })
+  start()
+  await advance(30_000)
+  const [tuesdayPost] = bot.sentTo(TEAM_CHAT)
+
+  await advance(WEDNESDAY.getTime() - TUESDAY.getTime())
+  const wednesdayPost = bot.sentTo(TEAM_CHAT).find(message => message.text.includes('19:00') && !message.options.reply_to_message_id)
+  assert.ok(wednesdayPost)
+
+  await advance(30 * MINUTE_MS)
+  const [tuesdayCancellation] = bot.sentTo(TRAINER_CHAT).filter(message => message.text.includes(CANCELLATION_SIGNATURE))
+  assert.ok(tuesdayCancellation.text.includes('20:30'))
+
+  await advance(21 * HOUR_MS)
+  const repliedTo = bot.sentTo(TEAM_CHAT).map(message => message.options.reply_to_message_id).filter(id => id !== undefined)
+  assert.deepEqual(repliedTo, [tuesdayPost.messageId, wednesdayPost.messageId])
 })
