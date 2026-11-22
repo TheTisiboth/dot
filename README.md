@@ -58,7 +58,7 @@ cp .env.example .env
 Required settings in `.env`:
 ```env
 TELEGRAM_BOT_TOKEN=your_token
-CHAT_ID=team_chat_id
+TEAM_CHAT_ID=team_chat_id
 ADMIN_CHAT_ID=your_admin_id
 TRAINER_CHAT_ID=trainer_chat_id
 
@@ -68,7 +68,7 @@ SUMMER_PRACTICE_DAYS=0:19:00,3:19:30     # Sunday 19:00, Wednesday 19:30
 
 Optional thread support:
 ```env
-CHAT_THREAD_ID=123                        # Team chat thread
+TEAM_CHAT_THREAD_ID=123                   # Team chat thread
 TRAINER_CHAT_THREAD_ID=456                # Trainer chat thread
 ```
 
@@ -108,7 +108,7 @@ TELEGRAM_SESSION=1BQANOTEuMTA4LjU2...
 >
 > To revoke: Telegram → **Settings → Devices** → terminate the session.
 
-Your account must be a **member of both** `CHAT_ID` and `TRAINER_CHAT_ID`: it reads reactions
+Your account must be a **member of both** `TEAM_CHAT_ID` and `TRAINER_CHAT_ID`: it reads reactions
 in the first, and checks for already-sent cancellations in the second. Reactions must be
 enabled in the team group with 👍 available.
 
@@ -275,8 +275,8 @@ npm run docker:dev          # Run with live logs
 ## Message Flow
 
 The bot sends **three separate messages** 24h before each training:
-1. **Team message** → `CHAT_ID` (optional thread: `CHAT_THREAD_ID`)
-2. **Key-holder message** → `CHAT_ID`, right after the team message (per-season toggle)
+1. **Team message** → `TEAM_CHAT_ID` (optional thread: `TEAM_CHAT_THREAD_ID`)
+2. **Key-holder message** → `TEAM_CHAT_ID`, right after the team message (per-season toggle)
 3. **Trainer message** → `TRAINER_CHAT_ID` (optional thread: `TRAINER_CHAT_THREAD_ID`)
 
 All messages can be:

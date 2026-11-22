@@ -4,7 +4,7 @@ import { loadConfig } from '../src/config/env'
 
 const VALID = {
   TELEGRAM_BOT_TOKEN: '1000:test-token',
-  CHAT_ID: '-100',
+  TEAM_CHAT_ID: '-100',
   ADMIN_CHAT_ID: '-200',
   TRAINER_CHAT_ID: '-300',
   TELEGRAM_API_ID: '1',
@@ -31,7 +31,7 @@ const failureOf = (overrides: Record<string, string | undefined>): string => {
 }
 
 test('a valid environment loads into typed values', () => {
-  const config = load({ CHAT_THREAD_ID: '5', EXCEPTIONAL_TIME: '18:05', WINTER_LOCATION: '[Hall](https://maps.example/hall)' })
+  const config = load({ TEAM_CHAT_THREAD_ID: '5', EXCEPTIONAL_TIME: '18:05', WINTER_LOCATION: '[Hall](https://maps.example/hall)' })
 
   assert.deepEqual(config.telegram.teamChat, { chatId: '-100', threadId: 5 })
   assert.deepEqual(config.seasons.winter.practices[0], { day: 2, time: { hour: 20, minute: 30 } })
@@ -53,8 +53,8 @@ test('unset or empty variables take their defaults', () => {
 
 test('each invalid value is reported with its exact variable name', () => {
   const cases: Array<[string, Record<string, string | undefined>]> = [
-    ['CHAT_ID', { CHAT_ID: undefined }],
-    ['CHAT_THREAD_ID', { CHAT_THREAD_ID: 'general' }],
+    ['TEAM_CHAT_ID', { TEAM_CHAT_ID: undefined }],
+    ['TEAM_CHAT_THREAD_ID', { TEAM_CHAT_THREAD_ID: 'general' }],
     ['OLLAMA_HOST', { OLLAMA_HOST: 'not a url' }],
     ['TELEGRAM_API_ID', { TELEGRAM_API_ID: 'abc' }],
     ['TELEGRAM_SESSION', { TELEGRAM_SESSION: '2abc' }],
@@ -95,7 +95,7 @@ test('a season can have a single practice', () => {
 })
 
 test('every invalid variable is reported at once', () => {
-  const message = failureOf({ CHAT_ID: undefined, EXCEPTIONAL_TIME: '99:99' })
-  assert.match(message, /CHAT_ID:/)
+  const message = failureOf({ TEAM_CHAT_ID: undefined, EXCEPTIONAL_TIME: '99:99' })
+  assert.match(message, /TEAM_CHAT_ID:/)
   assert.match(message, /EXCEPTIONAL_TIME:/)
 })

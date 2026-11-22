@@ -3,7 +3,7 @@ import { loadConfig } from '../../src/config/env'
 // The whole environment of a test: neither .env nor the shell reach it
 const TEST_ENV = {
   TELEGRAM_BOT_TOKEN: '1000:test-token',
-  CHAT_ID: '-100',
+  TEAM_CHAT_ID: '-100',
   ADMIN_CHAT_ID: '-200',
   TRAINER_CHAT_ID: '-300',
   TELEGRAM_API_ID: '1',
