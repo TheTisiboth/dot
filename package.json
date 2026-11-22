@@ -1,30 +1,24 @@
 {
   "name": "dot",
   "version": "1.3.0",
+  "private": true,
   "description": "Telegram bot for Ultimate Frisbee training notifications with seasonal scheduling",
-  "main": "dist/main.js",
   "type": "module",
   "scripts": {
-    "build": "tsc && tsc-alias",
-    "start": "npm run build && node dist/main.js",
     "dev": "tsx watch src/main.ts",
-    "mtproto:login": "tsx scripts/mtprotoLogin.ts",
+    "build": "tsc && tsc-alias",
+    "start": "node dist/main.js",
     "test": "tsx --test test/*.test.ts",
     "test:coverage": "tsx --test --experimental-test-coverage --test-coverage-lines=84 --test-coverage-branches=87 --test-coverage-functions=93 --test-coverage-include-all --test-coverage-include='src/**' --test-coverage-exclude='src/quiz/data/**' test/*.test.ts",
+    "smoke": "tsx scripts/smoke.ts",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "format": "eslint . --fix",
     "type-check": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json",
     "check": "npm run type-check && npm run lint && knip",
-    "bot:deploy": "npm run build && docker-compose up --build -d frisbee-bot",
-    "bot:logs": "docker-compose logs -f frisbee-bot",
-    "bot:restart": "docker-compose restart frisbee-bot",
-    "bot:stop": "docker-compose stop frisbee-bot",
-    "ollama:logs": "docker-compose logs -f ollama",
-    "ollama:pull": "docker-compose up ollama-setup",
-    "docker:dev": "docker-compose up --build",
-    "deploy": "npm run build && docker-compose down && docker-compose up --build -d && docker-compose up ollama-setup",
     "verify": "npm run check && npm test",
-    "smoke": "tsx scripts/smoke.ts"
+    "mtproto:login": "tsx scripts/mtprotoLogin.ts",
+    "docker:up": "docker compose up --build",
+    "release": "npm version"
   },
   "keywords": [
     "telegram",
@@ -33,7 +27,6 @@
     "scheduling",
     "typescript"
   ],
-  "author": "",
   "license": "MIT",
   "dependencies": {
     "dotenv": "^18.0.10",
