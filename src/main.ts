@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs'
 import { Bot } from 'grammy'
 import { Ollama } from 'ollama'
+import { z } from 'zod'
 import { readEnv } from './config'
 import { type BotConfig, loadConfig } from './config/env'
 import { createMtprotoClient } from './telegram/mtproto/client'
@@ -17,11 +19,13 @@ const loadConfigOrExit = (): BotConfig => {
 }
 
 const config = loadConfigOrExit()
+// One level up from both src/ (dev) and dist/ (prod), where the image copies it too
+const { version } = z.object({ version: z.string() }).parse(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')))
 const app = buildApp(config, {
   bot: new Bot(config.telegram.token),
   mtproto: createMtprotoClient(config.mtproto),
   ollama: config.ollama.enabled ? new Ollama({ host: config.ollama.host }) : null
-}, HEALTH_PORT)
+}, HEALTH_PORT, version)
 
 process.on('unhandledRejection', (reason) => {
   log.error('Unhandled Rejection', reason)

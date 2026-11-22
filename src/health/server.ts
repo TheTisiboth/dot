@@ -13,7 +13,7 @@ export const PROBE_TIMEOUT_MS = 5_000
 
 type Status = 'ok' | 'disabled' | 'down'
 
-interface Check {
+export interface Check {
   status: Status;
   responseTimeMs?: number;
   error?: string;
@@ -43,10 +43,17 @@ const dependencyChecks = ({ api, reader, llm }: HealthDependencies, timeoutMs: n
     : { status: 'disabled' }
 })
 
+const runAll = async (checks: Record<string, () => Promise<Check>>): Promise<Record<string, Check>> =>
+  Object.fromEntries(await Promise.all(Object.entries(checks).map(async ([name, check]) => [name, await check()] as const)))
+
+/** Every dependency's status, from the probes of `GET /health`. */
+export const checkDependencies = (dependencies: HealthDependencies, timeoutMs: number): Promise<Record<string, Check>> =>
+  runAll(dependencyChecks(dependencies, timeoutMs))
+
 const respond = async (path: string, checks: Record<string, () => Promise<Check>>): Promise<{ code: number; body: object }> => {
   const timestamp = new Date().toISOString()
   if (path === '/health') {
-    const results = Object.fromEntries(await Promise.all(Object.entries(checks).map(async ([name, check]) => [name, await check()] as const)))
+    const results = await runAll(checks)
     // Only Telegram is vital: without MTProto or Ollama the bot still posts, with templates as the LLM fallback
     const status = results.telegram.status === 'ok' ? 'ok' : 'down'
     return { code: status === 'ok' ? 200 : 503, body: { status, checks: results, timestamp } }

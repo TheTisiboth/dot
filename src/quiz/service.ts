@@ -32,6 +32,7 @@ export class RulesQuizService {
   private queue: Promise<unknown> = Promise.resolve()
   private answerTimer?: NodeJS.Timeout
   private retryTimer?: NodeJS.Timeout
+  private pendingAnswer?: { quizMessageId: number; questionId: string; at: Date }
   // What this process posted and answered. Search only sees a message seconds after it is sent, so
   // right after /quiz_post it would miss the new poll, and right after an answer, the answer
   private lastPosted?: LatestQuiz
@@ -84,7 +85,7 @@ export class RulesQuizService {
     const postedAt = new Date()
     this.lastPosted = { messageId: quizMessageId, questionId: question.id, postedAt, answered: false }
     // Armed from the post itself, not a history lookup that would not see this poll yet
-    if (this.config.enabled) this.armAnswerFor(quizMessageId, postedAt)
+    if (this.config.enabled) this.armAnswerFor(quizMessageId, question.id, postedAt)
     return question
   }
 
@@ -102,25 +103,36 @@ export class RulesQuizService {
 
     try {
       const latest = await this.findLatestQuiz(this.rulesChat())
-      if (latest && !latest.answered) this.armAnswerFor(latest.messageId, latest.postedAt)
+      if (latest && !latest.answered) this.armAnswerFor(latest.messageId, latest.questionId, latest.postedAt)
     } catch (error) {
       log.error('Arming rules quiz answer', error)
     }
   }
 
-  private armAnswerFor(quizMessageId: number, postedAt: Date): void {
+  private armAnswerFor(quizMessageId: number, questionId: string, postedAt: Date): void {
     clearTimeout(this.answerTimer)
 
     const answerAt = answerTimeFor(postedAt, this.config.answerDelayMinutes)
     log.scheduler(`⏰ Rules quiz answer armed for ${answerAt <= new Date() ? 'now (catch-up)' : formatDateTimeLocale(answerAt)}`)
 
-    this.answerTimer = armAt(answerAt, () => { void this.answerOnTimer(quizMessageId) })
+    this.pendingAnswer = { quizMessageId, questionId, at: answerAt }
+    this.answerTimer = armAt(answerAt, () => {
+      this.pendingAnswer = undefined
+      void this.answerOnTimer(quizMessageId)
+    })
   }
 
   /** Disarms the pending answer and retry. */
   stop(): void {
     clearTimeout(this.answerTimer)
     clearTimeout(this.retryTimer)
+    this.pendingAnswer = undefined
+  }
+
+  /** The answer the timer will post, unless /quiz_answer already did. */
+  answerDue(): { questionId: string; at: Date } | undefined {
+    const pending = this.pendingAnswer
+    return pending && !this.answeredIds.has(pending.quizMessageId) ? { questionId: pending.questionId, at: pending.at } : undefined
   }
 
   /**

@@ -14,11 +14,12 @@ import { announcer } from './training/announcer'
 import { startSchedule } from './training/schedule'
 import { RulesQuizService } from './quiz/service'
 import { quizPublisher } from './quiz/publisher'
-import { PROBE_TIMEOUT_MS, startHealthServer } from './health/server'
+import { PROBE_TIMEOUT_MS, checkDependencies, startHealthServer } from './health/server'
 import { publishCommandMenus, routeCommands } from './commands/registry'
 import { publicCommands } from './commands/public'
 import { trainingCommands } from './commands/training'
 import { quizCommands } from './commands/quiz'
+import { statusCommand } from './commands/status'
 import { EMOJIS } from './shared/emojis'
 import { withTimeout } from './shared/async'
 import { log } from './shared/logger'
@@ -41,7 +42,7 @@ export interface App {
 }
 
 /** Builds and wires every service; nothing talks to the outside until `start`. */
-export const buildApp = (config: BotConfig, { bot, mtproto: mtprotoClient, ollama }: Clients, healthPort: number): App => {
+export const buildApp = (config: BotConfig, { bot, mtproto: mtprotoClient, ollama }: Clients, healthPort: number, version: string): App => {
   bot.api.config.use(pollingOutageLogger())
   // grammY awaits each update before the next: not awaiting keeps a slow command (LLM) from holding up the others
   bot.use((_ctx, next) => {
@@ -64,10 +65,12 @@ export const buildApp = (config: BotConfig, { bot, mtproto: mtprotoClient, ollam
   const rulesQuiz = new RulesQuizService(config.rulesQuiz, publisher, seasonManager, quizHistory(history))
   const attendance = new AttendanceMonitor(config, seasonManager, messages, trainingHistory(history), bot.api)
   const trainingAnnouncer = announcer({ config, seasonManager, messages, attendance, bot: bot.api, rulesQuiz })
+  const dependencies = { api: bot.api, reader: mtproto, llm }
   const commands = [
     ...publicCommands(seasonManager),
     ...trainingCommands({ config, api: bot.api, seasonManager, messages, announcer: trainingAnnouncer, attendance, llmEnabled: llm.enabled }),
-    ...quizCommands(rulesQuiz, publisher)
+    ...quizCommands(rulesQuiz, publisher),
+    statusCommand({ config, seasonManager, attendance, rulesQuiz, dependencies: () => checkDependencies(dependencies, PROBE_TIMEOUT_MS), startedAt: new Date(), version })
   ]
   routeCommands(bot, commands, adminChatId)
 
@@ -81,7 +84,7 @@ export const buildApp = (config: BotConfig, { bot, mtproto: mtprotoClient, ollam
   let stopSchedule: (() => Promise<void>) | undefined
 
   const start = async (onPollingStopped: (error: unknown) => void): Promise<void> => {
-    health = startHealthServer({ api: bot.api, reader: mtproto, llm }, healthPort, PROBE_TIMEOUT_MS)
+    health = startHealthServer(dependencies, healthPort, PROBE_TIMEOUT_MS)
     publishCommandMenus(bot.api, commands, adminChatId).catch((error: unknown) => {
       log.error('Registering bot commands', error)
     })
