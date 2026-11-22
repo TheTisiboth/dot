@@ -2,6 +2,7 @@ import './helpers/testEnv'
 import { test, afterEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import { config } from '../src/config'
+import { formatTime } from '../src/utils/formatters'
 import { type Command, publishCommandMenus, routeCommands } from '../src/commands/registry'
 import { publicCommands } from '../src/commands/public'
 import { quizCommands } from '../src/commands/quiz'
@@ -20,7 +21,7 @@ import { restoreConfigAfterEach } from './helpers/config'
 
 const ADMIN = { chatId: Number(config.telegram.adminChatId) }
 const PLAYER = { chatId: 555 }
-const TEAM_CHAT = config.telegram.chatId
+const TEAM_CHAT = config.telegram.teamChat.chatId
 // A count no other figure of the /attendance reply contains
 const ATTENDING = 6
 const ADMIN_COMMANDS = [
@@ -83,7 +84,7 @@ test('/training shows the next training from the season config', async () => {
 
   const [reply] = bot.sentTo(PLAYER.chatId)
   assert.ok(reply.text.includes(config.seasons.summer.location.name))
-  assert.ok(reply.text.includes(SUMMER_TRAINING.time))
+  assert.ok(reply.text.includes(formatTime(SUMMER_TRAINING.time)))
   assert.ok(reply.text.includes(formatDate(SUMMER_TRAINING.at)))
 })
 
@@ -98,7 +99,7 @@ test('/training shows the throwing time when the season has one', async () => {
 })
 
 test('/training shows the moved place and time of an exceptional training', async () => {
-  config.exceptionalTraining = { location: { name: 'Beach' }, time: '20:15' }
+  config.exceptionalTraining = { ...config.exceptionalTraining, location: { name: 'Beach' }, time: { hour: 20, minute: 15 } }
   startAt(beforeTraining(24 * HOUR_MS))
   const { bot } = build()
 
@@ -129,7 +130,7 @@ test('/info lists both seasons with their locations and practice times', async (
   const [reply] = bot.sentTo(PLAYER.chatId)
   for (const season of [config.seasons.winter, config.seasons.summer]) {
     assert.ok(reply.text.includes(season.location.name))
-    for (const { time } of season.practices) assert.ok(reply.text.includes(time))
+    for (const { time } of season.practices) assert.ok(reply.text.includes(formatTime(time)))
   }
 })
 
@@ -160,7 +161,7 @@ test('/send_to_all posts the scheduled announcement and the quiz', async () => {
   await bot.command('/send_to_all', ADMIN)
 
   assert.ok(bot.sentTo(TEAM_CHAT).length > 0)
-  assert.ok(bot.sentTo(config.telegram.trainerChatId).length > 0)
+  assert.ok(bot.sentTo(config.telegram.trainerChat.chatId).length > 0)
   assert.deepEqual(quiz.calls, ['sendScheduled'])
 })
 

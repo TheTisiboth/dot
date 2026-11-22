@@ -4,7 +4,7 @@ import { type MessageGenerator } from '../services/MessageGenerator'
 import { describeReport, hasFailure, type SchedulerService } from '../services/SchedulerService'
 import { config } from '../config'
 import { EMOJIS, MESSAGES } from '../utils/constants'
-import { formatDate } from '../utils/formatters'
+import { formatDate, formatTime } from '../utils/formatters'
 import { sendWithFallback, threadOptions } from '../utils/telegram'
 import { type Command } from './registry'
 
@@ -99,7 +99,7 @@ export const trainingCommands = ({ api, seasonManager, messageGenerator, schedul
       run: async ({ reply }) => {
         await reply(`${EMOJIS.ROBOT} Sending message to team chat...`)
         const fallback = () => messageGenerator.generateTemplateMessage(seasonManager.getNextTrainingInfo())
-        await sendWithFallback(api, config.telegram.chatId, await teamMessage(), fallback, threadOptions(config.telegram.chatThreadId))
+        await sendWithFallback(api, config.telegram.teamChat.chatId, await teamMessage(), fallback, threadOptions(config.telegram.teamChat.threadId))
         await reply(`${EMOJIS.CHECK_MARK} Message sent to team chat!`)
       }
     },
@@ -133,7 +133,7 @@ export const trainingCommands = ({ api, seasonManager, messageGenerator, schedul
 
 ${status}: <b>${count}</b> / <b>${threshold}</b>
 
-${EMOJIS.CALENDAR} Training: ${formatDate(training.date)} at ${training.time}
+${EMOJIS.CALENDAR} Training: ${formatDate(training.date)} at ${formatTime(training.time)}
 ${EMOJIS.MEMO} Poll message id: <code>${pollMessageId}</code>
 ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHoursBefore}h before`, HTML)
       }

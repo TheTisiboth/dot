@@ -1,16 +1,31 @@
-import type { z } from 'zod'
-import type { botConfigSchema, practiceDaySchema, dateConfigSchema } from '../config/schema'
+import type { BotConfig } from '../config/env'
 
 export interface SeasonConfig extends SeasonConfigBase {
   season: SeasonType;
 }
 
-export type PracticeDay = z.infer<typeof practiceDaySchema>
-export type DateConfig = z.infer<typeof dateConfigSchema>
+export interface TimeOfDay {
+  hour: number;
+  minute: number;
+}
 
-export type BotConfig = z.infer<typeof botConfigSchema>
+export interface PracticeDay {
+  /** 0 = Sunday */
+  day: number;
+  time: TimeOfDay;
+}
+
+export interface DateConfig {
+  month: number;
+  day: number;
+}
+
+export interface TrainingLocation {
+  name: string;
+  url?: string;
+}
+
 export type SeasonConfigBase = BotConfig['seasons']['winter']
-export type TrainingLocation = SeasonConfigBase['location']
 
 export type SeasonType = 'winter' | 'summer'
 
@@ -26,8 +41,8 @@ export interface Attendance {
 export interface TrainingInfo {
   date: Date;
   location: TrainingLocation;
-  time: string;
-  throwingTime?: string;
+  time: TimeOfDay;
+  throwingTime?: TimeOfDay;
   season: SeasonType;
   practiceDay: PracticeDay;
   isCancelled?: boolean;

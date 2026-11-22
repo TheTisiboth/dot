@@ -161,7 +161,7 @@ export class ReactionReader {
    * command replies never contain one, so they cannot be mistaken for it. The key message, posted
    * right after it, also carries a 👍 and is skipped explicitly.
    */
-  async findPollMessage(chatId: string, threadId: string | undefined, trainingAt: Date): Promise<number | undefined> {
+  async findPollMessage(chatId: string, threadId: number | undefined, trainingAt: Date): Promise<number | undefined> {
     const windowStart = hoursBefore(trainingAt, POLL_LOOKBACK_HOURS)
     const messages = await this.searchBotMessages(chatId, threadId, { isRecent: message => this.sentAt(message) >= windowStart })
 
@@ -182,7 +182,7 @@ export class ReactionReader {
    * model does not reliably respect the prompt's emoji allowlist, so it can open with the very emoji
    * we use as a marker - which would make the post look like a reminder that had already been sent.
    */
-  async hasBotReplyTo(chatId: string, threadId: string | undefined, replyToId: number): Promise<boolean> {
+  async hasBotReplyTo(chatId: string, threadId: number | undefined, replyToId: number): Promise<boolean> {
     // A reply is newer than the message it replies to, and message ids grow with time
     const messages = await this.searchBotMessages(chatId, threadId, { isRecent: message => message.id > replyToId })
 
@@ -192,7 +192,7 @@ export class ReactionReader {
   /** Whether the bot already posted a message containing `needle`, used for the template-only cancellation. */
   async hasBotMessageContaining(
     chatId: string,
-    threadId: string | undefined,
+    threadId: number | undefined,
     needle: string,
     since: Date
   ): Promise<boolean> {
@@ -202,7 +202,7 @@ export class ReactionReader {
   }
 
   /** Ids of the quiz questions already posted, newest first: the chat history is the quiz memory. */
-  async getAskedQuizIds(chatId: string, threadId: string | undefined): Promise<string[]> {
+  async getAskedQuizIds(chatId: string, threadId: number | undefined): Promise<string[]> {
     const messages = await this.searchBotMessages(chatId, threadId)
 
     return messages.flatMap(message => {
@@ -215,7 +215,7 @@ export class ReactionReader {
    * The newest quiz poll, and whether the bot already replied to it (the answer). Found from the
    * history, so a restart loses neither the poll nor the fact it was answered.
    */
-  async getLatestQuiz(chatId: string, threadId: string | undefined): Promise<LatestQuiz | undefined> {
+  async getLatestQuiz(chatId: string, threadId: number | undefined): Promise<LatestQuiz | undefined> {
     // Recent enough: the poll is the newest quiz, and its answer comes right after it
     const messages = await this.searchBotMessages(chatId, threadId, { maxMessages: SEARCH_PAGE_SIZE })
     for (const message of messages) {
@@ -251,7 +251,7 @@ export class ReactionReader {
    */
   private async searchBotMessages(
     chatId: string,
-    threadId: string | undefined,
+    threadId: number | undefined,
     { maxMessages = Infinity, isRecent = () => true }: { maxMessages?: number; isRecent?: (message: Api.Message) => boolean } = {}
   ): Promise<Api.Message[]> {
     const peer = await this.request('chat lookup', () => this.client.getInputEntity(Number(chatId)))
@@ -287,13 +287,13 @@ export class ReactionReader {
   private async searchPage(
     peer: Api.TypeInputPeer,
     fromId: Api.TypeInputPeer,
-    threadId: string | undefined,
+    threadId: number | undefined,
     offsetId: number
   ): Promise<Api.Message[]> {
     const result = await this.request('history search', () => this.client.invoke(new Api.messages.Search({
       peer,
       fromId,
-      ...(threadId && { topMsgId: Number(threadId) }),
+      ...(threadId && { topMsgId: threadId }),
       q: '',
       filter: new Api.InputMessagesFilterEmpty(),
       minDate: 0,
@@ -321,11 +321,11 @@ export class ReactionReader {
     return new Date(message.date * 1000)
   }
 
-  private isReplyToMessage(message: Api.Message, threadId?: string): boolean {
+  private isReplyToMessage(message: Api.Message, threadId?: number): boolean {
     const { replyTo } = message
     if (!(replyTo instanceof Api.MessageReplyHeader) || replyTo.replyToMsgId === undefined) return false
 
     // Inside a forum topic every message formally replies to the topic root, which is not a real reply
-    return !threadId || replyTo.replyToMsgId !== Number(threadId)
+    return !threadId || replyTo.replyToMsgId !== threadId
   }
 }

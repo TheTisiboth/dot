@@ -3,7 +3,7 @@ import { type SeasonConfigBase, type DateConfig } from '../types'
 import { config } from '../config'
 import { EMOJIS } from '../utils/constants'
 import { getDateBefore } from '../utils/dateHelpers'
-import { capitalize, formatDateShort, formatDate, formatPracticeDays, locationLink } from '../utils/formatters'
+import { capitalize, formatDateShort, formatDate, formatPracticeDays, formatTime, locationLink } from '../utils/formatters'
 import { type Command } from './registry'
 
 const START_TEXT = `${EMOJIS.FRISBEE} Welcome to Ultimate Frisbee Training Bot!
@@ -63,8 +63,8 @@ const nextTrainingText = (seasonManager: SeasonManager): string => {
   const training = seasonManager.getNextTrainingInfo()
   const cancelled = training.isCancelled ? `\n\n${EMOJIS.CROSS_MARK} <b>Cancelled</b>` : ''
   const timeLines = training.throwingTime
-    ? `${EMOJIS.FIRE} Throwing: ${training.throwingTime}\n${EMOJIS.CLOCK} Training: ${training.time}`
-    : `${EMOJIS.CLOCK} ${training.time}`
+    ? `${EMOJIS.FIRE} Throwing: ${formatTime(training.throwingTime)}\n${EMOJIS.CLOCK} Training: ${formatTime(training.time)}`
+    : `${EMOJIS.CLOCK} ${formatTime(training.time)}`
 
   return `${EMOJIS.RUNNER} Next Training:
 

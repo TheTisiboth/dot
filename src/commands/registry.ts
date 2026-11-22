@@ -69,7 +69,7 @@ const runCommand = async (api: Api, { name, adminOnly, run }: Command, msg: Mess
 /** Outside forum topics message_thread_id points at a reply thread, not a topic: answer in the chat then. */
 const originOf = (msg: Message): ChatTarget => ({
   chatId: String(msg.chat.id),
-  threadId: msg.is_topic_message ? String(msg.message_thread_id) : undefined
+  threadId: msg.is_topic_message ? msg.message_thread_id : undefined
 })
 
 /** Telegram's command menus: public commands everywhere, all of them in the admin chat. */

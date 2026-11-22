@@ -3,7 +3,7 @@ import { config } from '../config'
 import { type MessageGenerationOptions, type Attendance, type TrainingInfo, type TrainingLocation } from '../types'
 import { EMOJIS, MARKERS, CANCELLATION_SIGNATURE } from '../utils/constants'
 import { log } from '../utils/logger'
-import { escapeHtml, formatStartTime, locationLink } from '../utils/formatters'
+import { escapeHtml, formatStartTime, formatTime, locationLink } from '../utils/formatters'
 
 export class MessageGenerator {
   private readonly ollama: Ollama | null
@@ -19,7 +19,7 @@ export class MessageGenerator {
   generateTemplateMessage(training: TrainingInfo): string {
     const { location, time } = training
 
-    log.messageGen(`Template message generated for ${training.season} at ${location.name} (${time})`)
+    log.messageGen(`Template message generated for ${training.season} at ${location.name} (${formatTime(time)})`)
     return `${EMOJIS.ROCKET} Hey team!
 
 Tomorrow we're planning an Ultimate Frisbee training at ${locationLink(location)} ${formatStartTime(time, training.throwingTime)}.
@@ -30,7 +30,8 @@ The more the merrier! ${EMOJIS.FRISBEE}`
   }
 
   generateTrainerTemplateMessage(training: TrainingInfo): string {
-    const { location, time } = training
+    const { location } = training
+    const time = formatTime(training.time)
 
     log.messageGen(`Trainer template message generated for ${training.season} at ${location.name} (${time})`)
     return `${EMOJIS.COACH} Trainers needed! We have training tomorrow starting at ${time}.
@@ -98,8 +99,8 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     const { location, time, season } = training
 
     const prompt = isTrainerMessage
-      ? this.createTrainerLLMPrompt(time, season)
-      : this.createLLMPrompt(location.name, time, formatStartTime(time, training.throwingTime), season)
+      ? this.createTrainerLLMPrompt(formatTime(time), season)
+      : this.createLLMPrompt(location.name, formatTime(time), formatStartTime(time, training.throwingTime), season)
 
     const fallback = isTrainerMessage
       ? () => this.generateTrainerTemplateMessage(training)
@@ -132,7 +133,7 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     const { count, threshold } = attendance
 
     log.messageGen(`Reminder template message generated (${count}/${threshold})`)
-    return `${MARKERS.REMINDER} So far ${count} of the ${threshold} players we need have confirmed for the ${training.time} training.
+    return `${MARKERS.REMINDER} So far ${count} of the ${threshold} players we need have confirmed for the ${formatTime(training.time)} training.
 
 ${EMOJIS.BULB} If you're coming, please react with ${EMOJIS.THUMBS_UP} on the original training post above (the one this message replies to).
 
@@ -149,7 +150,7 @@ ${EMOJIS.WARNING} If we don't reach ${threshold}, the training might have to be 
 
     if (!useLLM || !this.ollama) return fallback()
 
-    const prompt = this.createReminderLLMPrompt(attendance, training.time)
+    const prompt = this.createReminderLLMPrompt(attendance, formatTime(training.time))
     const message = await this.runOllama(prompt, fallback, 'Reminder LLM', training.location)
 
     // The marker must never depend on the LLM: it is how we recognise our own reminder in chat history
@@ -170,7 +171,7 @@ ${EMOJIS.WARNING} If we don't reach ${threshold}, the training might have to be 
     log.messageGen(`Cancellation message generated (${count}/${threshold})`)
     return `${MARKERS.CANCELLATION} <b>${CANCELLATION_SIGNATURE} - not enough attendance.</b>
 
-${EMOJIS.RUNNER} Training: ${training.time} at ${escapeHtml(training.location.name)}
+${EMOJIS.RUNNER} Training: ${formatTime(training.time)} at ${escapeHtml(training.location.name)}
 ${EMOJIS.THUMBS_UP} Confirmed: <b>${count}</b> ${EMOJIS.THUMBS_UP} out of the <b>${threshold}</b> required
 
 Only ${count} player${count === 1 ? '' : 's'} confirmed ${cancelHoursBefore}h before the start, below the minimum of ${threshold}.`

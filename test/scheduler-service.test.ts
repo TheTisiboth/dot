@@ -16,8 +16,8 @@ import { HOUR_MS, MINUTE_MS, advance, startAt } from './helpers/clock'
 import { restoreConfigAfterEach } from './helpers/config'
 
 // testEnv keeps the default attendance timing: reminder 3h, cancellation 1h before the training
-const TEAM_CHAT = config.telegram.chatId
-const TRAINER_CHAT = config.telegram.trainerChatId
+const TEAM_CHAT = config.telegram.teamChat.chatId
+const TRAINER_CHAT = config.telegram.trainerChat.chatId
 const ADMIN_CHAT = config.telegram.adminChatId
 const RETRY_DELAY_MS = 10 * MINUTE_MS
 const threshold = () => config.seasons.summer.minAttendance
@@ -300,7 +300,7 @@ test('re-arming replaces the pending checks instead of adding to them', async ()
 
 test('a training moved earlier that already started arms no check', async () => {
   // The next practice is still today's 19:30 one, but EXCEPTIONAL_TIME moved it to 18:00
-  config.exceptionalTraining.time = '18:00'
+  config.exceptionalTraining.time = { hour: 18, minute: 0 }
   startAt(beforeTraining(HOUR_MS))
   const { scheduler, bot } = build()
   scheduler.armAttendanceTimers()
@@ -311,7 +311,7 @@ test('a training moved earlier that already started arms no check', async () => 
 })
 
 const moveTraining = () => {
-  config.exceptionalTraining = { location: { name: 'Beach' }, time: '20:15' }
+  config.exceptionalTraining = { ...config.exceptionalTraining, location: { name: 'Beach' }, time: { hour: 20, minute: 15 } }
 }
 
 test('a moved training is announced to team and trainers with its new place and time', async () => {

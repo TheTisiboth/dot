@@ -1,7 +1,7 @@
 import { config } from '../config'
-import { type SeasonConfig, type SeasonType, type TrainingInfo } from '../types'
+import { type SeasonConfig, type SeasonType, type TimeOfDay, type TrainingInfo } from '../types'
 import { createDateFromMonthDay, atTime, getThrowingTime } from '../utils/dateHelpers'
-import { getDayName } from '../utils/formatters'
+import { formatTime, getDayName } from '../utils/formatters'
 
 export class SeasonManager {
   private readonly seasons = config.seasons
@@ -38,20 +38,20 @@ export class SeasonManager {
   }
 
   /** Whether a training starts tomorrow at `time`: the post goes out exactly 24h before it. */
-  shouldSendMessage(time: string, date: Date = new Date()): boolean {
+  shouldSendMessage(time: TimeOfDay, date: Date = new Date()): boolean {
     const tomorrow = new Date(date)
     tomorrow.setDate(date.getDate() + 1)
 
     const seasonConfig = this.getCurrentSeasonConfig(tomorrow)
     const tomorrowDayOfWeek = tomorrow.getDay()
 
-    return seasonConfig.practices.some(practice => practice.day === tomorrowDayOfWeek && practice.time === time)
+    return seasonConfig.practices.some(practice => practice.day === tomorrowDayOfWeek && formatTime(practice.time) === formatTime(time))
   }
 
   /** Practice times of every season, so a season switch never lands on a time with no check registered. */
-  getAllPracticeTimes(): string[] {
+  getAllPracticeTimes(): TimeOfDay[] {
     const practices = [...this.seasons.winter.practices, ...this.seasons.summer.practices]
-    return [...new Set(practices.map(practice => practice.time))]
+    return [...new Map(practices.map(({ time }) => [formatTime(time), time])).values()]
   }
 
   /** Walks day by day so each candidate uses its own season's practices (season switches change the weekdays). */
@@ -85,7 +85,7 @@ export class SeasonManager {
     }
 
     const exceptionalTraining = config.exceptionalTraining
-    const time = exceptionalTraining.time || nextPractice.time
+    const time = exceptionalTraining.time ?? nextPractice.time
 
     return {
       date: nextDate,
@@ -104,7 +104,7 @@ export class SeasonManager {
       : this.getCurrentSeasonConfig()
 
     return seasonConfig.practices
-      .map(practice => `${getDayName(practice.day)} at ${practice.time}`)
+      .map(practice => `${getDayName(practice.day)} at ${formatTime(practice.time)}`)
       .join(', ')
   }
 }

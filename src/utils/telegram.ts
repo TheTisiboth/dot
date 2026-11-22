@@ -7,12 +7,12 @@ export const POLL_LIMITS = { question: 300, option: 100 } as const
 /** A chat, optionally one forum topic in it. */
 export interface ChatTarget {
   chatId: string;
-  threadId?: string;
+  threadId?: number;
 }
 
 /** Send options targeting a forum topic, or nothing when there is no topic. */
-export const threadOptions = (threadId?: string | number): { message_thread_id?: number } =>
-  threadId ? { message_thread_id: Number(threadId) } : {}
+export const threadOptions = (threadId?: number): { message_thread_id?: number } =>
+  threadId ? { message_thread_id: threadId } : {}
 
 export const replyOptions = (messageId?: number): { reply_to_message_id?: number } =>
   messageId ? { reply_to_message_id: messageId } : {}
