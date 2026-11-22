@@ -63,15 +63,6 @@ export class SchedulerService {
     this.trainerChatId = config.telegram.trainerChatId
     this.trainerChatThreadId = config.telegram.trainerChatThreadId
     this.enableTrainerMessages = config.telegram.enableTrainerMessages
-
-    // The trainer post also asks for a 👍, so with both posts loose in the same chat there is
-    // nothing left to tell them apart once the training post's id is lost to a restart
-    if (this.trainerChatId === this.chatId && !this.trainerChatThreadId && !this.chatThreadId) {
-      log.warn(
-        'Attendance',
-        'Team and trainer messages share one chat with no threads - after a restart the training post cannot be told apart from the trainer post. Set CHAT_THREAD_ID or TRAINER_CHAT_THREAD_ID.'
-      )
-    }
   }
 
   setupScheduler(): void {

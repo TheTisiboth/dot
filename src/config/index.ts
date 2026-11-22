@@ -15,7 +15,7 @@ function loadAndValidateConfig(): BotConfig {
       adminChatId: process.env.ADMIN_CHAT_ID,
       trainerChatId: process.env.TRAINER_CHAT_ID,
       trainerChatThreadId: process.env.TRAINER_CHAT_THREAD_ID,
-      enableTrainerMessages: process.env.ENABLE_TRAINER_MESSAGES !== 'false',
+      enableTrainerMessages: process.env.ENABLE_TRAINER_MESSAGES || undefined,
     },
 
     mtproto: {
@@ -25,14 +25,14 @@ function loadAndValidateConfig(): BotConfig {
     },
 
     ollama: {
-      enabled: process.env.OLLAMA_ENABLED === 'true',
+      enabled: process.env.OLLAMA_ENABLED || undefined,
       host: process.env.OLLAMA_HOST || 'http://localhost:11434',
       model: process.env.OLLAMA_MODEL || 'llama3.2:3b',
     },
 
     attendance: {
-      reminderHoursBefore: Number(process.env.REMINDER_HOURS_BEFORE ?? 3),
-      cancelHoursBefore: Number(process.env.CANCEL_HOURS_BEFORE ?? 1),
+      reminderHoursBefore: Number(process.env.REMINDER_HOURS_BEFORE || 3),
+      cancelHoursBefore: Number(process.env.CANCEL_HOURS_BEFORE || 1),
     },
 
     seasons: {
@@ -40,32 +40,32 @@ function loadAndValidateConfig(): BotConfig {
         startDate: parseDate(process.env.WINTER_START_DATE),
         location: process.env.WINTER_LOCATION,
         practices: parsePracticeDays(process.env.WINTER_PRACTICE_DAYS),
-        minAttendance: Number(process.env.WINTER_MIN_ATTENDANCE ?? 8),
-        keyMessageEnabled: process.env.WINTER_KEY_MESSAGE_ENABLED !== 'false',
-        throwingMinutesBefore: Number(process.env.WINTER_THROWING_MINUTES_BEFORE ?? 0)
+        minAttendance: Number(process.env.WINTER_MIN_ATTENDANCE || 8),
+        keyMessageEnabled: process.env.WINTER_KEY_MESSAGE_ENABLED || undefined,
+        throwingMinutesBefore: Number(process.env.WINTER_THROWING_MINUTES_BEFORE || 0)
       },
       summer: {
         startDate: parseDate(process.env.SUMMER_START_DATE),
         location: process.env.SUMMER_LOCATION,
         practices: parsePracticeDays(process.env.SUMMER_PRACTICE_DAYS),
-        minAttendance: Number(process.env.SUMMER_MIN_ATTENDANCE ?? 8),
-        keyMessageEnabled: process.env.SUMMER_KEY_MESSAGE_ENABLED !== 'false',
-        throwingMinutesBefore: Number(process.env.SUMMER_THROWING_MINUTES_BEFORE ?? 0)
+        minAttendance: Number(process.env.SUMMER_MIN_ATTENDANCE || 8),
+        keyMessageEnabled: process.env.SUMMER_KEY_MESSAGE_ENABLED || undefined,
+        throwingMinutesBefore: Number(process.env.SUMMER_THROWING_MINUTES_BEFORE || 0)
       }
     },
 
     exceptionalTraining: {
       location: process.env.EXCEPTIONAL_LOCATION || undefined,
       time: process.env.EXCEPTIONAL_TIME || undefined,
-      isCancelled: process.env.EXCEPTIONAL_CANCELLED === 'true' || undefined
+      isCancelled: process.env.EXCEPTIONAL_CANCELLED || undefined
     },
 
     rulesQuiz: {
-      enabled: process.env.RULES_QUIZ_ENABLED === 'true',
+      enabled: process.env.RULES_QUIZ_ENABLED || undefined,
       chatId: process.env.RULES_CHAT_ID || undefined,
       chatThreadId: process.env.RULES_CHAT_THREAD_ID || undefined,
       answerDelayMinutes: Number(process.env.RULES_ANSWER_DELAY_MINUTES || 60),
-      signalsEveryOther: process.env.RULES_SIGNALS_EVERY_OTHER === 'true'
+      signalsEveryOther: process.env.RULES_SIGNALS_EVERY_OTHER || undefined
     }
   }
 
