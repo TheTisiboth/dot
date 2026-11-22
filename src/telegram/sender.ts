@@ -1,4 +1,5 @@
 import { type Api, GrammyError, InputFile } from 'grammy'
+import type { InlineKeyboardMarkup } from 'grammy/types'
 import { log } from '../shared/logger'
 
 /** A chat, optionally one forum topic in it. */
@@ -10,7 +11,7 @@ export interface ChatTarget {
 /** Sends to one chat and topic; each method resolves to the sent message's id. */
 export interface Sender {
   /** HTML; `fallback` is sent instead when Telegram cannot parse it, so the message is not lost. */
-  text: (html: string, options?: { replyTo?: number; linkPreview?: boolean; fallback?: () => string }) => Promise<number>;
+  text: (html: string, options?: { replyTo?: number; linkPreview?: boolean; fallback?: () => string; buttons?: InlineKeyboardMarkup }) => Promise<number>;
   /** Plain text: for content that may hold HTML characters. */
   plain: (text: string, options?: { replyTo?: number }) => Promise<number>;
   /** A local image; the caption is HTML. */
@@ -33,11 +34,12 @@ export const senderFor = (api: Api, { chatId, threadId }: ChatTarget): Sender =>
   }
 
   return {
-    text: async (html, { replyTo, linkPreview = true, fallback } = {}) => {
+    text: async (html, { replyTo, linkPreview = true, fallback, buttons } = {}) => {
       const options = {
         parse_mode: 'HTML',
         ...target(replyTo),
-        ...(!linkPreview && { link_preview_options: { is_disabled: true } })
+        ...(!linkPreview && { link_preview_options: { is_disabled: true } }),
+        ...(buttons && { reply_markup: buttons })
       } as const
       try {
         return (await api.sendMessage(chatId, html, options)).message_id

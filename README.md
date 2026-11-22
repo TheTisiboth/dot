@@ -206,13 +206,8 @@ OLLAMA_MODEL=llama3.2:3b
 - `/info` - Show the season schedules
 - `/training` - Show the next training
 
-**Admin only (preview commands):**
-- `/test_template` - Preview the template announcement
-- `/test_llm` - Preview the LLM announcement
-- `/test_trainer` - Preview the LLM trainer request
-- `/test_key` - Preview the key request
-- `/preview_team` - Preview the announcement as it would be posted
-- `/preview_all` - Preview the announcement, key and trainer requests
+**Admin only (preview):**
+- `/preview` - Preview what the next training gets. Buttons pick the message: everything the next run posts, the announcement, key or trainer request, attendance reminder or cancellation notice (sample counts), LLM or template. Previews stay in the admin chat
 
 **Admin only (send commands):**
 - `/send_to_team` - Post the announcement to the team chat

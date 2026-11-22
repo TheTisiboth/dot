@@ -1,7 +1,9 @@
 import type { Api } from 'grammy'
-import { type SeasonManager } from '../training/season'
+import type { InlineKeyboardMarkup } from 'grammy/types'
+import { type SeasonManager, type Training } from '../training/season'
 import { type TrainingMessages } from '../training/messages/messages'
 import * as templates from '../training/messages/templates'
+import { type Attendance } from '../training/messages/templates'
 import { type Announcer, describeReport, hasFailure } from '../training/announcer'
 import { type AttendanceMonitor } from '../training/attendance'
 import type { BotConfig } from '../config/env'
@@ -19,75 +21,108 @@ interface TrainingCommandsDeps {
   messages: TrainingMessages;
   announcer: Announcer;
   attendance: AttendanceMonitor;
+  /** Offers the LLM / template toggle. */
+  llmEnabled: boolean;
+}
+
+const PART_LABELS = {
+  announcement: 'Announcement',
+  keyRequest: 'Key request',
+  trainerRequest: 'Trainer request',
+  attendanceReminder: 'Attendance reminder',
+  cancellationNotice: 'Cancellation notice'
+} as const
+type Part = keyof typeof PART_LABELS
+type Mode = 'llm' | 'template'
+
+const BUTTON_LABELS = { all: 'Everything', ...PART_LABELS }
+const PREVIEWS = Object.keys(PART_LABELS) as Part[]
+/** What the day-before run posts, in its order. */
+const SCHEDULED_RUN: Part[] = ['announcement', 'keyRequest', 'trainerRequest']
+const LLM_WRITTEN: Part[] = ['announcement', 'trainerRequest', 'attendanceReminder']
+const SAMPLED: Part[] = ['attendanceReminder', 'cancellationNotice']
+
+// Both are only ever sent below the threshold
+const sampleAttendance = ({ minAttendance }: Training): Attendance => ({ count: Math.floor(minAttendance / 2), threshold: minAttendance })
+
+const MENU_TEXT = `${EMOJIS.MEMO} <b>Preview</b>
+
+Tap a message to see it as the next training would get it. Previews stay in this chat.`
+
+/** Callback data `preview:<part|all|mode>:<mode>`: the mode lives in the buttons, so a restart loses nothing. */
+const menuFor = (llmEnabled: boolean) => (mode: Mode): InlineKeyboardMarkup => {
+  const button = (target: keyof typeof BUTTON_LABELS) => ({ text: BUTTON_LABELS[target], callback_data: `preview:${target}:${mode}` })
+  const other: Mode = mode === 'llm' ? 'template' : 'llm'
+  return {
+    inline_keyboard: [
+      [button('all')],
+      [button('announcement'), button('keyRequest'), button('trainerRequest')],
+      [button('attendanceReminder'), button('cancellationNotice')],
+      ...(llmEnabled ? [[{ text: mode === 'llm' ? `${EMOJIS.ROBOT} LLM · tap for template` : `${EMOJIS.MEMO} Template · tap for LLM`, callback_data: `preview:mode:${other}` }]] : [])
+    ]
+  }
 }
 
 /** Admin commands to preview and send the training messages before the scheduler does. */
-export const trainingCommands = ({ config, api, seasonManager, messages, announcer, attendance }: TrainingCommandsDeps): Command[] => {
+export const trainingCommands = ({ config, api, seasonManager, messages, announcer, attendance, llmEnabled }: TrainingCommandsDeps): Command[] => {
   const announcement = () => messages.announcement(seasonManager.nextTraining())
-  const trainerRequest = () => messages.trainerRequest(seasonManager.nextTraining())
+  const menu = menuFor(llmEnabled)
+
+  /** Why the scheduler would not send `part` for `training`, as the announcer and attendance monitor decide. */
+  const notSent = (part: Part, training: Training): string | undefined => {
+    if (training.cancelled) return 'training cancelled'
+    if (part === 'keyRequest' && !training.keyRequestEnabled) return `disabled for this season (${training.season})`
+    if ((part === 'trainerRequest' || part === 'cancellationNotice') && !config.telegram.enableTrainerMessages) return 'trainer requests off'
+    return undefined
+  }
+
+  const draft = async (part: Part, training: Training, mode: Mode): Promise<string> => {
+    const llm = mode === 'llm'
+    switch (part) {
+      case 'announcement': return llm ? await messages.announcement(training) : templates.announcement(training)
+      case 'keyRequest': return templates.keyRequest()
+      case 'trainerRequest': return llm ? await messages.trainerRequest(training) : templates.trainerRequest(training)
+      case 'attendanceReminder': {
+        const sample = sampleAttendance(training)
+        return llm ? await messages.attendanceReminder(training, sample) : templates.attendanceReminder(training, sample)
+      }
+      case 'cancellationNotice': return templates.cancellationNotice(training, sampleAttendance(training), config.attendance.cancelHoursBefore)
+    }
+  }
+
+  const preview = async (part: Part, training: Training, mode: Mode, notSentReason: string | undefined): Promise<string> => {
+    const sample = SAMPLED.includes(part) ? ` (sample: ${sampleAttendance(training).count} of ${training.minAttendance} in)` : ''
+    const status = notSentReason ? `\n\n⏭️ Not sent: ${notSentReason}.` : ''
+    return `<b>${PART_LABELS[part]} preview</b>${sample}\n\n${await draft(part, training, mode)}${status}`
+  }
 
   return [
     {
-      name: 'test_template',
-      description: 'Preview the template announcement',
+      name: 'preview',
+      description: 'Preview what the next training gets',
       adminOnly: true,
       run: async ({ reply }) => {
-        await reply.text(`${EMOJIS.MEMO} Template announcement:\n\n${templates.announcement(seasonManager.nextTraining())}`)
-      }
-    },
-    {
-      name: 'test_llm',
-      description: 'Preview the LLM announcement',
-      adminOnly: true,
-      run: async ({ reply }) => {
-        await reply.plain(WRITING)
-        await reply.text(`${EMOJIS.ROBOT} Announcement:\n\n${await announcement()}`)
-      }
-    },
-    {
-      name: 'test_trainer',
-      description: 'Preview the LLM trainer request',
-      adminOnly: true,
-      run: async ({ reply }) => {
-        await reply.plain(WRITING)
-        await reply.text(`${EMOJIS.ROBOT} Trainer request:\n\n${await trainerRequest()}`)
-      }
-    },
-    {
-      name: 'test_key',
-      description: 'Preview the key request',
-      adminOnly: true,
-      run: async ({ reply }) => {
-        const { keyRequestEnabled, season } = seasonManager.nextTraining()
-        const status = keyRequestEnabled ? '' : `\n\n${EMOJIS.WARNING} Off for ${season}: it won't be sent.`
-        await reply.text(`${EMOJIS.KEY} Key request:\n\n${templates.keyRequest()}${status}`)
-      }
-    },
-    {
-      name: 'preview_team',
-      description: 'Preview the announcement as it would be posted',
-      adminOnly: true,
-      run: async ({ reply }) => {
-        await reply.text(`${EMOJIS.FRISBEE} <b>Announcement preview:</b>\n\n${await announcement()}`)
-      }
-    },
-    {
-      name: 'preview_all',
-      description: 'Preview the announcement, key and trainer requests',
-      adminOnly: true,
-      run: async ({ reply }) => {
-        await reply.plain(`${EMOJIS.ROBOT} Writing the previews...`)
-        await reply.text(`${EMOJIS.FRISBEE} <b>Announcement preview:</b>\n\n${await announcement()}`)
-
-        const { keyRequestEnabled, season } = seasonManager.nextTraining()
-        if (keyRequestEnabled) {
-          await reply.text(`${EMOJIS.KEY} <b>Key request preview:</b>\n\n${templates.keyRequest()}`)
-        } else {
-          await reply.plain(`${EMOJIS.KEY} Key request off for ${season}`)
+        await reply.text(MENU_TEXT, { buttons: menu(llmEnabled ? 'llm' : 'template') })
+      },
+      onButton: async ({ data, reply, setButtons }) => {
+        const [target = '', mode] = data.split(':')
+        if (mode !== 'llm' && mode !== 'template') throw new Error(`Unknown preview button: ${data}`)
+        if (target === 'mode') {
+          await setButtons(menu(mode))
+          return
         }
 
-        await reply.text(`${EMOJIS.RUNNER} <b>Trainer request preview:</b>\n\n${await trainerRequest()}`)
-        await reply.text(`${EMOJIS.CHECK_MARK} Previews done. <code>/send_to_all</code> posts them for real.`)
+        const parts = target === 'all' ? SCHEDULED_RUN : PREVIEWS.filter(part => part === target)
+        if (parts.length === 0) throw new Error(`Unknown preview button: ${data}`)
+
+        const training = seasonManager.nextTraining()
+        if (mode === 'llm' && parts.some(part => LLM_WRITTEN.includes(part))) await reply.plain(WRITING)
+        for (const part of parts) {
+          const reason = notSent(part, training)
+          if (target === 'all' && reason) await reply.plain(`⏭️ ${PART_LABELS[part]}: ${reason}`)
+          else await reply.text(await preview(part, training, mode, reason))
+        }
+        if (target === 'all') await reply.plain(`${EMOJIS.CHECK_MARK} That's everything for the team and trainers. /quiz_preview shows the quiz question.`)
       }
     },
     {
