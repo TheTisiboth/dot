@@ -1,4 +1,4 @@
-# Ultimate Frisbee Training Bot 🥏
+# dot 🥏
 
 ![Status](https://status.leojan.fr/api/badge/3/status) ![Uptime](https://status.leojan.fr/api/badge/3/uptime/24)
 
@@ -354,6 +354,14 @@ One word per concept, one concept per word, in code, logs and docs.
 | Cancellation notice | Trainer-chat post when still below threshold | "cancellation message" |
 | Quiz question / answer | Rules quiz. "Poll" only means a Telegram poll | "rule" in command names |
 | Team / trainer / rules / admin chat | A `ChatTarget` (chat id + optional topic) | bare `chatId` |
+
+### Voice
+
+Every text the bot sends, LLM prompts included:
+
+- Short: one idea per line, facts first, no filler.
+- Friendly, like a teammate: plain English, never corporate, pushy or guilt-tripping.
+- Glossary words, so a post, a command reply and an error say the same thing the same way.
 
 ## Development
 

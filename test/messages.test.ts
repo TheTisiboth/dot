@@ -48,6 +48,22 @@ test('the announcement names the throwing time when there is one', () => {
   assert.ok(message.includes('20:30'))
 })
 
+test('the announcement asks for 👍 or 👎, template and LLM alike', () => {
+  for (const text of [templates.announcement(training), prompts.announcement(training)]) {
+    assert.ok(text.includes(EMOJIS.THUMBS_UP))
+    assert.ok(text.includes(EMOJIS.THUMBS_DOWN))
+  }
+})
+
+test('the prompts name no clock time but the training\'s own', () => {
+  const own = formatClock(training.startsAt)
+  const allPrompts = [prompts.announcement(training), prompts.trainerRequest(training), prompts.attendanceReminder(training, attendance)]
+
+  for (const prompt of allPrompts) {
+    for (const [time] of prompt.matchAll(/\d{1,2}:\d{2}/g)) assert.equal(time, own)
+  }
+})
+
 test('the trainer request asks for a 👍', () => {
   const message = templates.trainerRequest(training)
   assert.ok(message.includes(EMOJIS.THUMBS_UP))
