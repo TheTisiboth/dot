@@ -206,7 +206,7 @@ Mirrors `/help`, which is built from the command list: public commands everywher
 - `/start` - Meet dot
 - `/help` - List the commands
 - `/info` - Show the season schedules
-- `/training` - Show the next training
+- `/training` - Show the next training: weekday, countdown, and once announced how many players are in, with a link to the announcement
 
 **Admin only (preview):**
 - `/preview` - Preview what the next training gets. Buttons pick the message: everything the next run posts, the announcement, key or trainer request, attendance reminder or cancellation notice (sample counts), LLM or template. Previews stay in the admin chat

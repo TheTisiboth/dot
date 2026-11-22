@@ -45,7 +45,7 @@ const build = ({ failingChat, env, llm = null }: { failingChat?: string; env?: R
   const attendance = new AttendanceMonitor(botConfig, seasonManager, messages, makeFakeTrainingHistory({ thumbsUp: ATTENDING }), bot.api)
   const trainingAnnouncer = announcer({ config: botConfig, seasonManager, messages, attendance, bot: bot.api, rulesQuiz: quiz })
   const commands: Command[] = [
-    ...publicCommands(seasonManager),
+    ...publicCommands({ teamChat: botConfig.telegram.teamChat, seasonManager, attendance, mtprotoUp: () => true }),
     ...trainingCommands({ config: botConfig, api: bot.api, seasonManager, messages, announcer: trainingAnnouncer, attendance, llmEnabled: writer.enabled }),
     ...quizCommands(quiz, publisher)
   ]
@@ -253,6 +253,8 @@ test('/start greets in any chat', async () => {
 })
 
 test('public replies carry no 👍, so none is taken for the announcement', async () => {
+  // After the announcement: /training then shows the count
+  startAt(beforeTraining(20 * HOUR_MS))
   const { bot } = build()
 
   for (const command of ['/start', '/help', '/info', '/training']) await bot.command(command, PLAYER)
@@ -290,7 +292,9 @@ test('/help outside the admin chat lists the public commands only', async () => 
 test('a command added to the list appears in /help', async () => {
   const bot = makeFakeBot()
   const toy: Command = { name: 'toy', description: 'Play', usage: '<n>', run: async () => {} }
-  routeCommands(bot, [...publicCommands(new SeasonManager(config)), toy], config.telegram.adminChatId)
+  const seasonManager = new SeasonManager(config)
+  const attendance = new AttendanceMonitor(config, seasonManager, trainingMessages(llmWriter(config.ollama, null)), makeFakeTrainingHistory(), bot.api)
+  routeCommands(bot, [...publicCommands({ teamChat: config.telegram.teamChat, seasonManager, attendance, mtprotoUp: () => true }), toy], config.telegram.adminChatId)
 
   await bot.command('/help', PLAYER)
 

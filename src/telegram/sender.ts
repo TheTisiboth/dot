@@ -10,10 +10,10 @@ export interface ChatTarget {
 }
 
 /** A t.me link works for supergroups only, whose ids are -100 followed by the channel id. */
-export const messageLink = ({ chatId, threadId }: ChatTarget, messageId: number): string => {
+export const messageLink = ({ chatId, threadId }: ChatTarget, messageId: number, text = 'open it'): string => {
   const channelId = /^-100(\d+)$/.exec(chatId)?.[1]
   if (!channelId) return `message <code>${messageId}</code>`
-  return link(`https://t.me/c/${channelId}/${threadId ? `${threadId}/` : ''}${messageId}`, 'open it')
+  return link(`https://t.me/c/${channelId}/${threadId ? `${threadId}/` : ''}${messageId}`, text)
 }
 
 /** Sends to one chat and topic; each method resolves to the sent message's id. */
