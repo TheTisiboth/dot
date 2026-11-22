@@ -1,19 +1,18 @@
 import { type SeasonManager, type Training } from '../training/season'
-import { type AttendanceMonitor, CHECK_LABELS, type CheckStatus, type CheckStatuses } from '../training/attendance'
+import { type AttendanceMonitor, CHECK_LABELS, type CheckStatus, type CheckStatuses, type LiveCount } from '../training/attendance'
 import { type RulesQuizService } from '../quiz/service'
 import { modeFor } from '../quiz/picker'
 import { type Check } from '../health/server'
 import type { BotConfig } from '../config/env'
 import { EMOJIS } from '../shared/emojis'
-import { capitalize, formatClock, formatDate, getDayName, link, locationLink } from '../shared/formatters'
-import { log } from '../shared/logger'
-import { type ChatTarget } from '../telegram/sender'
+import { capitalize, formatClock, formatDate, getDayName, locationLink } from '../shared/formatters'
+import { type ChatTarget, messageLink } from '../telegram/sender'
 import { type Command } from './registry'
 
 interface StatusDeps {
   config: Pick<BotConfig, 'telegram' | 'rulesQuiz'>;
   seasonManager: SeasonManager;
-  attendance: Pick<AttendanceMonitor, 'inspect' | 'checksOf' | 'announcementOf'>;
+  attendance: Pick<AttendanceMonitor, 'liveCount' | 'checksOf' | 'announcementOf'>;
   rulesQuiz: Pick<RulesQuizService, 'answerDue'>;
   /** The `/health` probes. */
   dependencies: () => Promise<Record<string, Check>>;
@@ -21,14 +20,11 @@ interface StatusDeps {
   version: string;
 }
 
-/** What the team chat history said: the 👍 count, or why there is none. */
-type Count = { count: number; threshold: number; announcementId: number } | 'no announcement' | 'unreadable'
-
 interface Snapshot {
   training: Training;
   nextAnnouncement: ReturnType<SeasonManager['nextAnnouncement']>;
   announcementId?: number;
-  count: Count;
+  count: LiveCount;
   checks: CheckStatuses;
   answerDue: ReturnType<RulesQuizService['answerDue']>;
   dependencies: Record<string, Check>;
@@ -39,13 +35,6 @@ const DEPENDENCY_STATES: Record<Check['status'], string> = { ok: `${EMOJIS.CHECK
 const MINUTES_PER_DAY = 24 * 60
 
 const when = (date: Date): string => `${getDayName(date.getDay())}, ${formatDate(date)} at ${formatClock(date)}`
-
-/** A t.me link works for supergroups only, whose ids are -100 followed by the channel id. */
-const messageLink = ({ chatId, threadId }: ChatTarget, messageId: number): string => {
-  const channelId = /^-100(\d+)$/.exec(chatId)?.[1]
-  if (!channelId) return `message <code>${messageId}</code>`
-  return link(`https://t.me/c/${channelId}/${threadId ? `${threadId}/` : ''}${messageId}`, 'open it')
-}
 
 const uptime = (startedAt: Date, now: Date): string => {
   const minutes = Math.floor((now.getTime() - startedAt.getTime()) / 60_000)
@@ -72,7 +61,7 @@ const announcementLine = ({ training, nextAnnouncement, announcementId, count }:
   return count === 'unreadable' ? 'Can\'t tell: the team chat can\'t be read' : `${EMOJIS.WARNING} Not found in the team chat`
 }
 
-const countLine = (count: Count): string => {
+const countLine = (count: LiveCount): string => {
   if (count === 'unreadable') return 'Players in: can\'t tell, the team chat can\'t be read'
   if (count === 'no announcement') return 'Players in: nothing to count yet'
   return `Players in: <b>${count.count}</b> / ${count.threshold}`
@@ -114,16 +103,7 @@ export const statusCommand = ({ config, seasonManager, attendance, rulesQuiz, de
     const now = new Date()
     const training = seasonManager.nextTraining(now)
     const checks = await dependencies()
-
-    // Read only when MTProto is up: a down one would hold the reply for its connect timeout
-    let count: Count = 'unreadable'
-    if (checks.mtproto?.status === 'ok') {
-      try {
-        count = await attendance.inspect() ?? 'no announcement'
-      } catch (error) {
-        log.error('Reading the attendance for /status', error)
-      }
-    }
+    const count = await attendance.liveCount(checks.mtproto?.status === 'ok')
 
     const snapshot: Snapshot = {
       training,
