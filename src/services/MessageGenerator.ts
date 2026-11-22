@@ -17,10 +17,10 @@ export class MessageGenerator {
     this.ollama = ollama
   }
 
-  generateTemplateMessage(training: TrainingInfo): string {
+  announcementTemplate(training: TrainingInfo): string {
     const { location, time } = training
 
-    log.messageGen(`Template message generated for ${training.season} at ${location.name} (${formatTime(time)})`)
+    log.messageGen(`Announcement template generated for ${training.season} at ${location.name} (${formatTime(time)})`)
     return `${EMOJIS.ROCKET} Hey team!
 
 Tomorrow we're planning an Ultimate Frisbee training at ${locationLink(location)} ${formatStartTime(time, training.throwingTime)}.
@@ -30,11 +30,11 @@ ${EMOJIS.BULB} If you're in, just drop a ${EMOJIS.THUMBS_UP} on this message so 
 The more the merrier! ${EMOJIS.FRISBEE}`
   }
 
-  generateTrainerTemplateMessage(training: TrainingInfo): string {
+  trainerRequestTemplate(training: TrainingInfo): string {
     const { location } = training
     const time = formatTime(training.time)
 
-    log.messageGen(`Trainer template message generated for ${training.season} at ${location.name} (${time})`)
+    log.messageGen(`Trainer request template generated for ${training.season} at ${location.name} (${time})`)
     return `${EMOJIS.COACH} Trainers needed! We have training tomorrow starting at ${time}.
 
 ${EMOJIS.BULB} Can you lead the session? React with ${EMOJIS.THUMBS_UP} if you're available to coach.
@@ -87,89 +87,89 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
       generatedMessage = this.normalizeWhitespace(generatedMessage)
       generatedMessage = this.toHtml(generatedMessage, location)
 
-      log.messageGen(`${label} message generated (${generatedMessage.length} chars) using ${model}`)
+      log.messageGen(`${label} generated (${generatedMessage.length} chars) using ${model}`)
       return generatedMessage
     } catch (error) {
-      log.error(`Generating ${label} message`, error)
-      log.messageGen(`Falling back to ${label} template message`)
+      log.error(`Generating ${label}`, error)
+      log.messageGen(`Falling back to ${label} template`)
       return fallback()
     }
   }
 
-  private async generateOllamaMessage(training: TrainingInfo, isTrainerMessage = false): Promise<string> {
+  private async generateOllamaMessage(training: TrainingInfo, isTrainerRequest = false): Promise<string> {
     const { location, time, season } = training
 
-    const prompt = isTrainerMessage
-      ? this.createTrainerLLMPrompt(formatTime(time), season)
-      : this.createLLMPrompt(location.name, formatTime(time), formatStartTime(time, training.throwingTime), season)
+    const prompt = isTrainerRequest
+      ? this.createTrainerRequestPrompt(formatTime(time), season)
+      : this.createAnnouncementPrompt(location.name, formatTime(time), formatStartTime(time, training.throwingTime), season)
 
-    const fallback = isTrainerMessage
-      ? () => this.generateTrainerTemplateMessage(training)
-      : () => this.generateTemplateMessage(training)
+    const fallback = isTrainerRequest
+      ? () => this.trainerRequestTemplate(training)
+      : () => this.announcementTemplate(training)
 
-    return await this.runOllama(prompt, fallback, isTrainerMessage ? 'Trainer LLM' : 'LLM', location)
+    return await this.runOllama(prompt, fallback, isTrainerRequest ? 'Trainer request' : 'Announcement', location)
   }
 
-  async generateMessage(training: TrainingInfo, options: MessageGenerationOptions = {}): Promise<string> {
+  async announcement(training: TrainingInfo, options: MessageGenerationOptions = {}): Promise<string> {
     const { useLLM = false } = options
 
     if (useLLM && this.ollama) {
       return await this.generateOllamaMessage(training, false)
     }
     if (useLLM) log.messageGen('No LLM configured, using template')
-    return this.generateTemplateMessage(training)
+    return this.announcementTemplate(training)
   }
 
-  async generateTrainerMessage(training: TrainingInfo, options: MessageGenerationOptions = {}): Promise<string> {
+  async trainerRequest(training: TrainingInfo, options: MessageGenerationOptions = {}): Promise<string> {
     const { useLLM = false } = options
 
     if (useLLM && this.ollama) {
       return await this.generateOllamaMessage(training, true)
     } else {
-      return this.generateTrainerTemplateMessage(training)
+      return this.trainerRequestTemplate(training)
     }
   }
 
-  generateReminderTemplateMessage(attendance: Attendance, training: TrainingInfo): string {
+  attendanceReminderTemplate(attendance: Attendance, training: TrainingInfo): string {
     const { count, threshold } = attendance
 
-    log.messageGen(`Reminder template message generated (${count}/${threshold})`)
-    return `${MARKERS.REMINDER} So far ${count} of the ${threshold} players we need have confirmed for the ${formatTime(training.time)} training.
+    log.messageGen(`Attendance reminder template generated (${count}/${threshold})`)
+    return `${MARKERS.ATTENDANCE_REMINDER} So far ${count} of the ${threshold} players we need have confirmed for the ${formatTime(training.time)} training.
 
 ${EMOJIS.BULB} If you're coming, please react with ${EMOJIS.THUMBS_UP} on the original training post above (the one this message replies to).
 
 ${EMOJIS.WARNING} If we don't reach ${threshold}, the training might have to be cancelled.`
   }
 
-  async generateReminderMessage(
+  async attendanceReminder(
     training: TrainingInfo,
     options: MessageGenerationOptions = {},
     attendance: Attendance
   ): Promise<string> {
     const { useLLM = false } = options
-    const fallback = () => this.generateReminderTemplateMessage(attendance, training)
+    const fallback = () => this.attendanceReminderTemplate(attendance, training)
 
     if (!useLLM || !this.ollama) return fallback()
 
-    const prompt = this.createReminderLLMPrompt(attendance, formatTime(training.time))
-    const message = await this.runOllama(prompt, fallback, 'Reminder LLM', training.location)
+    const prompt = this.createAttendanceReminderPrompt(attendance, formatTime(training.time))
+    const message = await this.runOllama(prompt, fallback, 'Attendance reminder', training.location)
 
-    // The marker must never depend on the LLM: it is how we recognise our own reminder in chat history
-    return message.startsWith(MARKERS.REMINDER) ? message : `${MARKERS.REMINDER} ${message}`
+    // The marker must never depend on the LLM: it is how we recognise our own attendance reminder in chat history
+    return message.startsWith(MARKERS.ATTENDANCE_REMINDER) ? message : `${MARKERS.ATTENDANCE_REMINDER} ${message}`
   }
 
   /** Deliberately template-only: a key holder reacting with the wrong emoji is worse than a boring message. */
-  generateKeyMessage(): string {
-    log.messageGen('Key message generated')
+  keyRequest(): string {
+    log.messageGen('Key request generated')
     return `${MARKERS.KEY} Key holders: react ${EMOJIS.THUMBS_UP} if you're bringing the sports hall key tomorrow, or ${EMOJIS.CRYING} if you have it but can't come.`
   }
 
   /** Deliberately template-only: a cancellation must never be garbled by the LLM. */
-  generateCancellationMessage(training: TrainingInfo, attendance: Attendance): string {
+  cancellationNotice(training: TrainingInfo, attendance: Attendance): string {
     const { count, threshold } = attendance
     const { cancelHoursBefore } = this.config.attendance
 
-    log.messageGen(`Cancellation message generated (${count}/${threshold})`)
+    log.messageGen(`Cancellation notice generated (${count}/${threshold})`)
     return `${MARKERS.CANCELLATION} <b>${CANCELLATION_SIGNATURE} - not enough attendance.</b>
 
 ${EMOJIS.RUNNER} Training: ${formatTime(training.time)} at ${escapeHtml(training.location.name)}
@@ -178,7 +178,7 @@ ${EMOJIS.THUMBS_UP} Confirmed: <b>${count}</b> ${EMOJIS.THUMBS_UP} out of the <b
 Only ${count} player${count === 1 ? '' : 's'} confirmed ${cancelHoursBefore}h before the start, below the minimum of ${threshold}.`
   }
 
-  private createReminderLLMPrompt(attendance: Attendance, time: string): string {
+  private createAttendanceReminderPrompt(attendance: Attendance, time: string): string {
     const { count, threshold } = attendance
 
     return `Generate a short Ultimate Frisbee message reminding the team to confirm attendance for today's training.
@@ -244,7 +244,7 @@ TONE
 Generate the message now:`
   }
 
-  private createTrainerLLMPrompt(time: string, season: string): string {
+  private createTrainerRequestPrompt(time: string, season: string): string {
     return `Generate a message to ask trainers if they can lead tomorrow's Ultimate Frisbee training session. Output ONLY the actual message that will be sent - NO meta text, NO quotes, NO explanations, NO instructions.
 
 CRITICAL: The message MUST be formatted on 3 SEPARATE LINES with blank lines between them. DO NOT put everything on one line.
@@ -279,7 +279,7 @@ Rules:
 Generate the message now:`
   }
 
-  private createLLMPrompt(location: string, time: string, startTime: string, season: string): string {
+  private createAnnouncementPrompt(location: string, time: string, startTime: string, season: string): string {
     return `Generate an Ultimate Frisbee training invitation message.
 
 Output ONLY the final message text.

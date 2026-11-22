@@ -11,28 +11,28 @@ const config = testConfig()
 const seasons = new SeasonManager(config)
 
 test('the season switches exactly on each start date', () => {
-  assert.equal(seasons.getCurrentSeason(SEASON_DATES.lastWinterDay), 'winter')
-  assert.equal(seasons.getCurrentSeason(SEASON_DATES.summerStart), 'summer')
-  assert.equal(seasons.getCurrentSeason(SEASON_DATES.lastSummerDay), 'summer')
-  assert.equal(seasons.getCurrentSeason(SEASON_DATES.winterStart), 'winter')
+  assert.equal(seasons.seasonOn(SEASON_DATES.lastWinterDay), 'winter')
+  assert.equal(seasons.seasonOn(SEASON_DATES.summerStart), 'summer')
+  assert.equal(seasons.seasonOn(SEASON_DATES.lastSummerDay), 'summer')
+  assert.equal(seasons.seasonOn(SEASON_DATES.winterStart), 'winter')
 })
 
 test('winter spans the new year', () => {
-  assert.equal(seasons.getCurrentSeason(SEASON_DATES.newYearsEve), 'winter')
-  assert.equal(seasons.getCurrentSeason(SEASON_DATES.newYearsDay), 'winter')
-  assert.deepEqual(seasons.getCurrentSeasonConfig(SEASON_DATES.newYearsDay).location, config.seasons.winter.location)
+  assert.equal(seasons.seasonOn(SEASON_DATES.newYearsEve), 'winter')
+  assert.equal(seasons.seasonOn(SEASON_DATES.newYearsDay), 'winter')
+  assert.deepEqual(seasons.seasonConfigOn(SEASON_DATES.newYearsDay).location, config.seasons.winter.location)
 })
 
 test('the seasons follow their start dates when winter starts in January', () => {
   const januaryWinter = new SeasonManager(testConfig({ WINTER_START_DATE: '1:10' }))
 
-  assert.equal(seasons.getCurrentSeason(at(2027, 1, 9)), 'winter')
+  assert.equal(seasons.seasonOn(at(2027, 1, 9)), 'winter')
 
-  assert.equal(januaryWinter.getCurrentSeason(at(2027, 1, 9)), 'summer')
-  assert.equal(januaryWinter.getCurrentSeason(at(2027, 1, 10)), 'winter')
-  assert.equal(januaryWinter.getCurrentSeason(at(2027, 5, 19)), 'winter')
-  assert.equal(januaryWinter.getCurrentSeason(at(2027, 5, 20)), 'summer')
-  assert.equal(januaryWinter.getCurrentSeason(at(2027, 12, 31)), 'summer')
+  assert.equal(januaryWinter.seasonOn(at(2027, 1, 9)), 'summer')
+  assert.equal(januaryWinter.seasonOn(at(2027, 1, 10)), 'winter')
+  assert.equal(januaryWinter.seasonOn(at(2027, 5, 19)), 'winter')
+  assert.equal(januaryWinter.seasonOn(at(2027, 5, 20)), 'summer')
+  assert.equal(januaryWinter.seasonOn(at(2027, 12, 31)), 'summer')
 })
 
 test('the next training is the next practice of the current season', () => {
@@ -57,17 +57,17 @@ test('the next training across a season switch uses the new season weekdays', ()
 })
 
 test('the post is due only the day before a practice, at its time', () => {
-  assert.equal(seasons.shouldSendMessage(SUMMER_TRAINING.time, at(2027, 6, 8, 19, 30)), true)
-  assert.equal(seasons.shouldSendMessage({ hour: 19, minute: 0 }, at(2027, 6, 8, 19, 0)), false)
-  assert.equal(seasons.shouldSendMessage(SUMMER_TRAINING.time, at(2027, 6, 7, 19, 30)), false)
-  assert.equal(seasons.shouldSendMessage(SUMMER_TRAINING.time, at(2027, 6, 9, 19, 30)), false)
+  assert.equal(seasons.isAnnouncementDue(SUMMER_TRAINING.time, at(2027, 6, 8, 19, 30)), true)
+  assert.equal(seasons.isAnnouncementDue({ hour: 19, minute: 0 }, at(2027, 6, 8, 19, 0)), false)
+  assert.equal(seasons.isAnnouncementDue(SUMMER_TRAINING.time, at(2027, 6, 7, 19, 30)), false)
+  assert.equal(seasons.isAnnouncementDue(SUMMER_TRAINING.time, at(2027, 6, 9, 19, 30)), false)
 })
 
 test('the post follows the season of tomorrow, not of today', () => {
   // Winter starts Tue 2026-09-15: today is summer, tomorrow a winter Tuesday
-  assert.equal(seasons.shouldSendMessage({ hour: 20, minute: 30 }, at(2026, 9, 14, 20, 30)), true)
+  assert.equal(seasons.isAnnouncementDue({ hour: 20, minute: 30 }, at(2026, 9, 14, 20, 30)), true)
   // Winter starts Wed 2027-09-15: a summer Wednesday, but winter has no Wednesday practice
-  assert.equal(seasons.shouldSendMessage(SUMMER_TRAINING.time, at(2027, 9, 14, 19, 30)), false)
+  assert.equal(seasons.isAnnouncementDue(SUMMER_TRAINING.time, at(2027, 9, 14, 19, 30)), false)
 })
 
 test('every practice time of both seasons gets a check', () => {

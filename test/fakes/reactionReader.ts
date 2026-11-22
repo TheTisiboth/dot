@@ -18,7 +18,7 @@ export const makeFakeReader = (history: Partial<ChatHistory> = {}) => {
 
   const fake = {
     chat,
-    findPollMessage: async () => chat.postId,
+    findAnnouncement: async () => chat.postId,
     getThumbsUpCount: async () => chat.thumbsUp,
     hasBotReplyTo: async () => chat.reminder,
     hasBotMessageContaining: async (_chatId: string, _threadId: number | undefined, text: string) =>

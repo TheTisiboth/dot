@@ -347,6 +347,22 @@ documents, © World Flying Disc Federation, licensed under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Indoor questions are adapted
 from the [EUF Indoor Rules Appendix](https://www.ultimatefederation.eu/rules-of-ultimate).
 
+## Glossary
+
+One word per concept, one concept per word, in code, logs and docs.
+
+| Term | Meaning | Not |
+|---|---|---|
+| dot | The product: this bot | "Ultimate Frisbee Training Bot", `ultimate-frisbee-bot` |
+| Training | One practice: start, location, season | "practice day", "training info" |
+| Announcement | Team-chat post 24h before; its 👍 count is the attendance | "poll", "scheduled message", "reminder", "team message" |
+| Key request | Who brings the hall key | "key message" |
+| Trainer request | Trainer-chat post asking who coaches | "trainer check message" |
+| Attendance reminder | Reply to the announcement when below threshold | "reminder" alone |
+| Cancellation notice | Trainer-chat post when still below threshold | "cancellation message" |
+| Quiz question / answer | Rules quiz. "Poll" only means a Telegram poll | "rule" in command names |
+| Team / trainer / rules / admin chat | A `ChatTarget` (chat id + optional topic) | bare `chatId` |
+
 ## Development
 
 ```bash

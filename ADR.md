@@ -184,7 +184,7 @@ lines do. Validation, error handling and security are never what gets cut.
 
 **Context:** two words for one concept, or one word for two, makes code and logs ambiguous.
 
-**Decision:** names come from the project glossary: one word per concept, one concept per
+**Decision:** names come from the [project glossary](README.md#glossary): one word per concept, one concept per
 word. A constant carries its unit. A comment explains a non-obvious why, never what the code
 does. No lint rule is disabled inline. A type cast is allowed only at a library boundary,
 with the reason. Everything else is the linter's decision, not a discussion.

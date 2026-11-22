@@ -120,7 +120,7 @@ const configSchema = envVars
         location: env.WINTER_LOCATION,
         practices: env.WINTER_PRACTICE_DAYS,
         minAttendance: env.WINTER_MIN_ATTENDANCE,
-        keyMessageEnabled: env.WINTER_KEY_MESSAGE_ENABLED,
+        keyRequestEnabled: env.WINTER_KEY_MESSAGE_ENABLED,
         throwingMinutesBefore: env.WINTER_THROWING_MINUTES_BEFORE
       },
       summer: {
@@ -128,7 +128,7 @@ const configSchema = envVars
         location: env.SUMMER_LOCATION,
         practices: env.SUMMER_PRACTICE_DAYS,
         minAttendance: env.SUMMER_MIN_ATTENDANCE,
-        keyMessageEnabled: env.SUMMER_KEY_MESSAGE_ENABLED,
+        keyRequestEnabled: env.SUMMER_KEY_MESSAGE_ENABLED,
         throwingMinutesBefore: env.SUMMER_THROWING_MINUTES_BEFORE
       }
     },
