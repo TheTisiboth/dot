@@ -2,13 +2,14 @@ import type { Api } from 'grammy'
 import { type SeasonManager } from '../services/SeasonManager'
 import { type MessageGenerator } from '../services/MessageGenerator'
 import { describeReport, hasFailure, type SchedulerService } from '../services/SchedulerService'
-import { config } from '../config'
+import type { BotConfig } from '../config/env'
 import { EMOJIS, MESSAGES } from '../utils/constants'
 import { formatDate, formatTime } from '../utils/formatters'
 import { sendWithFallback, threadOptions } from '../utils/telegram'
 import { type Command } from './registry'
 
 interface TrainingCommandsDeps {
+  config: Pick<BotConfig, 'telegram' | 'attendance'>;
   api: Api;
   seasonManager: SeasonManager;
   messageGenerator: MessageGenerator;
@@ -18,7 +19,7 @@ interface TrainingCommandsDeps {
 const HTML = { parse_mode: 'HTML' } as const
 
 /** Admin commands to preview and send the training messages before the scheduler does. */
-export const trainingCommands = ({ api, seasonManager, messageGenerator, scheduler }: TrainingCommandsDeps): Command[] => {
+export const trainingCommands = ({ config, api, seasonManager, messageGenerator, scheduler }: TrainingCommandsDeps): Command[] => {
   const nextTraining = () => {
     const training = seasonManager.getNextTrainingInfo()
     return { training, season: seasonManager.getCurrentSeasonConfig(training.date) }

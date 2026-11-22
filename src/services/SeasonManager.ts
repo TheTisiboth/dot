@@ -1,10 +1,16 @@
-import { config } from '../config'
+import type { BotConfig } from '../config/env'
 import { type SeasonConfig, type SeasonType, type TimeOfDay, type TrainingInfo } from '../types'
 import { createDateFromMonthDay, atTime, getThrowingTime } from '../utils/dateHelpers'
 import { formatTime, getDayName } from '../utils/formatters'
 
 export class SeasonManager {
-  private readonly seasons = config.seasons
+  readonly seasons: BotConfig['seasons']
+  private readonly exceptionalTraining: BotConfig['exceptionalTraining']
+
+  constructor({ seasons, exceptionalTraining }: Pick<BotConfig, 'seasons' | 'exceptionalTraining'>) {
+    this.seasons = seasons
+    this.exceptionalTraining = exceptionalTraining
+  }
 
   getCurrentSeason(date: Date = new Date()): SeasonType {
     const winterStart = this.seasons.winter.startDate
@@ -84,7 +90,7 @@ export class SeasonManager {
       throw new Error(`No practice day found for day ${nextDate.getDay()}`)
     }
 
-    const exceptionalTraining = config.exceptionalTraining
+    const { exceptionalTraining } = this
     const time = exceptionalTraining.time ?? nextPractice.time
 
     return {

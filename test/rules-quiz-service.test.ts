@@ -2,7 +2,6 @@ import './helpers/testEnv'
 import { test, beforeEach, afterEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import { type Api, InputFile } from 'grammy'
-import { config } from '../src/config'
 import { findQuizQuestion, QUIZ_QUESTIONS } from '../src/data/rules-quiz'
 import { RulesQuizService } from '../src/services/RulesQuizService'
 import { answerTimeFor } from '../src/services/quizAnswer'
@@ -10,6 +9,7 @@ import { type LatestQuiz, type ReactionReader } from '../src/services/ReactionRe
 import { type SeasonManager } from '../src/services/SeasonManager'
 import { type QuizQuestion, type SeasonType } from '../src/types'
 import { parseQuizTag } from '../src/utils/quizTag'
+import { testConfig } from './fixtures/config'
 
 interface Call {
   method: 'sendPhoto' | 'sendMessage' | 'sendPoll';
@@ -58,7 +58,10 @@ const reader = {
   getLatestQuiz: async () => latestQuiz
 } as unknown as ReactionReader
 
-const service = (season: SeasonType = 'winter') => new RulesQuizService(bot, seasonOf(season), reader)
+const RULES_QUIZ = testConfig().rulesQuiz
+const DISABLED = { ...RULES_QUIZ, enabled: false }
+
+const service = (season: SeasonType = 'winter', rulesQuiz = RULES_QUIZ) => new RulesQuizService(rulesQuiz, bot, seasonOf(season), reader)
 
 const question = (id: string): QuizQuestion => {
   const q = findQuizQuestion(id)
@@ -76,8 +79,6 @@ beforeEach(() => {
   historyError = undefined
   historyReads = []
   latestQuiz = undefined
-  config.rulesQuiz.enabled = true
-  config.rulesQuiz.chat = RULES_CHAT
 })
 
 test('signal question: photo, then the poll replying to it, in the topic', async () => {
@@ -141,13 +142,11 @@ test('summer picks outdoor questions', async () => {
 })
 
 test('postNext fails without RULES_CHAT_ID', async () => {
-  config.rulesQuiz.chat = undefined
-  await assert.rejects(service().postNext(), /RULES_CHAT_ID/)
+  await assert.rejects(service('winter', { ...RULES_QUIZ, chat: undefined }).postNext(), /RULES_CHAT_ID/)
 })
 
 test('sendScheduled does nothing when disabled', async () => {
-  config.rulesQuiz.enabled = false
-  await service().sendScheduled()
+  await service('winter', DISABLED).sendScheduled()
   assert.equal(historyReads.length, 0)
   assert.equal(calls.length, 0)
 })
@@ -160,7 +159,7 @@ test('sendScheduled never throws, so the training post is never affected', async
 
 test('a hung history read ends in an error, then one retry later posts the quiz', async () => {
   let hang = true
-  const quiz = new RulesQuizService(bot, seasonOf('winter'), {
+  const quiz = new RulesQuizService(RULES_QUIZ, bot, seasonOf('winter'), {
     // Like a request on a dead MTProto connection: never settles
     getAskedQuizIds: async () => hang ? await new Promise<string[]>(() => undefined) : []
   } as unknown as ReactionReader)
@@ -180,7 +179,7 @@ test('a hung history read ends in an error, then one retry later posts the quiz'
 
 test('a hung post does not block the next one', async () => {
   let hang = true
-  const quiz = new RulesQuizService(bot, seasonOf('winter'), {
+  const quiz = new RulesQuizService(RULES_QUIZ, bot, seasonOf('winter'), {
     getAskedQuizIds: async () => hang ? await new Promise<string[]>(() => undefined) : []
   } as unknown as ReactionReader)
 
@@ -209,7 +208,7 @@ test('overlapping posts run one after another, so they never read the same histo
   // One indoor question left: without the queue both posts would read this history and pick it
   const indoor = QUIZ_QUESTIONS.filter(q => q.modes.includes('indoor')).map(q => q.id)
   const before = indoor.slice(1)
-  const quiz = new RulesQuizService(bot, seasonOf('winter'), {
+  const quiz = new RulesQuizService(RULES_QUIZ, bot, seasonOf('winter'), {
     getAskedQuizIds: async () => [
       ...calls.filter(c => c.method === 'sendPoll').map(c => parseQuizTag(c.content as string) as string).reverse(),
       ...before
@@ -282,7 +281,7 @@ test('arming: a future answer time waits for it', async () => {
   latestQuiz = latest({ postedAt })
   await service().armAnswer()
 
-  const delay = answerTimeFor(postedAt, config.rulesQuiz.answerDelayMinutes).getTime() - Date.now()
+  const delay = answerTimeFor(postedAt, RULES_QUIZ.answerDelayMinutes).getTime() - Date.now()
   assert.ok(delay > 0)
   mock.timers.tick(delay - 1000)
   await flush()
@@ -295,9 +294,8 @@ test('arming: a future answer time waits for it', async () => {
 test('arming: nothing when the latest poll is already answered, or the quiz is disabled', async () => {
   latestQuiz = latest({ answered: true, postedAt: new Date(0) })
   await service().armAnswer()
-  config.rulesQuiz.enabled = false
   latestQuiz = latest({ postedAt: new Date(0) })
-  await service().armAnswer()
+  await service('winter', DISABLED).armAnswer()
   mock.timers.tick(0)
   await flush()
   assert.equal(calls.length, 0)

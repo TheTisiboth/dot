@@ -2,7 +2,7 @@ import * as cron from 'node-cron'
 import { type SeasonManager } from './SeasonManager'
 import { type MessageGenerator } from './MessageGenerator'
 import { type ReactionReader } from './ReactionReader'
-import { config } from '../config'
+import type { BotConfig } from '../config/env'
 import type { Api } from 'grammy'
 import { errorMessage, log } from '../utils/logger'
 import { type RulesQuizService } from './RulesQuizService'
@@ -30,6 +30,7 @@ interface AttendanceCheck extends Attendance {
 }
 
 export class SchedulerService {
+  private readonly config: Pick<BotConfig, 'telegram' | 'attendance'>
   private readonly seasonManager: SeasonManager
   private readonly messageGenerator: MessageGenerator
   private readonly reactionReader: ReactionReader
@@ -45,12 +46,14 @@ export class SchedulerService {
   private retryTimer?: NodeJS.Timeout
 
   constructor(
+    config: Pick<BotConfig, 'telegram' | 'attendance'>,
     seasonManager: SeasonManager,
     messageGenerator: MessageGenerator,
     reactionReader: ReactionReader,
     bot: Api,
     rulesQuiz: RulesQuizService
   ) {
+    this.config = config
     this.seasonManager = seasonManager
     this.messageGenerator = messageGenerator
     this.reactionReader = reactionReader
@@ -104,7 +107,7 @@ export class SchedulerService {
     }
 
     const trainingAt = this.getTrainingAt(training)
-    const { reminderHoursBefore, cancelHoursBefore } = config.attendance
+    const { reminderHoursBefore, cancelHoursBefore } = this.config.attendance
 
     this.armTimer('Attendance reminder', hoursBefore(trainingAt, reminderHoursBefore), trainingAt, () =>
       this.runReminderCheck(training)
@@ -215,7 +218,7 @@ export class SchedulerService {
         return
       }
 
-      const since = hoursBefore(this.getTrainingAt(training), config.attendance.cancelHoursBefore + 1)
+      const since = hoursBefore(this.getTrainingAt(training), this.config.attendance.cancelHoursBefore + 1)
       const alreadyCancelled = await this.reactionReader.hasBotMessageContaining(
         this.trainerChat.chatId,
         this.trainerChat.threadId,
@@ -300,7 +303,7 @@ export class SchedulerService {
     if (!hasFailure(report)) return
 
     try {
-      await this.bot.sendMessage(config.telegram.adminChatId, `${EMOJIS.WARNING} Scheduled training messages failed:\n\n${describeReport(report, true)}`)
+      await this.bot.sendMessage(this.config.telegram.adminChatId, `${EMOJIS.WARNING} Scheduled training messages failed:\n\n${describeReport(report, true)}`)
     } catch (error) {
       log.error('Alerting the admin chat', error)
     }

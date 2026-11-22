@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { Api } from 'telegram'
 import type { Api as BotApi } from 'grammy'
-import { ReactionReader } from '../src/services/ReactionReader'
+import { type MtprotoClient, ReactionReader } from '../src/services/ReactionReader'
 import { CANCELLATION_SIGNATURE, EMOJIS, MARKERS } from '../src/utils/constants'
 import { HOUR_MS } from './helpers/clock'
 import { SUMMER_TRAINING, beforeTraining } from './fixtures/dates'
@@ -15,7 +15,7 @@ const POST_ID = 1
 const unixSeconds = (date: Date) => Math.floor(date.getTime() / 1000)
 
 const asMessage = ({ id, at, text, replyTo }: Line): Api.Message =>
-  Object.assign(Object.create(Api.Message.prototype) as Api.Message, {
+  new Api.Message({
     id,
     date: unixSeconds(at),
     message: text,
@@ -27,6 +27,8 @@ const readerOver = (lines: Line[], getMe: BotApi['getMe'] = async () => ({ usern
   const searches: number[] = []
   const client = {
     connected: true,
+    connect: async () => undefined,
+    getDialogs: async () => [],
     getInputEntity: async (target: unknown) => typeof target === 'string' ? BOT : 'chat-peer',
     invoke: async (request: Api.messages.Search) => {
       searches.push(request.offsetId)
@@ -39,12 +41,8 @@ const readerOver = (lines: Line[], getMe: BotApi['getMe'] = async () => ({ usern
       return { messages }
     }
   }
-  // Skips the constructor, which would open an MTProto client
-  const reader = Object.assign(Object.create(ReactionReader.prototype), {
-    client,
-    connected: true,
-    bot: { getMe }
-  }) as ReactionReader
+  // The library boundary: the fake implements only the GramJS methods the reader calls
+  const reader = new ReactionReader({ getMe }, client as unknown as MtprotoClient)
   return { reader, searches }
 }
 

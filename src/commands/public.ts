@@ -1,6 +1,5 @@
 import { type SeasonManager } from '../services/SeasonManager'
 import { type SeasonConfigBase, type DateConfig } from '../types'
-import { config } from '../config'
 import { EMOJIS } from '../utils/constants'
 import { getDateBefore } from '../utils/dateHelpers'
 import { capitalize, formatDateShort, formatDate, formatPracticeDays, formatTime, locationLink } from '../utils/formatters'
@@ -31,7 +30,7 @@ export const publicCommands = (seasonManager: SeasonManager): Command[] => [
   {
     name: 'info',
     description: 'Show training schedule',
-    run: ({ reply }) => reply(scheduleText(), { parse_mode: 'HTML' })
+    run: ({ reply }) => reply(scheduleText(seasonManager), { parse_mode: 'HTML' })
   },
   {
     name: 'training',
@@ -40,8 +39,8 @@ export const publicCommands = (seasonManager: SeasonManager): Command[] => [
   }
 ]
 
-const scheduleText = (): string => {
-  const { winter, summer } = config.seasons
+const scheduleText = (seasonManager: SeasonManager): string => {
+  const { winter, summer } = seasonManager.seasons
   return `${EMOJIS.CALENDAR} Training Schedule
 
 ${seasonText('winter', winter, summer.startDate)}
