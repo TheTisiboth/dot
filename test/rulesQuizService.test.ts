@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { type Api, InputFile } from 'grammy'
 import { findQuizQuestion, QUIZ_QUESTIONS } from '../src/quiz/data'
 import { RulesQuizService } from '../src/quiz/service'
+import { quizPublisher } from '../src/quiz/publisher'
 import { answerTimeFor } from '../src/quiz/answer'
 import { type LatestQuiz, type QuizHistory } from '../src/quiz/history'
 import { type SeasonManager, type SeasonType } from '../src/training/season'
@@ -58,10 +59,12 @@ const reader = {
   getLatestQuiz: async () => latestQuiz
 } as unknown as QuizHistory
 
+const publisher = quizPublisher(bot)
+
 const RULES_QUIZ = testConfig().rulesQuiz
 const DISABLED = { ...RULES_QUIZ, enabled: false }
 
-const service = (season: SeasonType = 'winter', rulesQuiz = RULES_QUIZ) => new RulesQuizService(rulesQuiz, bot, seasonOf(season), reader)
+const service = (season: SeasonType = 'winter', rulesQuiz = RULES_QUIZ) => new RulesQuizService(rulesQuiz, publisher, seasonOf(season), reader)
 
 const question = (id: string): QuizQuestion => {
   const q = findQuizQuestion(id)
@@ -82,7 +85,7 @@ beforeEach(() => {
 })
 
 test('signal question: photo, then the poll replying to it, in the topic', async () => {
-  await service().post(RULES_CHAT, question('sig_01'))
+  await publisher.post(RULES_CHAT, question('sig_01'))
 
   assert.deepEqual(calls.map(c => c.method), ['sendPhoto', 'sendPoll'])
   const [photo, poll] = calls
@@ -96,7 +99,7 @@ test('signal question: photo, then the poll replying to it, in the topic', async
 test('poll is an anonymous quiz pointing at the right answer, and carries the hidden id', async () => {
   for (let i = 0; i < 10; i++) {
     calls = []
-    await service().post(RULES_CHAT, question('r1_01'))
+    await publisher.post(RULES_CHAT, question('r1_01'))
 
     assert.deepEqual(calls.map(c => c.method), ['sendPoll'])
     const [poll] = calls
@@ -112,7 +115,7 @@ test('poll is an anonymous quiz pointing at the right answer, and carries the hi
 
 test('long question: text first, then a short poll replying to it', async () => {
   const long = { ...question('r1_01'), question: 'x'.repeat(295) }
-  await service().post(RULES_CHAT, long)
+  await publisher.post(RULES_CHAT, long)
 
   assert.deepEqual(calls.map(c => c.method), ['sendMessage', 'sendPoll'])
   assert.ok((calls[0].content as string).endsWith(long.question))
@@ -121,7 +124,7 @@ test('long question: text first, then a short poll replying to it', async () => 
 })
 
 test('no topic: no thread option', async () => {
-  await service().post({ chatId: '-400' }, question('r1_01'))
+  await publisher.post({ chatId: '-400' }, question('r1_01'))
   assert.equal('message_thread_id' in calls[0].options, false)
 })
 
@@ -159,7 +162,7 @@ test('sendScheduled never throws, so the training post is never affected', async
 
 test('a hung history read ends in an error, then one retry later posts the quiz', async () => {
   let hang = true
-  const quiz = new RulesQuizService(RULES_QUIZ, bot, seasonOf('winter'), {
+  const quiz = new RulesQuizService(RULES_QUIZ, publisher, seasonOf('winter'), {
     // Like a request on a dead MTProto connection: never settles
     getAskedQuizIds: async () => hang ? await new Promise<string[]>(() => undefined) : []
   } as unknown as QuizHistory)
@@ -179,7 +182,7 @@ test('a hung history read ends in an error, then one retry later posts the quiz'
 
 test('a hung post does not block the next one', async () => {
   let hang = true
-  const quiz = new RulesQuizService(RULES_QUIZ, bot, seasonOf('winter'), {
+  const quiz = new RulesQuizService(RULES_QUIZ, publisher, seasonOf('winter'), {
     getAskedQuizIds: async () => hang ? await new Promise<string[]>(() => undefined) : []
   } as unknown as QuizHistory)
 
@@ -208,7 +211,7 @@ test('overlapping posts run one after another, so they never read the same histo
   // One indoor question left: without the queue both posts would read this history and pick it
   const indoor = QUIZ_QUESTIONS.filter(q => q.modes.includes('indoor')).map(q => q.id)
   const before = indoor.slice(1)
-  const quiz = new RulesQuizService(RULES_QUIZ, bot, seasonOf('winter'), {
+  const quiz = new RulesQuizService(RULES_QUIZ, publisher, seasonOf('winter'), {
     getAskedQuizIds: async () => [
       ...calls.filter(c => c.method === 'sendPoll').map(c => parseQuizTag(c.content as string) as string).reverse(),
       ...before
@@ -303,7 +306,7 @@ test('arming: nothing when the latest poll is already answered, or the quiz is d
 
 test('preview: the question, then its spoiler answer replying to the poll', async () => {
   const admin = { chatId: '-200' }
-  await service().preview(admin, question('sig_01'))
+  await publisher.preview(admin, question('sig_01'))
 
   assert.deepEqual(calls.map(c => c.method), ['sendPhoto', 'sendPoll', 'sendMessage'])
   const [, poll, answer] = calls

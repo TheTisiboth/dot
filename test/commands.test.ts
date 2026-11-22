@@ -15,7 +15,7 @@ import { EMOJIS } from '../src/shared/emojis'
 import { formatDate } from '../src/shared/formatters'
 import { makeFakeBot } from './fakes/bot'
 import { makeFakeTrainingHistory, TRAINING_POST_ID } from './fakes/trainingHistory'
-import { makeFakeRulesQuiz } from './fakes/rulesQuiz'
+import { makeFakeQuizPublisher, makeFakeRulesQuiz } from './fakes/rulesQuiz'
 import { SUMMER_TRAINING, beforeTraining } from './fixtures/dates'
 import { HOUR_MS, startAt } from './helpers/clock'
 import { testConfig } from './fixtures/config'
@@ -35,6 +35,7 @@ const build = ({ failingChat, env }: { failingChat?: string; env?: Record<string
   const botConfig = testConfig(env)
   const bot = makeFakeBot({ failingChat })
   const quiz = makeFakeRulesQuiz()
+  const publisher = makeFakeQuizPublisher()
   const seasonManager = new SeasonManager(botConfig)
   const messages = trainingMessages(llmWriter(botConfig.ollama, null))
   const attendance = new AttendanceMonitor(botConfig, seasonManager, messages, makeFakeTrainingHistory({ thumbsUp: ATTENDING }), bot.api)
@@ -42,23 +43,23 @@ const build = ({ failingChat, env }: { failingChat?: string; env?: Record<string
   const commands: Command[] = [
     ...publicCommands(seasonManager),
     ...trainingCommands({ config: botConfig, api: bot.api, seasonManager, messages, announcer: trainingAnnouncer, attendance }),
-    ...quizCommands(quiz)
+    ...quizCommands(quiz, publisher)
   ]
   routeCommands(bot, commands, botConfig.telegram.adminChatId)
-  return { bot, quiz, commands }
+  return { bot, quiz, publisher, commands }
 }
 
 afterEach(() => { mock.timers.reset() })
 
 test('every admin command from another chat is ignored silently', async () => {
   startAt(beforeTraining(24 * HOUR_MS))
-  const { bot, quiz } = build()
+  const { bot, quiz, publisher } = build()
 
   for (const command of ADMIN_COMMANDS) await bot.command(command, PLAYER)
 
   assert.deepEqual(bot.sent, [])
   assert.deepEqual(quiz.calls, [])
-  assert.deepEqual(quiz.previews, [])
+  assert.deepEqual(publisher.previews, [])
 })
 
 test('an admin command from the admin chat runs', async () => {
@@ -179,29 +180,29 @@ test('/send_to_all reports a failed announcement instead of success', async () =
 })
 
 test('/test_rule previews the named question in the admin chat', async () => {
-  const { bot, quiz } = build()
+  const { bot, publisher } = build()
 
   await bot.command('/test_rule sig_01', ADMIN)
 
-  assert.deepEqual(quiz.previews.map(({ target, question }) => [target.chatId, question.id]), [[String(ADMIN.chatId), 'sig_01']])
+  assert.deepEqual(publisher.previews.map(({ target, question }) => [target.chatId, question.id]), [[String(ADMIN.chatId), 'sig_01']])
 })
 
 test('/test_rule with an unknown id previews nothing', async () => {
-  const { bot, quiz } = build()
+  const { bot, publisher } = build()
 
   await bot.command('/test_rule nope', ADMIN)
 
-  assert.deepEqual(quiz.previews, [])
+  assert.deepEqual(publisher.previews, [])
   assert.equal(bot.sentTo(ADMIN.chatId).length, 1)
 })
 
 test('/test_rule without an id previews the next pick', async () => {
-  const { bot, quiz } = build()
+  const { bot, quiz, publisher } = build()
 
   await bot.command('/test_rule', ADMIN)
 
   assert.deepEqual(quiz.calls, ['pickNext'])
-  assert.equal(quiz.previews.length, 1)
+  assert.equal(publisher.previews.length, 1)
 })
 
 test('/send_rule and /answer_rule drive the quiz', async () => {

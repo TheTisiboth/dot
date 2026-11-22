@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildQuizPost, pickQuestion } from '../src/quiz/picker'
+import { pickQuestion } from '../src/quiz/picker'
+import { buildQuizPost } from '../src/quiz/post'
 import { parseQuizTag, quizTag } from '../src/quiz/tag'
 import { QUIZ_QUESTIONS } from '../src/quiz/data'
 import { type QuizDifficulty, type QuizMode, type QuizQuestion } from '../src/quiz/question'

@@ -13,6 +13,7 @@ import { AttendanceMonitor } from './training/attendance'
 import { announcer } from './training/announcer'
 import { startSchedule } from './training/schedule'
 import { RulesQuizService } from './quiz/service'
+import { quizPublisher } from './quiz/publisher'
 import { HEALTH_PORT, PROBE_TIMEOUT_MS, startHealthServer } from './health/server'
 import { type Command, publishCommandMenus, routeCommands } from './commands/registry'
 import { publicCommands } from './commands/public'
@@ -56,14 +57,15 @@ class Dot {
       ...(enableTrainerMessages && { trainer: trainerChat.chatId }),
       ...(rulesChat && { rules: rulesChat.chatId })
     }
-    const rulesQuiz = new RulesQuizService(config.rulesQuiz, this.bot.api, this.seasonManager, quizHistory(this.history))
+    const publisher = quizPublisher(this.bot.api)
+    const rulesQuiz = new RulesQuizService(config.rulesQuiz, publisher, this.seasonManager, quizHistory(this.history))
     const attendance = new AttendanceMonitor(config, this.seasonManager, messages, trainingHistory(this.history), this.bot.api)
     const trainingAnnouncer = announcer({ config, seasonManager: this.seasonManager, messages, attendance, bot: this.bot.api, rulesQuiz })
     this.startSchedule = () => { startSchedule({ config, seasonManager: this.seasonManager, announcer: trainingAnnouncer, attendance, rulesQuiz, bot: this.bot.api }) }
     this.commands = [
       ...publicCommands(this.seasonManager),
       ...trainingCommands({ config, api: this.bot.api, seasonManager: this.seasonManager, messages, announcer: trainingAnnouncer, attendance }),
-      ...quizCommands(rulesQuiz)
+      ...quizCommands(rulesQuiz, publisher)
     ]
     routeCommands(this.bot, this.commands, config.telegram.adminChatId)
 
