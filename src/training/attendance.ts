@@ -26,6 +26,9 @@ interface AttendanceCheck extends Attendance {
   training: Training
 }
 
+/** What the team chat history says of the next training: its 👍 count, or why there is none. */
+export type LiveCount = AttendanceCheck | 'no announcement' | 'unreadable'
+
 /** The attendance reminder and the cancellation notice, read off the announcement's 👍 count. */
 export class AttendanceMonitor {
   private readonly config: Pick<BotConfig, 'telegram' | 'attendance'>
@@ -126,6 +129,17 @@ export class AttendanceMonitor {
   /** Exposed for the /attendance admin command. */
   async inspect(): Promise<AttendanceCheck | null> {
     return await this.getAttendance(this.seasonManager.nextTraining())
+  }
+
+  /** The next training's count for a command reply; never throws. Pass `readable` false when MTProto is down: a read would hold the reply for its connect timeout. */
+  async liveCount(readable: boolean): Promise<LiveCount> {
+    if (!readable) return 'unreadable'
+    try {
+      return await this.inspect() ?? 'no announcement'
+    } catch (error) {
+      log.error('Reading the live attendance', error)
+      return 'unreadable'
+    }
   }
 
   /**

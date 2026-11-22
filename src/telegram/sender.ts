@@ -1,11 +1,19 @@
 import { type Api, GrammyError, InputFile } from 'grammy'
 import type { InlineKeyboardMarkup } from 'grammy/types'
+import { link } from '../shared/formatters'
 import { log } from '../shared/logger'
 
 /** A chat, optionally one forum topic in it. */
 export interface ChatTarget {
   chatId: string;
   threadId?: number;
+}
+
+/** A t.me link works for supergroups only, whose ids are -100 followed by the channel id. */
+export const messageLink = ({ chatId, threadId }: ChatTarget, messageId: number): string => {
+  const channelId = /^-100(\d+)$/.exec(chatId)?.[1]
+  if (!channelId) return `message <code>${messageId}</code>`
+  return link(`https://t.me/c/${channelId}/${threadId ? `${threadId}/` : ''}${messageId}`, 'open it')
 }
 
 /** Sends to one chat and topic; each method resolves to the sent message's id. */
