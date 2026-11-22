@@ -4,7 +4,7 @@ x-ollama-memory-reservation: &ollama-memory-reservation ${OLLAMA_MEMORY_RESERVAT
 
 services:
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:${OLLAMA_VERSION:-0.40.17}
     container_name: frisbee-ollama
     restart: unless-stopped
     ports:
@@ -98,11 +98,6 @@ services:
       - EXCEPTIONAL_TIME=${EXCEPTIONAL_TIME:-}
       - EXCEPTIONAL_CANCELLED=${EXCEPTIONAL_CANCELLED:-false}
 
-
-    # Optional: Add volume for logs or persistent data
-    # volumes:
-    #   - ./logs:/app/logs
-
     # Health check for the bot
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3004/health"]
@@ -113,7 +108,7 @@ services:
 
   # Optional: Ollama model downloader (runs once to pull the model)
   ollama-setup:
-    image: ollama/ollama:latest
+    image: ollama/ollama:${OLLAMA_VERSION:-0.40.17}
     container_name: frisbee-ollama-setup
     depends_on:
       ollama:
