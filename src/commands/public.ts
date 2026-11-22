@@ -1,7 +1,7 @@
 import { type SeasonManager } from '../training/season'
 import { EMOJIS } from '../shared/emojis'
 import { formatClock, formatDate, locationLink } from '../shared/formatters'
-import { type Command } from './registry'
+import { type Command, commandList } from './registry'
 
 // No 👍 here: the announcement is found in chat history as the bot's standalone message with one
 const START_TEXT = `${EMOJIS.FRISBEE} Hi, I'm dot, the team's training bot.
@@ -12,11 +12,6 @@ I also ask who brings the hall key, and post rules quiz questions.
 
 Type /help to see the commands.`
 
-const HELP_TEXT = `${EMOJIS.FRISBEE} Available Commands
-
-/info - Show training schedule for all seasons
-/training - Show next training session`
-
 export const publicCommands = (seasonManager: SeasonManager): Command[] => [
   {
     name: 'start',
@@ -26,7 +21,7 @@ export const publicCommands = (seasonManager: SeasonManager): Command[] => [
   {
     name: 'help',
     description: 'List the commands',
-    run: ({ reply }) => reply.plain(HELP_TEXT)
+    run: ({ reply, commands }) => reply.plain(`${EMOJIS.FRISBEE} Available Commands\n\n${commandList(commands)}`)
   },
   {
     name: 'info',

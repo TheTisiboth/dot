@@ -149,7 +149,7 @@ export const trainingCommands = ({ config, api, seasonManager, messages, announc
     },
     {
       name: 'attendance',
-      description: 'Show the live 👍 count on the announcement',
+      description: 'Show how many players are in so far',
       adminOnly: true,
       run: async ({ reply }) => {
         const check = await attendance.inspect()

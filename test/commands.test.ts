@@ -261,6 +261,42 @@ test('public replies carry no 👍, so none is taken for the announcement', asyn
   assert.equal(bot.sentTo(PLAYER.chatId).some(({ text }) => text.includes(EMOJIS.THUMBS_UP)), false)
 })
 
+/** The /help lines naming a command, by its first word. */
+const helpLinesOf = (help: string, name: string) => help.split('\n').filter(line => line.split(' ')[0] === `/${name}`)
+
+test('/help in the admin chat lists every command once, with its usage, and no 👍', async () => {
+  const { bot, commands } = build()
+
+  await bot.command('/help', ADMIN)
+
+  const [help] = bot.sentTo(ADMIN.chatId)
+  for (const { name, usage } of commands) {
+    const lines = helpLinesOf(help.text, name)
+    assert.equal(lines.length, 1, name)
+    if (usage) assert.ok(lines[0].startsWith(`/${name} ${usage} `), name)
+  }
+  assert.equal(help.text.includes(EMOJIS.THUMBS_UP), false)
+})
+
+test('/help outside the admin chat lists the public commands only', async () => {
+  const { bot, commands } = build()
+
+  await bot.command('/help', PLAYER)
+
+  const [help] = bot.sentTo(PLAYER.chatId)
+  for (const { name, adminOnly } of commands) assert.equal(helpLinesOf(help.text, name).length, adminOnly ? 0 : 1, name)
+})
+
+test('a command added to the list appears in /help', async () => {
+  const bot = makeFakeBot()
+  const toy: Command = { name: 'toy', description: 'Play', usage: '<n>', run: async () => {} }
+  routeCommands(bot, [...publicCommands(new SeasonManager(config)), toy], config.telegram.adminChatId)
+
+  await bot.command('/help', PLAYER)
+
+  assert.equal(helpLinesOf(bot.sentTo(PLAYER.chatId)[0].text, 'toy').length, 1)
+})
+
 type Keyboard = { inline_keyboard: Array<Array<{ callback_data: string }>> }
 const callbackData = (markup: unknown) => (markup as Keyboard).inline_keyboard.map(row => row.map(({ callback_data }) => callback_data))
 

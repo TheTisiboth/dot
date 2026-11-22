@@ -11,9 +11,11 @@ export interface CommandContext {
   chat: ChatTarget;
   /** Answers in the chat and topic the command came from. */
   reply: Sender;
+  /** The commands that exist in this chat: the public ones, plus the admin ones in the admin chat. */
+  commands: readonly Command[];
 }
 
-export interface ButtonContext extends Omit<CommandContext, 'args'> {
+export interface ButtonContext extends Omit<CommandContext, 'args' | 'commands'> {
   /** The button's callback data after `<command name>:`. */
   data: string;
   /** Replaces the buttons of the tapped message. */
@@ -24,6 +26,8 @@ export interface ButtonContext extends Omit<CommandContext, 'args'> {
 export interface Command {
   name: string;
   description: string;
+  /** The arguments after the name, as /help shows them, e.g. `[id]`. */
+  usage?: string;
   /** Exists in the admin chat only: elsewhere it is ignored silently. */
   adminOnly?: boolean;
   run: (ctx: CommandContext) => Promise<unknown>;
@@ -47,8 +51,9 @@ export const routeCommands = (bot: Bot, commands: readonly Command[], adminChatI
     const command = parsed && commands.find(({ name }) => name === parsed.name)
     if (!parsed || !command) return next()
 
+    const here = String(ctx.msg.chat.id) === adminChatId ? commands : publicOnly(commands)
     await guarded(bot.api, command, ctx.msg, ctx.msg.from, adminChatId, `/${command.name}`, (chat, reply) =>
-      command.run({ args: parsed.args, chat, reply }))
+      command.run({ args: parsed.args, chat, reply, commands: here }))
   })
 
   bot.on('callback_query:data', async (ctx) => {
@@ -102,6 +107,16 @@ const originOf = (msg: MaybeInaccessibleMessage): ChatTarget => ({
 export const publishCommandMenus = async (api: Api, commands: readonly Command[], adminChatId: string): Promise<void> => {
   const menu = (list: readonly Command[]) => list.map(({ name, description }) => ({ command: name, description }))
 
-  await api.setMyCommands(menu(commands.filter(({ adminOnly }) => !adminOnly)))
+  await api.setMyCommands(menu(publicOnly(commands)))
   await api.setMyCommands(menu(commands), { scope: { type: 'chat', chat_id: Number(adminChatId) } })
+}
+
+const publicOnly = (commands: readonly Command[]) => commands.filter(({ adminOnly }) => !adminOnly)
+
+/** One line per command with its usage, the admin ones under their own heading. */
+export const commandList = (commands: readonly Command[]): string => {
+  const line = ({ name, usage, description }: Command) => `/${usage ? `${name} ${usage}` : name} - ${description}`
+  const admin = commands.filter(({ adminOnly }) => adminOnly)
+  const adminSection = admin.length ? ['', 'Admin only:', ...admin.map(line)] : []
+  return [...publicOnly(commands).map(line), ...adminSection].join('\n')
 }
