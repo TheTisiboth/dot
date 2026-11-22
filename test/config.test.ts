@@ -52,9 +52,11 @@ test('a season can have one practice, but not two on the same weekday', () => {
   assert.equal(parse(raw => { raw.seasons.winter.practices = parsePracticeDays('2:18:00,2:20:30') }).success, false)
 })
 
-test('a boolean other than true or false is rejected', () => {
-  for (const value of ['False', '0', 'yes']) {
-    assert.equal(parse(raw => { raw.telegram.enableTrainerMessages = value }).success, false, value)
+test('a boolean set to anything but true is false', () => {
+  for (const value of ['false', 'False', '0', 'yes', 'TRUE']) {
+    const result = parse(raw => { raw.telegram.enableTrainerMessages = value })
+    assert.ok(result.success, value)
+    assert.equal(result.data.telegram.enableTrainerMessages, false, value)
   }
   const cancelled = parse(raw => { raw.exceptionalTraining.isCancelled = 'true' })
   assert.ok(cancelled.success)

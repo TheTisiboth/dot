@@ -3,7 +3,7 @@ import { parseLocation } from '../utils/configParsers'
 
 const TIME_OF_DAY = /^([01]?\d|2[0-3]):[0-5]\d$/
 
-const flag = z.enum(['true', 'false'], { error: 'must be true or false' }).transform(value => value === 'true')
+const flag = z.string().transform(value => value === 'true')
 
 // Practice Day Schema
 export const practiceDaySchema = z.object({
