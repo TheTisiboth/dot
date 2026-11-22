@@ -4,7 +4,9 @@ import assert from 'node:assert/strict'
 import type { Api } from 'grammy'
 import { MessageGenerator } from '../src/training/messages/messageGenerator'
 import { type TrainingHistory } from '../src/training/history'
-import { PART_NAMES, SchedulerService } from '../src/training/scheduler'
+import { AttendanceMonitor } from '../src/training/attendance'
+import { PART_NAMES, announcer } from '../src/training/announcer'
+import { startSchedule } from '../src/training/schedule'
 import { SeasonManager } from '../src/training/season'
 import { CANCELLATION_SIGNATURE, isKeyRequest } from '../src/training/markers'
 import { EMOJIS } from '../src/shared/emojis'
@@ -23,22 +25,28 @@ const ADMIN_CHAT = config.telegram.adminChatId
 const RETRY_DELAY_MS = 10 * MINUTE_MS
 const THRESHOLD = config.seasons.summer.minAttendance
 
-const schedulerFor = (bot: Api, reader: TrainingHistory, quiz = makeFakeRulesQuiz(), botConfig = config) =>
-  new SchedulerService(botConfig, new SeasonManager(botConfig), new MessageGenerator(botConfig, null), reader, bot, quiz)
+const attendanceFor = (bot: Api, reader: TrainingHistory) =>
+  new AttendanceMonitor(config, new SeasonManager(config), new MessageGenerator(config, null), reader, bot)
 
 const build = ({ failingChat, history, env }: { failingChat?: string; history?: Partial<ChatHistory>; env?: Record<string, string> } = {}) => {
+  const botConfig = testConfig(env)
   const bot = makeFakeBot({ failingChat })
   const reader = makeFakeTrainingHistory(history)
   const quiz = makeFakeRulesQuiz()
-  return { scheduler: schedulerFor(bot.api, reader, quiz, testConfig(env)), bot, reader, quiz }
+  const seasonManager = new SeasonManager(botConfig)
+  const messageGenerator = new MessageGenerator(botConfig, null)
+  const attendance = new AttendanceMonitor(botConfig, seasonManager, messageGenerator, reader, bot.api)
+  const trainingAnnouncer = announcer({ config: botConfig, seasonManager, messageGenerator, attendance, bot: bot.api, rulesQuiz: quiz })
+  const start = () => { startSchedule({ config: botConfig, seasonManager, announcer: trainingAnnouncer, attendance, rulesQuiz: quiz, bot: bot.api }) }
+  return { start, announcer: trainingAnnouncer, attendance, bot, reader, quiz }
 }
 
 afterEach(() => { mock.timers.reset() })
 
 test('the cron tick the day before posts the announcement, key and trainer requests, then the quiz', async () => {
   startAt(beforeTraining(24 * HOUR_MS + 30_000))
-  const { scheduler, bot, quiz } = build()
-  scheduler.setupScheduler()
+  const { start, bot, quiz } = build()
+  start()
 
   await advance(30_000)
 
@@ -54,8 +62,8 @@ test('the cron tick the day before posts the announcement, key and trainer reque
 
 test('a cron tick with no training tomorrow posts nothing', async () => {
   startAt(beforeTraining(48 * HOUR_MS + 30_000))
-  const { scheduler, bot, quiz } = build()
-  scheduler.setupScheduler()
+  const { start, bot, quiz } = build()
+  start()
 
   await advance(30_000)
 
@@ -65,9 +73,9 @@ test('a cron tick with no training tomorrow posts nothing', async () => {
 
 test('the key request is skipped when the season disables it', async () => {
   startAt(beforeTraining(24 * HOUR_MS))
-  const { scheduler, bot } = build({ env: { SUMMER_KEY_MESSAGE_ENABLED: 'false' } })
+  const { announcer, bot } = build({ env: { SUMMER_KEY_MESSAGE_ENABLED: 'false' } })
 
-  await scheduler.announceTraining()
+  await announcer.announceTraining()
 
   assert.equal(bot.sentTo(TEAM_CHAT).length, 1)
   assert.equal(bot.sent.some(message => isKeyRequest(message.text)), false)
@@ -75,9 +83,9 @@ test('the key request is skipped when the season disables it', async () => {
 
 test('the trainer request is skipped when trainer messages are disabled', async () => {
   startAt(beforeTraining(24 * HOUR_MS))
-  const { scheduler, bot } = build({ env: { ENABLE_TRAINER_MESSAGES: 'false' } })
+  const { announcer, bot } = build({ env: { ENABLE_TRAINER_MESSAGES: 'false' } })
 
-  await scheduler.announceTraining()
+  await announcer.announceTraining()
 
   assert.equal(bot.sentTo(TRAINER_CHAT).length, 0)
   assert.equal(bot.sentTo(TEAM_CHAT).length, 2)
@@ -85,17 +93,17 @@ test('the trainer request is skipped when trainer messages are disabled', async 
 
 test('the quiz goes out even when the announcement fails', async () => {
   startAt(beforeTraining(24 * HOUR_MS))
-  const { scheduler, quiz } = build({ failingChat: TEAM_CHAT })
+  const { announcer, quiz } = build({ failingChat: TEAM_CHAT })
 
-  await scheduler.announceTraining()
+  await announcer.announceTraining()
 
   assert.deepEqual(quiz.calls, ['sendScheduled'])
 })
 
 test('a failed scheduled announcement is retried once, then one admin alert names it and the error', async () => {
   startAt(beforeTraining(24 * HOUR_MS + 30_000))
-  const { scheduler, bot } = build({ failingChat: TEAM_CHAT })
-  scheduler.setupScheduler()
+  const { start, bot } = build({ failingChat: TEAM_CHAT })
+  start()
 
   await advance(30_000)
   assert.equal(bot.sentTo(ADMIN_CHAT).length, 0)
@@ -111,8 +119,8 @@ test('a failed scheduled announcement is retried once, then one admin alert name
 
 test('a scheduled announcement that succeeds on retry posts every message and alerts nobody', async () => {
   startAt(beforeTraining(24 * HOUR_MS + 30_000))
-  const { scheduler, bot, quiz } = build({ failingChat: TEAM_CHAT })
-  scheduler.setupScheduler()
+  const { start, bot, quiz } = build({ failingChat: TEAM_CHAT })
+  start()
 
   await advance(30_000)
   bot.failingChat = undefined
@@ -126,8 +134,8 @@ test('a scheduled announcement that succeeds on retry posts every message and al
 
 test('a failed trainer request alerts about it alone, and the attendance check is still armed', async () => {
   startAt(beforeTraining(24 * HOUR_MS + 30_000))
-  const { scheduler, bot } = build({ failingChat: TRAINER_CHAT, history: { postId: undefined, thumbsUp: 1 } })
-  scheduler.setupScheduler()
+  const { start, bot } = build({ failingChat: TRAINER_CHAT, history: { postId: undefined, thumbsUp: 1 } })
+  start()
 
   await advance(30_000)
 
@@ -143,10 +151,10 @@ test('a failed trainer request alerts about it alone, and the attendance check i
 
 test('an announcement Telegram cannot parse is sent again as the template', async () => {
   startAt(beforeTraining(24 * HOUR_MS))
-  const { scheduler, bot } = build()
+  const { announcer, bot } = build()
   bot.rejectNextParse = true
 
-  const report = await scheduler.announceTraining()
+  const report = await announcer.announceTraining()
 
   const [announcement] = bot.sentTo(TEAM_CHAT)
   assert.equal(report.announcement.status, 'sent')
@@ -156,8 +164,8 @@ test('an announcement Telegram cannot parse is sent again as the template', asyn
 
 test('the announcement arms the attendance check on the post it just sent', async () => {
   startAt(beforeTraining(24 * HOUR_MS))
-  const { scheduler, bot } = build({ history: { postId: undefined, thumbsUp: 1 } })
-  await scheduler.announceTraining()
+  const { announcer, bot } = build({ history: { postId: undefined, thumbsUp: 1 } })
+  await announcer.announceTraining()
   const [announcement] = bot.sentTo(TEAM_CHAT)
   const before = bot.sent.length
 
@@ -170,8 +178,8 @@ test('the announcement arms the attendance check on the post it just sent', asyn
 
 test('below the threshold at reminder time, one reminder replies to the post', async () => {
   startAt(beforeTraining(4 * HOUR_MS))
-  const { scheduler, bot } = build({ history: { thumbsUp: THRESHOLD - 1 } })
-  scheduler.armAttendanceTimers()
+  const { attendance, bot } = build({ history: { thumbsUp: THRESHOLD - 1 } })
+  attendance.armTimers()
 
   await advance(HOUR_MS - 1)
   assert.equal(bot.sent.length, 0)
@@ -184,8 +192,8 @@ test('below the threshold at reminder time, one reminder replies to the post', a
 
 test('at the threshold, neither reminder nor cancellation is sent', async () => {
   startAt(beforeTraining(4 * HOUR_MS))
-  const { scheduler, bot } = build({ history: { thumbsUp: THRESHOLD } })
-  scheduler.armAttendanceTimers()
+  const { attendance, bot } = build({ history: { thumbsUp: THRESHOLD } })
+  attendance.armTimers()
 
   await advance(4 * HOUR_MS)
 
@@ -194,8 +202,8 @@ test('at the threshold, neither reminder nor cancellation is sent', async () => 
 
 test('the threshold comes from the season of the training', async () => {
   startAt(beforeTraining(4 * HOUR_MS))
-  const { scheduler, bot } = build({ history: { thumbsUp: 2 }, env: { SUMMER_MIN_ATTENDANCE: '2' } })
-  scheduler.armAttendanceTimers()
+  const { attendance, bot } = build({ history: { thumbsUp: 2 }, env: { SUMMER_MIN_ATTENDANCE: '2' } })
+  attendance.armTimers()
 
   await advance(4 * HOUR_MS)
 
@@ -204,8 +212,8 @@ test('the threshold comes from the season of the training', async () => {
 
 test('a reminder already in the chat is not sent again', async () => {
   startAt(beforeTraining(4 * HOUR_MS))
-  const { scheduler, bot } = build({ history: { reminder: true } })
-  scheduler.armAttendanceTimers()
+  const { attendance, bot } = build({ history: { reminder: true } })
+  attendance.armTimers()
 
   await advance(2 * HOUR_MS)
 
@@ -214,8 +222,8 @@ test('a reminder already in the chat is not sent again', async () => {
 
 test('below the threshold at cancellation time, one notice goes to the trainer chat only', async () => {
   startAt(beforeTraining(2 * HOUR_MS))
-  const { scheduler, bot } = build({ history: { reminder: true } })
-  scheduler.armAttendanceTimers()
+  const { attendance, bot } = build({ history: { reminder: true } })
+  attendance.armTimers()
 
   await advance(2 * HOUR_MS)
 
@@ -226,8 +234,8 @@ test('below the threshold at cancellation time, one notice goes to the trainer c
 
 test('a cancellation already in the trainer chat is not sent again', async () => {
   startAt(beforeTraining(2 * HOUR_MS))
-  const { scheduler, bot } = build({ history: { reminder: true, cancellation: true } })
-  scheduler.armAttendanceTimers()
+  const { attendance, bot } = build({ history: { reminder: true, cancellation: true } })
+  attendance.armTimers()
 
   await advance(2 * HOUR_MS)
 
@@ -236,8 +244,8 @@ test('a cancellation already in the trainer chat is not sent again', async () =>
 
 test('no cancellation is sent when trainer messages are disabled', async () => {
   startAt(beforeTraining(2 * HOUR_MS))
-  const { scheduler, bot } = build({ history: { reminder: true }, env: { ENABLE_TRAINER_MESSAGES: 'false' } })
-  scheduler.armAttendanceTimers()
+  const { attendance, bot } = build({ history: { reminder: true }, env: { ENABLE_TRAINER_MESSAGES: 'false' } })
+  attendance.armTimers()
 
   await advance(2 * HOUR_MS)
 
@@ -246,8 +254,8 @@ test('no cancellation is sent when trainer messages are disabled', async () => {
 
 test('a missing training post never sends a reminder or a cancellation', async () => {
   startAt(beforeTraining(4 * HOUR_MS))
-  const { scheduler, bot } = build({ history: { postId: undefined } })
-  scheduler.armAttendanceTimers()
+  const { attendance, bot } = build({ history: { postId: undefined } })
+  attendance.armTimers()
 
   await advance(4 * HOUR_MS)
 
@@ -256,13 +264,13 @@ test('a missing training post never sends a reminder or a cancellation', async (
 
 test('a restart after the reminder time catches the reminder up once', async () => {
   startAt(beforeTraining(2 * HOUR_MS))
-  const { scheduler, bot, reader } = build()
-  scheduler.armAttendanceTimers()
+  const { attendance, bot, reader } = build()
+  attendance.armTimers()
   await advance(0)
   assert.equal(bot.sentTo(TEAM_CHAT).length, 1)
 
   reader.chat.reminder = true
-  schedulerFor(bot.api, reader).armAttendanceTimers()
+  attendanceFor(bot.api, reader).armTimers()
   await advance(30 * MINUTE_MS)
 
   assert.equal(bot.sentTo(TEAM_CHAT).length, 1)
@@ -270,14 +278,14 @@ test('a restart after the reminder time catches the reminder up once', async () 
 
 test('a restart after both boundaries catches each up once', async () => {
   startAt(beforeTraining(30 * MINUTE_MS))
-  const { scheduler, bot, reader } = build()
-  scheduler.armAttendanceTimers()
+  const { attendance, bot, reader } = build()
+  attendance.armTimers()
   await advance(0)
   assert.equal(bot.sentTo(TEAM_CHAT).length, 1)
   assert.equal(bot.sentTo(TRAINER_CHAT).length, 1)
 
   Object.assign(reader.chat, { reminder: true, cancellation: true })
-  schedulerFor(bot.api, reader).armAttendanceTimers()
+  attendanceFor(bot.api, reader).armTimers()
   await advance(20 * MINUTE_MS)
 
   assert.equal(bot.sent.length, 2)
@@ -285,9 +293,9 @@ test('a restart after both boundaries catches each up once', async () => {
 
 test('re-arming replaces the pending checks instead of adding to them', async () => {
   startAt(beforeTraining(4 * HOUR_MS))
-  const { scheduler, bot } = build()
-  scheduler.armAttendanceTimers()
-  scheduler.armAttendanceTimers()
+  const { attendance, bot } = build()
+  attendance.armTimers()
+  attendance.armTimers()
 
   await advance(HOUR_MS)
 
@@ -297,8 +305,8 @@ test('re-arming replaces the pending checks instead of adding to them', async ()
 test('a training moved earlier that already started arms no check', async () => {
   // The next practice is still today's 19:30 one, but EXCEPTIONAL_TIME moved it to 18:00
   startAt(beforeTraining(HOUR_MS))
-  const { scheduler, bot } = build({ env: { EXCEPTIONAL_TIME: '18:00' } })
-  scheduler.armAttendanceTimers()
+  const { attendance, bot } = build({ env: { EXCEPTIONAL_TIME: '18:00' } })
+  attendance.armTimers()
 
   await advance(HOUR_MS)
 
@@ -309,8 +317,8 @@ const MOVED = { EXCEPTIONAL_LOCATION: 'Beach', EXCEPTIONAL_TIME: '20:15' }
 
 test('a moved training is announced to team and trainers with its new place and time', async () => {
   startAt(beforeTraining(24 * HOUR_MS + 30_000))
-  const { scheduler, bot } = build({ env: MOVED })
-  scheduler.setupScheduler()
+  const { start, bot } = build({ env: MOVED })
+  start()
 
   await advance(30_000)
 
@@ -322,8 +330,8 @@ test('a moved training is announced to team and trainers with its new place and 
 
 test('the checks of a moved training fire relative to its new start and quote it', async () => {
   startAt(beforeTraining(4 * HOUR_MS))
-  const { scheduler, bot } = build({ env: MOVED })
-  scheduler.armAttendanceTimers()
+  const { attendance, bot } = build({ env: MOVED })
+  attendance.armTimers()
 
   // Regular 19:30 start: reminder due in 1h; moved to 20:15: in 1h45
   await advance(HOUR_MS)
@@ -341,8 +349,8 @@ test('the checks of a moved training fire relative to its new start and quote it
 
 test('a cancelled training sends nothing to team or trainers, but the quiz still goes out', async () => {
   startAt(beforeTraining(24 * HOUR_MS + 30_000))
-  const { scheduler, bot, quiz } = build({ env: { EXCEPTIONAL_CANCELLED: 'true' } })
-  scheduler.setupScheduler()
+  const { start, bot, quiz } = build({ env: { EXCEPTIONAL_CANCELLED: 'true' } })
+  start()
 
   await advance(30_000)
   await advance(24 * HOUR_MS)
@@ -353,9 +361,9 @@ test('a cancelled training sends nothing to team or trainers, but the quiz still
 
 test('the attendance inspection reports count, threshold and post', async () => {
   startAt(beforeTraining(4 * HOUR_MS))
-  const { scheduler } = build({ history: { thumbsUp: 5 } })
+  const { attendance: monitor } = build({ history: { thumbsUp: 5 } })
 
-  const attendance = await scheduler.inspectAttendance()
+  const attendance = await monitor.inspect()
 
   assert.equal(attendance?.count, 5)
   assert.equal(attendance?.threshold, THRESHOLD)
@@ -364,13 +372,13 @@ test('the attendance inspection reports count, threshold and post', async () => 
 
 test('once the training started, the inspection finds no post until the next announcement', async () => {
   startAt(beforeTraining(24 * HOUR_MS))
-  const { scheduler, bot } = build({ history: { postId: undefined } })
-  await scheduler.announceTraining()
-  assert.equal((await scheduler.inspectAttendance())?.announcementId, bot.sentTo(TEAM_CHAT)[0].messageId)
+  const { announcer, attendance, bot } = build({ history: { postId: undefined } })
+  await announcer.announceTraining()
+  assert.equal((await attendance.inspect())?.announcementId, bot.sentTo(TEAM_CHAT)[0].messageId)
 
   await advance(25 * HOUR_MS)
-  assert.equal(await scheduler.inspectAttendance(), null)
+  assert.equal(await attendance.inspect(), null)
 
-  await scheduler.announceTraining()
-  assert.equal((await scheduler.inspectAttendance())?.announcementId, bot.sentTo(TEAM_CHAT).at(-2)?.messageId)
+  await announcer.announceTraining()
+  assert.equal((await attendance.inspect())?.announcementId, bot.sentTo(TEAM_CHAT).at(-2)?.messageId)
 })

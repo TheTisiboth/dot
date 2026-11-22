@@ -5,9 +5,10 @@ import { buildQuizPost, modeFor, pickQuestion } from './picker'
 import { answerTimeFor, buildAnswer } from './answer'
 import type { BotConfig } from '../config/env'
 import { findQuizBatch, findQuizQuestion, isSignalQuestion, QUIZ_QUESTIONS } from './data'
-import { type PartResult } from '../training/scheduler'
+import { type PartResult } from '../training/announcer'
 import { type QuizBatch, type QuizQuestion } from './question'
 import { withTimeout } from '../shared/async'
+import { armAt } from '../shared/time'
 import { formatDateTimeLocale } from '../shared/formatters'
 import { errorMessage, log } from '../shared/logger'
 import { type ChatTarget, senderFor } from '../telegram/sender'
@@ -111,10 +112,9 @@ export class RulesQuizService {
     clearTimeout(this.answerTimer)
 
     const answerAt = answerTimeFor(postedAt, this.config.answerDelayMinutes)
-    const delay = Math.max(0, answerAt.getTime() - Date.now())
-    log.scheduler(`⏰ Rules quiz answer armed for ${delay === 0 ? 'now (catch-up)' : formatDateTimeLocale(answerAt)}`)
+    log.scheduler(`⏰ Rules quiz answer armed for ${answerAt <= new Date() ? 'now (catch-up)' : formatDateTimeLocale(answerAt)}`)
 
-    this.answerTimer = setTimeout(() => { void this.answerOnTimer(quizMessageId) }, delay)
+    this.answerTimer = armAt(answerAt, () => { void this.answerOnTimer(quizMessageId) })
   }
 
   /**
