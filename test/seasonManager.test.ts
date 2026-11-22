@@ -1,7 +1,7 @@
 import './helpers/testEnv'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { formatTime } from '../src/shared/formatters'
+import { formatDateShort, formatTime } from '../src/shared/formatters'
 import { SeasonManager } from '../src/training/season'
 import { SEASON_DATES, SUMMER_TRAINING, at } from './fixtures/dates'
 import { HOUR_MS } from './helpers/clock'
@@ -85,6 +85,21 @@ test('an exceptional training overrides location and time but keeps the date', (
 test('the training days of a season list each of its practice times', () => {
   const days = seasons.getTrainingDaysString('winter')
   for (const { time } of config.seasons.winter.practices) assert.ok(days.includes(formatTime(time)))
+})
+
+test('/info ends a season the day before the next season starts, in the year it next starts', () => {
+  const marchSummer = new SeasonManager(testConfig({ SUMMER_START_DATE: '3:1' }))
+  const feb28 = formatDateShort({ month: 2, day: 28 })
+  const feb29 = formatDateShort({ month: 2, day: 29 })
+  const winterEnd = (now: Date) => [feb28, feb29].filter(end => marchSummer.scheduleText(now).includes(end))
+
+  assert.deepEqual(winterEnd(at(2026, 6, 1)), [feb28])
+  assert.deepEqual(winterEnd(at(2027, 6, 1)), [feb29])
+  assert.deepEqual(winterEnd(at(2028, 2, 29)), [feb29])
+  assert.deepEqual(winterEnd(at(2028, 3, 1)), [feb28])
+
+  const januaryWinter = new SeasonManager(testConfig({ WINTER_START_DATE: '1:1' }))
+  assert.ok(januaryWinter.scheduleText(at(2026, 6, 1)).includes(formatDateShort({ month: 12, day: 31 })))
 })
 
 test('the next announcement is the one still ahead, at the configured time even when the training is moved', () => {

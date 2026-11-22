@@ -30,10 +30,12 @@ export function hoursBefore(date: Date, hours: number): Date {
   return new Date(date.getTime() - hours * 60 * 60 * 1000)
 }
 
-export function getDateBefore(dateConfig: DateConfig): DateConfig {
-  const date = new Date(2024, dateConfig.month - 1, dateConfig.day)
-  date.setDate(date.getDate() - 1)
-  return { month: date.getMonth() + 1, day: date.getDate() }
+/** The day before the next occurrence of `dateConfig` after `now`. */
+export function getDateBefore({ month, day }: DateConfig, now: Date): DateConfig {
+  const thisYear = new Date(now.getFullYear(), month - 1, day)
+  const next = thisYear > now ? thisYear : new Date(now.getFullYear() + 1, month - 1, day)
+  const before = new Date(next.getFullYear(), next.getMonth(), next.getDate() - 1)
+  return { month: before.getMonth() + 1, day: before.getDate() }
 }
 
 /** Runs `fn` at `at`, or at once when `at` already passed (catch-up after a restart). */

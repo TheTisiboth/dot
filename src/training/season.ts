@@ -138,13 +138,13 @@ export class SeasonManager {
   }
 
   /** The /info schedule: every season with its dates, practices and location. */
-  scheduleText(): string {
+  scheduleText(now: Date = new Date()): string {
     const { winter, summer } = this.seasons
     return `${EMOJIS.CALENDAR} Training Schedule
 
-${seasonText('winter', winter, summer.startDate)}
+${seasonText('winter', winter, summer.startDate, now)}
 
-${seasonText('summer', summer, winter.startDate)}`
+${seasonText('summer', summer, winter.startDate, now)}`
   }
 }
 
@@ -152,10 +152,10 @@ const formatPracticeDays = (practices: PracticeDay[]): string => practices
   .map(p => `   • ${getDayName(p.day)}s at ${formatTime(p.time)}`)
   .join('\n')
 
-const seasonText = (season: SeasonType, seasonConfig: SeasonSettings, nextSeasonStart: DateConfig): string => {
+const seasonText = (season: SeasonType, seasonConfig: SeasonSettings, nextSeasonStart: DateConfig, now: Date): string => {
   const emoji = season === 'winter' ? EMOJIS.WINTER : EMOJIS.SUMMER
   const start = formatDateShort(seasonConfig.startDate)
-  const end = formatDateShort(getDateBefore(nextSeasonStart))
+  const end = formatDateShort(getDateBefore(nextSeasonStart, now))
 
   return `${emoji} ${capitalize(season)} (${start} - ${end}):
 ${formatPracticeDays(seasonConfig.practices)}
