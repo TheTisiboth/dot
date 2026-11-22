@@ -266,8 +266,8 @@ export class RulesQuizService {
   }
 
   private rulesChat(): ChatTarget {
-    const { chatId, chatThreadId } = config.rulesQuiz
-    if (!chatId) throw new Error('RULES_CHAT_ID is not set')
-    return { chatId, threadId: chatThreadId }
+    const { chat } = config.rulesQuiz
+    if (!chat) throw new Error('RULES_CHAT_ID is not set')
+    return chat
   }
 }

@@ -30,8 +30,8 @@ test('history: ids of the quiz polls among the bot messages, newest first', asyn
     }
   }) as ReactionReader
 
-  assert.deepEqual(await reader.getAskedQuizIds('-400', '7'), ['r1_01', 'sig_01'])
-  assert.deepEqual(searched, ['-400', '7'])
+  assert.deepEqual(await reader.getAskedQuizIds('-400', 7), ['r1_01', 'sig_01'])
+  assert.deepEqual(searched, ['-400', 7])
 })
 
 const reply = (id: number, replyToMsgId: number): Api.Message =>
@@ -54,16 +54,16 @@ test('latest quiz: the newest poll, not answered yet', async () => {
     message({ message: 'photo' }),
     reply(12, 10),
     quizPoll(10, 'r1_01')
-  ]).getLatestQuiz('-400', '7')
+  ]).getLatestQuiz('-400', 7)
 
   assert.deepEqual(latest, { messageId: 20, questionId: 'r1_02', postedAt: new Date(1_800_000_000_000), answered: false })
 })
 
 test('latest quiz: answered once the bot replied to it', async () => {
-  const latest = await readerReturning([reply(21, 20), quizPoll(20, 'r1_02')]).getLatestQuiz('-400', '7')
+  const latest = await readerReturning([reply(21, 20), quizPoll(20, 'r1_02')]).getLatestQuiz('-400', 7)
   assert.equal(latest?.answered, true)
 })
 
 test('latest quiz: none posted', async () => {
-  assert.equal(await readerReturning([message({ message: 'hello' })]).getLatestQuiz('-400', '7'), undefined)
+  assert.equal(await readerReturning([message({ message: 'hello' })]).getLatestQuiz('-400', 7), undefined)
 })

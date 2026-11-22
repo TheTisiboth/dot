@@ -14,6 +14,6 @@ export const SEASON_DATES = {
 }
 
 /** Wed 2027-06-09, a summer practice. */
-export const SUMMER_TRAINING = { at: at(2027, 6, 9, 19, 30), time: '19:30' }
+export const SUMMER_TRAINING = { at: at(2027, 6, 9, 19, 30), time: { hour: 19, minute: 30 } }
 
 export const beforeTraining = (ms: number) => new Date(SUMMER_TRAINING.at.getTime() - ms)

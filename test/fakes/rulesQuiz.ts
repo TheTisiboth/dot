@@ -2,7 +2,7 @@ import { QUIZ_QUESTIONS } from '../../src/data/rules-quiz'
 import { type RulesQuizService } from '../../src/services/RulesQuizService'
 import { type QuizQuestion } from '../../src/types'
 
-interface QuizTarget { chatId: string; threadId?: string }
+interface QuizTarget { chatId: string; threadId?: number }
 
 /** Records which quiz actions ran, in order, and where previews went. */
 export const makeFakeRulesQuiz = () => {

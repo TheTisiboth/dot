@@ -4,7 +4,8 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { type AddressInfo } from 'node:net'
 import { CANCELLATION_SIGNATURE, EMOJIS, MARKERS, isKeyMessage } from '../src/utils/constants'
-import { parseLocation } from '../src/utils/configParsers'
+import { parseLocation } from '../src/config/env'
+import { formatTime } from '../src/utils/formatters'
 
 // Fake Ollama over HTTP, the real client's boundary; config is read on import, so it is loaded after
 let reply: { status: number; content: string }
@@ -32,11 +33,11 @@ test('the announcement asks for a 👍 and names location and time', async () =>
 
   assert.ok(message.includes(EMOJIS.THUMBS_UP))
   assert.ok(message.includes(training.location.name))
-  assert.ok(message.includes(training.time))
+  assert.ok(message.includes(formatTime(training.time)))
 })
 
 test('the announcement names the throwing time when there is one', async () => {
-  const message = await generator.generateMessage({ ...training, time: '20:30', throwingTime: '20:00' })
+  const message = await generator.generateMessage({ ...training, time: { hour: 20, minute: 30 }, throwingTime: { hour: 20, minute: 0 } })
 
   assert.ok(message.includes('20:00'))
   assert.ok(message.includes('20:30'))

@@ -21,7 +21,7 @@ export const makeFakeReader = (history: Partial<ChatHistory> = {}) => {
     findPollMessage: async () => chat.postId,
     getThumbsUpCount: async () => chat.thumbsUp,
     hasBotReplyTo: async () => chat.reminder,
-    hasBotMessageContaining: async (_chatId: string, _threadId: string | undefined, text: string) =>
+    hasBotMessageContaining: async (_chatId: string, _threadId: number | undefined, text: string) =>
       text === CANCELLATION_SIGNATURE && chat.cancellation
   }
 

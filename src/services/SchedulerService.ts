@@ -9,8 +9,8 @@ import { type RulesQuizService } from './RulesQuizService'
 import { type SeasonConfig, type Attendance, type PartResult, type TrainingInfo } from '../types'
 import { CANCELLATION_SIGNATURE, EMOJIS } from '../utils/constants'
 import { atTime, hoursBefore } from '../utils/dateHelpers'
-import { formatDateLocale, formatDateTimeLocale, getDayName } from '../utils/formatters'
-import { sendWithFallback, threadOptions } from '../utils/telegram'
+import { formatDateLocale, formatDateTimeLocale, formatTime, getDayName } from '../utils/formatters'
+import { type ChatTarget, sendWithFallback, threadOptions } from '../utils/telegram'
 
 // Long enough for a network blip to pass, short enough that the team still reads the post the day before
 const RETRY_DELAY_MS = 10 * 60_000
@@ -35,10 +35,8 @@ export class SchedulerService {
   private readonly reactionReader: ReactionReader
   private readonly bot: Api
   private readonly rulesQuiz: RulesQuizService
-  private readonly chatId: string
-  private readonly chatThreadId?: string
-  private readonly trainerChatId: string
-  private readonly trainerChatThreadId?: string
+  private readonly teamChat: ChatTarget
+  private readonly trainerChat: ChatTarget
   private readonly enableTrainerMessages: boolean
 
   // Keyed by training: once that training starts, the post no longer counts for the next one
@@ -58,17 +56,15 @@ export class SchedulerService {
     this.reactionReader = reactionReader
     this.bot = bot
     this.rulesQuiz = rulesQuiz
-    this.chatId = config.telegram.chatId
-    this.chatThreadId = config.telegram.chatThreadId
-    this.trainerChatId = config.telegram.trainerChatId
-    this.trainerChatThreadId = config.telegram.trainerChatThreadId
+    this.teamChat = config.telegram.teamChat
+    this.trainerChat = config.telegram.trainerChat
     this.enableTrainerMessages = config.telegram.enableTrainerMessages
   }
 
   setupScheduler(): void {
-    this.seasonManager.getAllPracticeTimes().forEach(time => {
-      const [hour, minute] = time.split(':').map(Number)
-      const cronExpression = `${minute} ${hour} * * *`
+    this.seasonManager.getAllPracticeTimes().forEach(practiceTime => {
+      const cronExpression = `${practiceTime.minute} ${practiceTime.hour} * * *`
+      const time = formatTime(practiceTime)
 
       log.scheduler(`⏰ Registered daily reminder check at ${time}`)
 
@@ -76,7 +72,7 @@ export class SchedulerService {
         const tomorrow = new Date()
         tomorrow.setDate(tomorrow.getDate() + 1)
 
-        if (this.seasonManager.shouldSendMessage(time)) {
+        if (this.seasonManager.shouldSendMessage(practiceTime)) {
           log.scheduler(`✅ Training tomorrow (${formatDateLocale(tomorrow)}) at ${time} - sending reminders`)
           await this.runScheduled()
         } else {
@@ -150,7 +146,7 @@ export class SchedulerService {
     const trainingAt = this.getTrainingAt(training)
 
     if (this.trainingPost?.trainingAt.getTime() !== trainingAt.getTime()) {
-      const messageId = await this.reactionReader.findPollMessage(this.chatId, this.chatThreadId, trainingAt)
+      const messageId = await this.reactionReader.findPollMessage(this.teamChat.chatId, this.teamChat.threadId, trainingAt)
       this.trainingPost = messageId ? { trainingAt, messageId } : undefined
     }
 
@@ -160,7 +156,7 @@ export class SchedulerService {
     }
 
     const pollMessageId = this.trainingPost.messageId
-    const count = await this.reactionReader.getThumbsUpCount(this.chatId, pollMessageId)
+    const count = await this.reactionReader.getThumbsUpCount(this.teamChat.chatId, pollMessageId)
     const threshold = this.seasonManager.getCurrentSeasonConfig(trainingAt).minAttendance
 
     log.scheduler(`👍 Attendance: ${count}/${threshold} for training at ${formatDateTimeLocale(trainingAt)}`)
@@ -180,7 +176,7 @@ export class SchedulerService {
         return
       }
 
-      if (await this.reactionReader.hasBotReplyTo(this.chatId, this.chatThreadId, pollMessageId)) {
+      if (await this.reactionReader.hasBotReplyTo(this.teamChat.chatId, this.teamChat.threadId, pollMessageId)) {
         log.scheduler('⏭️  Reminder already sent - skipping')
         return
       }
@@ -191,9 +187,9 @@ export class SchedulerService {
         { count, threshold }
       )
 
-      await sendWithFallback(this.bot, this.chatId, message, () => this.messageGenerator.generateReminderTemplateMessage({ count, threshold }, training), {
+      await sendWithFallback(this.bot, this.teamChat.chatId, message, () => this.messageGenerator.generateReminderTemplateMessage({ count, threshold }, training), {
         reply_to_message_id: pollMessageId,
-        ...threadOptions(this.chatThreadId)
+        ...threadOptions(this.teamChat.threadId)
       })
 
       log.scheduler(`📣 Attendance reminder sent to team (${count}/${threshold})`)
@@ -221,8 +217,8 @@ export class SchedulerService {
 
       const since = hoursBefore(this.getTrainingAt(training), config.attendance.cancelHoursBefore + 1)
       const alreadyCancelled = await this.reactionReader.hasBotMessageContaining(
-        this.trainerChatId,
-        this.trainerChatThreadId,
+        this.trainerChat.chatId,
+        this.trainerChat.threadId,
         CANCELLATION_SIGNATURE,
         since
       )
@@ -233,9 +229,9 @@ export class SchedulerService {
 
       const message = this.messageGenerator.generateCancellationMessage(training, { count, threshold })
 
-      await this.bot.sendMessage(this.trainerChatId, message, {
+      await this.bot.sendMessage(this.trainerChat.chatId, message, {
         parse_mode: 'HTML',
-        ...threadOptions(this.trainerChatThreadId)
+        ...threadOptions(this.trainerChat.threadId)
       })
 
       log.scheduler(`❌ Cancellation sent to trainers (${count}/${threshold})`)
@@ -275,7 +271,7 @@ export class SchedulerService {
     const reminderDayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][reminderDate.getDay()]
 
     log.scheduler(`🔔 Next reminder: ${reminderDayName}, ${formatDateLocale(reminderDate)} at ${reminderDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} (in ${daysUntilReminder} days)`)
-    log.scheduler(`📅 For training: ${getDayName(nextTraining.date.getDay())}, ${formatDateLocale(nextTraining.date)} at ${nextTraining.time}`)
+    log.scheduler(`📅 For training: ${getDayName(nextTraining.date.getDay())}, ${formatDateLocale(nextTraining.date)} at ${formatTime(nextTraining.time)}`)
   }
 
   /** Posts the announcement, key and trainer requests, then the quiz, and says what happened to each (used by /send_to_all). */
@@ -325,15 +321,15 @@ export class SchedulerService {
     const announcement = await attempt('Sending announcement', async () => {
       const message = await this.messageGenerator.generateMessage(nextTraining, { useLLM })
 
-      log.bot(`Sending message to chat ${this.chatId}`)
-      const sent = await sendWithFallback(this.bot, this.chatId, message, () => this.messageGenerator.generateTemplateMessage(nextTraining), threadOptions(this.chatThreadId))
+      log.bot(`Sending message to chat ${this.teamChat.chatId}`)
+      const sent = await sendWithFallback(this.bot, this.teamChat.chatId, message, () => this.messageGenerator.generateTemplateMessage(nextTraining), threadOptions(this.teamChat.threadId))
 
       // The training post is the poll: its 👍 reactions are the attendance count
       this.trainingPost = { trainingAt: this.getTrainingAt(nextTraining), messageId: sent.message_id }
       this.armAttendanceTimers()
 
-      const threadInfo = this.chatThreadId ? ` (thread ${this.chatThreadId})` : ''
-      log.scheduler(`Scheduled message sent to team${threadInfo} - ${nextTraining.season} at ${nextTraining.location.name} (${nextTraining.time}) using ${useLLM ? 'LLM' : 'template'}`)
+      const threadInfo = this.teamChat.threadId ? ` (thread ${this.teamChat.threadId})` : ''
+      log.scheduler(`Scheduled message sent to team${threadInfo} - ${nextTraining.season} at ${nextTraining.location.name} (${formatTime(nextTraining.time)}) using ${useLLM ? 'LLM' : 'template'}`)
     })
 
     if (announcement.status === 'failed') {
@@ -357,13 +353,13 @@ export class SchedulerService {
     return await attempt('Sending key message', async () => {
       const keyMessage = this.messageGenerator.generateKeyMessage()
 
-      log.bot(`Sending message to chat ${this.chatId}`)
-      await this.bot.sendMessage(this.chatId, keyMessage, {
+      log.bot(`Sending message to chat ${this.teamChat.chatId}`)
+      await this.bot.sendMessage(this.teamChat.chatId, keyMessage, {
         parse_mode: 'HTML',
-        ...threadOptions(this.chatThreadId)
+        ...threadOptions(this.teamChat.threadId)
       })
 
-      const threadInfo = this.chatThreadId ? ` (thread ${this.chatThreadId})` : ''
+      const threadInfo = this.teamChat.threadId ? ` (thread ${this.teamChat.threadId})` : ''
       log.scheduler(`Key message sent to team${threadInfo}`)
     })
   }
@@ -377,11 +373,11 @@ export class SchedulerService {
     return await attempt('Sending trainer check message', async () => {
       const trainerMessage = await this.messageGenerator.generateTrainerMessage(training, { useLLM })
 
-      log.bot(`Sending message to chat ${this.trainerChatId}`)
-      await sendWithFallback(this.bot, this.trainerChatId, trainerMessage, () => this.messageGenerator.generateTrainerTemplateMessage(training), threadOptions(this.trainerChatThreadId))
+      log.bot(`Sending message to chat ${this.trainerChat.chatId}`)
+      await sendWithFallback(this.bot, this.trainerChat.chatId, trainerMessage, () => this.messageGenerator.generateTrainerTemplateMessage(training), threadOptions(this.trainerChat.threadId))
 
-      const threadInfo = this.trainerChatThreadId ? ` (thread ${this.trainerChatThreadId})` : ''
-      log.scheduler(`Trainer check message sent${threadInfo} - ${training.season} at ${training.location.name} (${training.time}) using ${useLLM ? 'LLM' : 'template'}`)
+      const threadInfo = this.trainerChat.threadId ? ` (thread ${this.trainerChat.threadId})` : ''
+      log.scheduler(`Trainer check message sent${threadInfo} - ${training.season} at ${training.location.name} (${formatTime(training.time)}) using ${useLLM ? 'LLM' : 'template'}`)
     })
   }
 }

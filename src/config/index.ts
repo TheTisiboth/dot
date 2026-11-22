@@ -1,87 +1,16 @@
 import dotenv from 'dotenv'
-import {type BotConfig} from '../types'
-import {botConfigSchema} from './schema'
-import {ZodError} from 'zod'
-import {parseDate, parsePracticeDays} from '../utils/configParsers'
+import { loadConfig } from './env'
 
 dotenv.config({ quiet: true })
 
-function loadAndValidateConfig(): BotConfig {
-  const rawConfig = {
-    telegram: {
-      token: process.env.TELEGRAM_BOT_TOKEN,
-      chatId: process.env.CHAT_ID,
-      chatThreadId: process.env.CHAT_THREAD_ID,
-      adminChatId: process.env.ADMIN_CHAT_ID,
-      trainerChatId: process.env.TRAINER_CHAT_ID,
-      trainerChatThreadId: process.env.TRAINER_CHAT_THREAD_ID,
-      enableTrainerMessages: process.env.ENABLE_TRAINER_MESSAGES || undefined,
-    },
-
-    mtproto: {
-      apiId: process.env.TELEGRAM_API_ID,
-      apiHash: process.env.TELEGRAM_API_HASH,
-      session: process.env.TELEGRAM_SESSION,
-    },
-
-    ollama: {
-      enabled: process.env.OLLAMA_ENABLED || undefined,
-      host: process.env.OLLAMA_HOST || 'http://localhost:11434',
-      model: process.env.OLLAMA_MODEL || 'llama3.2:3b',
-    },
-
-    attendance: {
-      reminderHoursBefore: Number(process.env.REMINDER_HOURS_BEFORE || 3),
-      cancelHoursBefore: Number(process.env.CANCEL_HOURS_BEFORE || 1),
-    },
-
-    seasons: {
-      winter: {
-        startDate: parseDate(process.env.WINTER_START_DATE),
-        location: process.env.WINTER_LOCATION,
-        practices: parsePracticeDays(process.env.WINTER_PRACTICE_DAYS),
-        minAttendance: Number(process.env.WINTER_MIN_ATTENDANCE || 8),
-        keyMessageEnabled: process.env.WINTER_KEY_MESSAGE_ENABLED || undefined,
-        throwingMinutesBefore: Number(process.env.WINTER_THROWING_MINUTES_BEFORE || 0)
-      },
-      summer: {
-        startDate: parseDate(process.env.SUMMER_START_DATE),
-        location: process.env.SUMMER_LOCATION,
-        practices: parsePracticeDays(process.env.SUMMER_PRACTICE_DAYS),
-        minAttendance: Number(process.env.SUMMER_MIN_ATTENDANCE || 8),
-        keyMessageEnabled: process.env.SUMMER_KEY_MESSAGE_ENABLED || undefined,
-        throwingMinutesBefore: Number(process.env.SUMMER_THROWING_MINUTES_BEFORE || 0)
-      }
-    },
-
-    exceptionalTraining: {
-      location: process.env.EXCEPTIONAL_LOCATION || undefined,
-      time: process.env.EXCEPTIONAL_TIME || undefined,
-      isCancelled: process.env.EXCEPTIONAL_CANCELLED || undefined
-    },
-
-    rulesQuiz: {
-      enabled: process.env.RULES_QUIZ_ENABLED || undefined,
-      chatId: process.env.RULES_CHAT_ID || undefined,
-      chatThreadId: process.env.RULES_CHAT_THREAD_ID || undefined,
-      answerDelayMinutes: Number(process.env.RULES_ANSWER_DELAY_MINUTES || 60),
-      signalsEveryOther: process.env.RULES_SIGNALS_EVERY_OTHER || undefined
-    }
-  }
-
+// shortcut: global config loaded on import, until #65 moves loadConfig to the entry point
+const load = () => {
   try {
-    return botConfigSchema.parse(rawConfig)
+    return loadConfig(process.env)
   } catch (error) {
-    if (error instanceof ZodError) {
-      console.error('❌ Configuration validation failed:\n')
-      error.issues.forEach(issue => {
-        console.error(`  • ${issue.path.join('.')}: ${issue.message}`)
-      })
-      console.error('\nPlease check your .env file and ensure all required fields are properly set.')
-      process.exit(1)
-    }
-    throw error
+    console.error(`❌ ${error instanceof Error ? error.message : String(error)}\n\nPlease check your .env file.`)
+    process.exit(1)
   }
 }
 
-export const config: BotConfig = loadAndValidateConfig()
+export const config = load()

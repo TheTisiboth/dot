@@ -1,21 +1,22 @@
-import { type DateConfig } from '../types'
+import { type DateConfig, type TimeOfDay } from '../types'
 
 export function createDateFromMonthDay(month: number, day: number, year?: number): Date {
   const currentYear = year || new Date().getFullYear()
   return new Date(currentYear, month - 1, day)
 }
 
-export function atTime(date: Date, time: string): Date {
-  const [hours, minutes] = time.split(':').map(Number)
+export function atTime(date: Date, { hour, minute }: TimeOfDay): Date {
   const result = new Date(date)
-  result.setHours(hours, minutes, 0, 0)
+  result.setHours(hour, minute, 0, 0)
   return result
 }
 
-export function getThrowingTime(time: string, minutesBefore: number): string | undefined {
+const MINUTES_PER_DAY = 24 * 60
+
+export function getThrowingTime({ hour, minute }: TimeOfDay, minutesBefore: number): TimeOfDay | undefined {
   if (minutesBefore === 0) return undefined
-  const throwing = new Date(atTime(new Date(), time).getTime() - minutesBefore * 60 * 1000)
-  return `${throwing.getHours()}:${String(throwing.getMinutes()).padStart(2, '0')}`
+  const minutes = (((hour * 60 + minute - minutesBefore) % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY
+  return { hour: Math.floor(minutes / 60), minute: minutes % 60 }
 }
 
 export function hoursBefore(date: Date, hours: number): Date {

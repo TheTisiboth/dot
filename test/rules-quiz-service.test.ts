@@ -20,13 +20,13 @@ interface Call {
   messageId: number;
 }
 
-const RULES_CHAT = { chatId: '-400', threadId: '7' }
+const RULES_CHAT = { chatId: '-400', threadId: 7 }
 const flush = async () => await new Promise(resolve => setImmediate(resolve))
 
 let calls: Call[]
 let askedIds: string[]
 let historyError: Error | undefined
-let historyReads: Array<{ chatId: string; threadId?: string }>
+let historyReads: Array<{ chatId: string; threadId?: number }>
 let latestQuiz: LatestQuiz | undefined
 
 const bot = (() => {
@@ -50,7 +50,7 @@ const seasonOf = (season: SeasonType) =>
   ({ getNextTrainingInfo: () => ({ season }) }) as unknown as SeasonManager
 
 const reader = {
-  getAskedQuizIds: async (chatId: string, threadId: string | undefined) => {
+  getAskedQuizIds: async (chatId: string, threadId: number | undefined) => {
     historyReads.push({ chatId, threadId })
     if (historyError) throw historyError
     return askedIds
@@ -77,8 +77,7 @@ beforeEach(() => {
   historyReads = []
   latestQuiz = undefined
   config.rulesQuiz.enabled = true
-  config.rulesQuiz.chatId = RULES_CHAT.chatId
-  config.rulesQuiz.chatThreadId = RULES_CHAT.threadId
+  config.rulesQuiz.chat = RULES_CHAT
 })
 
 test('signal question: photo, then the poll replying to it, in the topic', async () => {
@@ -142,7 +141,7 @@ test('summer picks outdoor questions', async () => {
 })
 
 test('postNext fails without RULES_CHAT_ID', async () => {
-  config.rulesQuiz.chatId = undefined
+  config.rulesQuiz.chat = undefined
   await assert.rejects(service().postNext(), /RULES_CHAT_ID/)
 })
 
