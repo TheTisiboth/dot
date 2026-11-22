@@ -1,17 +1,21 @@
 import { z } from 'zod'
 import { parseLocation } from '../utils/configParsers'
 
+const TIME_OF_DAY = /^([01]?\d|2[0-3]):[0-5]\d$/
+
+const flag = z.string().transform(value => value === 'true')
+
 // Practice Day Schema
 export const practiceDaySchema = z.object({
   day: z.number().min(0).max(6),
-  time: z.string().regex(/^\d{1,2}:\d{2}$/, 'Time must be in format HH:MM')
+  time: z.string().regex(TIME_OF_DAY, 'Time must be in format HH:MM (00:00 to 23:59)')
 })
 
-// Date Config Schema
+// Date Config Schema. Checked against a non-leap year: a season start has to exist every year
 export const dateConfigSchema = z.object({
   month: z.number().min(1).max(12),
   day: z.number().min(1).max(31)
-})
+}).refine(({ month, day }) => new Date(2025, month - 1, day).getMonth() === month - 1, 'Date must exist every year (month:day)')
 
 // Telegram Config Schema
 const telegramConfigSchema = z.object({
@@ -21,12 +25,12 @@ const telegramConfigSchema = z.object({
   adminChatId: z.string().min(1, 'ADMIN_CHAT_ID is required'),
   trainerChatId: z.string().min(1, 'TRAINER_CHAT_ID is required'),
   trainerChatThreadId: z.string().optional(),
-  enableTrainerMessages: z.boolean()
+  enableTrainerMessages: flag.default(true)
 })
 
 // Ollama Config Schema
 const ollamaConfigSchema = z.object({
-  enabled: z.boolean(),
+  enabled: flag.default(false),
   host: z.url('OLLAMA_HOST must be a valid URL'),
   model: z.string().min(1, 'OLLAMA_MODEL is required')
 })
@@ -60,9 +64,10 @@ const locationSchema = (required: string) => z.string().trim().min(1, required).
 const seasonConfigBaseSchema = z.object({
   startDate: dateConfigSchema,
   location: locationSchema('WINTER_LOCATION and SUMMER_LOCATION is required'),
-  practices: z.array(practiceDaySchema).length(2, 'WINTER_PRACTICE_DAYS and SUMMER_PRACTICE_DAYS must have exactly 2 practice days'),
+  practices: z.array(practiceDaySchema).min(1, 'WINTER_PRACTICE_DAYS and SUMMER_PRACTICE_DAYS need at least one practice day')
+    .refine(practices => new Set(practices.map(({ day }) => day)).size === practices.length, 'WINTER_PRACTICE_DAYS and SUMMER_PRACTICE_DAYS allow one practice per weekday'),
   minAttendance: z.number().int().min(1, 'WINTER_MIN_ATTENDANCE and SUMMER_MIN_ATTENDANCE must be at least 1'),
-  keyMessageEnabled: z.boolean(),
+  keyMessageEnabled: flag.default(true),
   throwingMinutesBefore: z.number().int().min(0, 'WINTER_THROWING_MINUTES_BEFORE and SUMMER_THROWING_MINUTES_BEFORE must be at least 0')
 })
 
@@ -78,19 +83,19 @@ const seasonsConfigSchema = z.object({
 // Exceptional Training Schema
 const exceptionalTrainingSchema = z.object({
   location: locationSchema('EXCEPTIONAL_LOCATION must not be blank').optional(),
-  time: z.string().regex(/^\d{1,2}:\d{2}$/, 'Time must be in HH:MM format').optional(),
-  isCancelled: z.boolean().optional()
+  time: z.string().regex(TIME_OF_DAY, 'EXCEPTIONAL_TIME must be in HH:MM format (00:00 to 23:59)').optional(),
+  isCancelled: flag.optional()
 })
 
 // Rules Quiz Config Schema
 const rulesQuizConfigSchema = z.object({
-  enabled: z.boolean(),
+  enabled: flag.default(false),
   // The history is read through the MTProto user account, for which a private chat id with the
   // bot is a different chat (its own Saved Messages): quizzes would never be found
   chatId: z.string().startsWith('-', 'RULES_CHAT_ID must be a group or channel (its id starts with "-"), not a private chat with the bot').optional(),
   chatThreadId: z.string().optional(),
   answerDelayMinutes: z.number({ message: 'RULES_ANSWER_DELAY_MINUTES must be a number of minutes' }).int().nonnegative(),
-  signalsEveryOther: z.boolean()
+  signalsEveryOther: flag.default(false)
 }).refine(({ enabled, chatId }) => !enabled || chatId, 'RULES_CHAT_ID is required when RULES_QUIZ_ENABLED=true')
 
 // Bot Config Schema
