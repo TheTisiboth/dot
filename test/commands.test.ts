@@ -28,7 +28,7 @@ const TEAM_CHAT = config.telegram.teamChat.chatId
 const ATTENDING = 6
 const ADMIN_COMMANDS = [
   '/test_template', '/test_llm', '/test_trainer', '/test_key', '/preview_team', '/preview_all',
-  '/send_to_team', '/send_to_all', '/attendance', '/send_rule', '/answer_rule', '/test_rule'
+  '/send_to_team', '/send_to_all', '/attendance', '/quiz_post', '/quiz_answer', '/quiz_preview'
 ]
 
 const build = ({ failingChat, env }: { failingChat?: string; env?: Record<string, string> } = {}) => {
@@ -179,39 +179,53 @@ test('/send_to_all reports a failed announcement instead of success', async () =
   assert.equal(report?.text.startsWith(EMOJIS.CHECK_MARK), false)
 })
 
-test('/test_rule previews the named question in the admin chat', async () => {
+test('/quiz_preview previews the named question in the admin chat', async () => {
   const { bot, publisher } = build()
 
-  await bot.command('/test_rule sig_01', ADMIN)
+  await bot.command('/quiz_preview sig_01', ADMIN)
 
   assert.deepEqual(publisher.previews.map(({ target, question }) => [target.chatId, question.id]), [[String(ADMIN.chatId), 'sig_01']])
 })
 
-test('/test_rule with an unknown id previews nothing', async () => {
+test('/quiz_preview with an unknown id previews nothing', async () => {
   const { bot, publisher } = build()
 
-  await bot.command('/test_rule nope', ADMIN)
+  await bot.command('/quiz_preview nope', ADMIN)
 
   assert.deepEqual(publisher.previews, [])
   assert.equal(bot.sentTo(ADMIN.chatId).length, 1)
 })
 
-test('/test_rule without an id previews the next pick', async () => {
+test('/quiz_preview without an id previews the next pick', async () => {
   const { bot, quiz, publisher } = build()
 
-  await bot.command('/test_rule', ADMIN)
+  await bot.command('/quiz_preview', ADMIN)
 
   assert.deepEqual(quiz.calls, ['pickNext'])
   assert.equal(publisher.previews.length, 1)
 })
 
-test('/send_rule and /answer_rule drive the quiz', async () => {
+test('/quiz_post and /quiz_answer drive the quiz', async () => {
   const { bot, quiz } = build()
 
-  await bot.command('/send_rule', ADMIN)
-  await bot.command('/answer_rule', ADMIN)
+  await bot.command('/quiz_post', ADMIN)
+  await bot.command('/quiz_answer', ADMIN)
 
   assert.deepEqual(quiz.calls, ['postNext', 'answerLatest'])
+})
+
+test('the old quiz command names run nothing and are offered nowhere', async () => {
+  const { bot, quiz, publisher, commands } = build()
+  const oldNames = ['test_rule', 'send_rule', 'answer_rule']
+
+  for (const name of oldNames) await bot.command(`/${name}`, ADMIN)
+  await publishCommandMenus(bot.api, commands, config.telegram.adminChatId)
+
+  assert.deepEqual(bot.sent, [])
+  assert.deepEqual(quiz.calls, [])
+  assert.deepEqual(publisher.previews, [])
+  const offered = bot.menus.flatMap(({ commands }) => commands.map(({ command }) => command))
+  for (const name of oldNames) assert.equal(offered.includes(name), false)
 })
 
 test('a failing quiz action is reported back to the admin, without the exception text', async () => {
@@ -219,7 +233,7 @@ test('a failing quiz action is reported back to the admin, without the exception
   const down = async () => { throw new Error('MTProto down') }
   Object.assign(quiz, { postNext: down, answerLatest: down, pickNext: down })
 
-  for (const command of ['/send_rule', '/answer_rule', '/test_rule']) await bot.command(command, ADMIN)
+  for (const command of ['/quiz_post', '/quiz_answer', '/quiz_preview']) await bot.command(command, ADMIN)
 
   const replies = bot.sentTo(ADMIN.chatId)
   assert.equal(replies.length, 3)

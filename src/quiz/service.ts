@@ -33,7 +33,7 @@ export class RulesQuizService {
   private answerTimer?: NodeJS.Timeout
   private retryTimer?: NodeJS.Timeout
   // What this process posted and answered. Search only sees a message seconds after it is sent, so
-  // right after /send_rule it would miss the new poll, and right after an answer, the answer
+  // right after /quiz_post it would miss the new poll, and right after an answer, the answer
   private lastPosted?: LatestQuiz
   private readonly answeredIds = new Set<number>()
 
@@ -76,7 +76,7 @@ export class RulesQuizService {
     }
   }
 
-  /** Posts the next question to the rules chat, even when the quiz is disabled (used by /send_rule). */
+  /** Posts the next question to the rules chat, even when the quiz is disabled (used by /quiz_post). */
   async postNext(): Promise<QuizQuestion> {
     const { question, quizMessageId } = await this.enqueue(() =>
       withTimeout(this.pickAndPost(), POST_TIMEOUT_MS, `Rules quiz post timed out after ${POST_TIMEOUT_MS / 60_000} min`)
@@ -88,7 +88,7 @@ export class RulesQuizService {
     return question
   }
 
-  /** Answers the newest poll now, unless it already was (used by /answer_rule and the answer timer). */
+  /** Answers the newest poll now, unless it already was (used by /quiz_answer and the answer timer). */
   async answerLatest(): Promise<QuizQuestion | undefined> {
     return await this.enqueue(() => this.answerLatestQuiz())
   }
@@ -181,7 +181,7 @@ export class RulesQuizService {
 
   /**
    * The poll this process posted, while it is unanswered: it is the quiz to answer even when
-   * search does not see it yet, or sees a newer /test_rule preview (answered with it) first.
+   * search does not see it yet, or sees a newer /quiz_preview (answered with it) first.
    */
   private unansweredPost(onlyQuizMessageId?: number): LatestQuiz | undefined {
     const post = this.lastPosted
