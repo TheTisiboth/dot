@@ -326,13 +326,13 @@ test('timer: a poll posted just before it fires is not answered early', async ()
   latestQuiz = latest({ messageId: 50, postedAt: new Date(Date.now() - 3 * DAY) })
   await quiz.armAnswer()
 
-  latestQuiz = latest({ messageId: 60, postedAt: new Date() }) // /send_rule landed first
+  latestQuiz = latest({ messageId: 60, postedAt: new Date() }) // /quiz_post landed first
   mock.timers.tick(0)
   await flush()
   assert.equal(calls.length, 0)
 })
 
-test('/answer_rule still answers the newest poll', async () => {
+test('/quiz_answer still answers the newest poll', async () => {
   latestQuiz = latest({ messageId: 60 })
   assert.ok(await service().answerLatest())
   assert.equal(calls[0].options.reply_to_message_id, 60)
@@ -356,12 +356,12 @@ test('posting arms the answer from the post itself, before search can see the ne
   assert.equal(calls[0].options.reply_to_message_id, quizMessageId)
 })
 
-test('/answer_rule right after /send_rule answers the new poll, before search can see it', async () => {
+test('/quiz_answer right after /quiz_post answers the new poll, before search can see it', async () => {
   const quiz = service()
   const posted = await quiz.postNext()
   const quizMessageId = calls.find(c => c.method === 'sendPoll')?.messageId
 
-  // Search lags: the newest poll it sees is an older /test_rule preview, answered with it
+  // Search lags: the newest poll it sees is an older /quiz_preview preview, answered with it
   latestQuiz = latest({ messageId: 10, answered: true })
   calls = []
   const answered = await quiz.answerLatest()

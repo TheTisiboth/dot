@@ -7,8 +7,8 @@ import { type Command } from './registry'
 /** Admin commands to drive the rules quiz by hand. */
 export const quizCommands = (rulesQuiz: RulesQuizService, publisher: QuizPublisher): Command[] => [
   {
-    name: 'test_rule',
-    description: 'Preview a quiz question and its answer here: /test_rule [id]',
+    name: 'quiz_preview',
+    description: 'Preview a quiz question and its answer here: /quiz_preview [id]',
     adminOnly: true,
     run: async ({ args: id, chat, reply }) => {
       const question = id ? findQuizQuestion(id) : await rulesQuiz.pickNext()
@@ -20,7 +20,7 @@ export const quizCommands = (rulesQuiz: RulesQuizService, publisher: QuizPublish
     }
   },
   {
-    name: 'send_rule',
+    name: 'quiz_post',
     description: 'Post the next quiz question to the rules chat',
     adminOnly: true,
     run: async ({ reply }) => {
@@ -29,14 +29,14 @@ export const quizCommands = (rulesQuiz: RulesQuizService, publisher: QuizPublish
     }
   },
   {
-    name: 'answer_rule',
+    name: 'quiz_answer',
     description: 'Post the answer to the latest quiz question now',
     adminOnly: true,
     run: async ({ reply }) => {
       const question = await rulesQuiz.answerLatest()
       await reply.plain(question
         ? `${EMOJIS.CHECK_MARK} Quiz answer posted: ${question.id}`
-        : `${EMOJIS.WARNING} Nothing to answer: no quiz question in the rules chat, or the latest one is answered already. /test_rule previews come with their answer.`)
+        : `${EMOJIS.WARNING} Nothing to answer: no quiz question in the rules chat, or the latest one is answered already. A /quiz_preview comes with its answer.`)
     }
   }
 ]

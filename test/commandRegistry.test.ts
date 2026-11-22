@@ -29,8 +29,8 @@ test('a command is parsed whatever its case, with or without this bot as target'
 })
 
 test('the args are the trimmed text after the command', () => {
-  assert.equal(parseCommand('/test_rule  sig_01 ', BOT_USERNAME)?.args, 'sig_01')
-  assert.equal(parseCommand(`/test_rule@${BOT_USERNAME} sig_01`, BOT_USERNAME)?.args, 'sig_01')
+  assert.equal(parseCommand('/quiz_preview  sig_01 ', BOT_USERNAME)?.args, 'sig_01')
+  assert.equal(parseCommand(`/quiz_preview@${BOT_USERNAME} sig_01`, BOT_USERNAME)?.args, 'sig_01')
 })
 
 test('plain text and commands addressed to another bot are no command', () => {

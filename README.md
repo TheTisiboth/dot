@@ -222,9 +222,9 @@ OLLAMA_MODEL=llama3.2:3b
 - `/attendance` - Show the live 👍 count on the announcement, vs the season threshold
 
 **Admin only (rules quiz):**
-- `/test_rule [id]` - Preview a quiz question and its answer here
-- `/send_rule` - Post the next quiz question to the rules chat
-- `/answer_rule` - Post the answer to the latest quiz question now
+- `/quiz_preview [id]` - Preview a quiz question and its answer here
+- `/quiz_post` - Post the next quiz question to the rules chat
+- `/quiz_answer` - Post the answer to the latest quiz question now
 
 See [Rules quiz](#rules-quiz).
 
@@ -301,10 +301,10 @@ The bot must be able to post in `RULES_CHAT_ID`. The MTProto account
 history to know which questions were already asked.
 
 Admin commands:
-- `/test_rule [id]` - Preview a question and its answer in the current chat. Without an id, it
+- `/quiz_preview [id]` - Preview a question and its answer in the current chat. Without an id, it
   picks the way the scheduler would. Nothing is posted to the rules chat.
-- `/send_rule` - Post the next question to the rules chat now
-- `/answer_rule` - Answer the latest unanswered poll in the rules chat now
+- `/quiz_post` - Post the next question to the rules chat now
+- `/quiz_answer` - Answer the latest unanswered poll in the rules chat now
 
 ### Adding questions
 
@@ -329,7 +329,7 @@ its `source` (`title`, `url`) and its `questions`. A new file must be added to
 
 The bot remembers which questions it asked by id, so an id must never be renamed once posted.
 `npm test` checks the bank against Telegram's poll limits. Preview a new question with
-`/test_rule <id>`.
+`/quiz_preview <id>`.
 
 Hand-signal images in `assets/signals/` are cropped from the WFDF Hand Signals PDF.
 

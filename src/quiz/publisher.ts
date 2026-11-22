@@ -10,7 +10,7 @@ export interface QuizPublisher {
   post: (chat: ChatTarget, question: QuizQuestion) => Promise<number>;
   /** The answer behind a spoiler, replying to the poll. The poll stays open: whoever reads the chat later can still vote. */
   answer: (chat: ChatTarget, question: QuizQuestion, quizMessageId: number) => Promise<void>;
-  /** The question and its answer right away (used by /test_rule). */
+  /** The question and its answer right away (used by /quiz_preview). */
   preview: (chat: ChatTarget, question: QuizQuestion) => Promise<void>;
 }
 
