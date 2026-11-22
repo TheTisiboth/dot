@@ -377,7 +377,8 @@ npm run type-check     # Check types
 
 ```
 src/
-├── main.ts                     # Entry point: wiring, start, shutdown
+├── main.ts                     # Entry point: config, clients, process signals
+├── app.ts                      # Wiring, start, stop
 ├── config/                     # One zod schema over env, readEnv
 ├── commands/                   # Registry (routing, admin guard, menus), public, training, quiz
 ├── training/                   # Seasons and trainings, scheduler, markers
