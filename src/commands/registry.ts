@@ -1,7 +1,7 @@
 import type { Api, Bot } from 'grammy'
 import type { Message } from 'grammy/types'
 import { EMOJIS } from '../shared/emojis'
-import { errorMessage, log } from '../shared/logger'
+import { log } from '../shared/logger'
 import { type ChatTarget, type Sender, senderFor } from '../telegram/sender'
 
 export interface CommandContext {
@@ -57,7 +57,8 @@ const runCommand = async (api: Api, { name, adminOnly, run }: Command, msg: Mess
     await run({ args, chat, reply })
   } catch (error) {
     log.error(`/${name}`, error)
-    await reply.plain(`${EMOJIS.CROSS_MARK} Error: ${errorMessage(error)}`)
+    // The cause stays in the log: exception text means nothing to a player and can leak internals
+    await reply.plain(`${EMOJIS.CROSS_MARK} Sorry, /${name} failed. ${adminOnly ? 'The log has the details.' : 'Please try again later.'}`)
   }
 }
 

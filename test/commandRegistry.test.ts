@@ -82,7 +82,7 @@ test('a handler gets its args and replies in the chat and topic the command came
   assert.equal(reply.options.message_thread_id, 9)
 })
 
-test('a throwing handler gets one error reply and one error log', async () => {
+test('a throwing handler gets one error reply without the exception text, and one error log', async () => {
   const bot = route({ name: 'broken', description: 'broken', run: async () => { throw new Error('season broken') } })
   const errors = mock.method(console, 'error', () => {})
 
@@ -90,7 +90,7 @@ test('a throwing handler gets one error reply and one error log', async () => {
 
   const replies = bot.sentTo(PLAYER.chatId)
   assert.equal(replies.length, 1)
-  assert.ok(replies[0].text.includes('season broken'))
+  assert.equal(replies[0].text.includes('season broken'), false)
   assert.equal(errors.mock.calls.filter(({ arguments: [line] }) => String(line).includes('season broken')).length, 1)
 })
 

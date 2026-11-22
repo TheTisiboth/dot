@@ -14,7 +14,7 @@ export const PART_NAMES = {
   announcement: 'Announcement',
   keyRequest: 'Key request',
   trainerRequest: 'Trainer request',
-  quiz: 'Rules quiz'
+  quiz: 'Quiz question'
 } as const
 
 /** What happened to one message of a job: sent, deliberately not sent, or lost to an error. */
@@ -45,7 +45,7 @@ export const announcer = ({ config, seasonManager, messages, attendance, bot, ru
   const sendKeyRequest = async (training: Training): Promise<PartResult> => {
     if (!training.keyRequestEnabled) {
       log.scheduler(`Key request disabled for ${training.season}, skipping`)
-      return { status: 'skipped', reason: `disabled for ${training.season}` }
+      return { status: 'skipped', reason: `off for ${training.season}` }
     }
 
     return await attempt('Sending key request', async () => {
@@ -57,7 +57,7 @@ export const announcer = ({ config, seasonManager, messages, attendance, bot, ru
   const sendTrainerRequest = async (training: Training): Promise<PartResult> => {
     if (!enableTrainerMessages) {
       log.scheduler('Trainer messages disabled, skipping trainer request')
-      return { status: 'skipped', reason: 'trainer messages disabled' }
+      return { status: 'skipped', reason: 'trainer requests off' }
     }
 
     return await attempt('Sending trainer request', async () => {

@@ -32,7 +32,7 @@ export const startSchedule = ({ config, seasonManager, announcer, attendance, ru
     if (!hasFailure(report)) return
 
     try {
-      await toAdmin.plain(`${EMOJIS.WARNING} Scheduled training messages failed:\n\n${describeReport(report, true)}`)
+      await toAdmin.plain(`${EMOJIS.WARNING} Some scheduled posts failed:\n\n${describeReport(report, true)}`)
     } catch (error) {
       log.error('Alerting the admin chat', error)
     }

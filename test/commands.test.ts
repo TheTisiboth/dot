@@ -214,14 +214,16 @@ test('/send_rule and /answer_rule drive the quiz', async () => {
   assert.deepEqual(quiz.calls, ['postNext', 'answerLatest'])
 })
 
-test('a failing quiz action is reported back to the admin', async () => {
+test('a failing quiz action is reported back to the admin, without the exception text', async () => {
   const { bot, quiz } = build()
   const down = async () => { throw new Error('MTProto down') }
   Object.assign(quiz, { postNext: down, answerLatest: down, pickNext: down })
 
   for (const command of ['/send_rule', '/answer_rule', '/test_rule']) await bot.command(command, ADMIN)
 
-  assert.equal(bot.sentTo(ADMIN.chatId).filter(({ text }) => text.includes('MTProto down')).length, 3)
+  const replies = bot.sentTo(ADMIN.chatId)
+  assert.equal(replies.length, 3)
+  assert.equal(replies.some(({ text }) => text.includes('MTProto down')), false)
 })
 
 test('/start greets in any chat', async () => {
@@ -230,6 +232,15 @@ test('/start greets in any chat', async () => {
   await bot.command('/start', PLAYER)
 
   assert.equal(bot.sentTo(PLAYER.chatId).length, 1)
+})
+
+test('public replies carry no 👍, so none is taken for the announcement', async () => {
+  const { bot } = build()
+
+  for (const command of ['/start', '/help', '/info', '/training']) await bot.command(command, PLAYER)
+
+  assert.equal(bot.sentTo(PLAYER.chatId).length, 4)
+  assert.equal(bot.sentTo(PLAYER.chatId).some(({ text }) => text.includes(EMOJIS.THUMBS_UP)), false)
 })
 
 test('the previews stay in the admin chat', async () => {
