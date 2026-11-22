@@ -1,7 +1,7 @@
 import './helpers/testEnv'
 import { test, mock, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
-import { type Command, type CommandContext, parseCommand, publishCommandMenus, routeCommands } from '../src/commands/registry'
+import { type ButtonContext, type Command, type CommandContext, parseCommand, publishCommandMenus, routeCommands } from '../src/commands/registry'
 import { BOT_USERNAME, makeFakeBot } from './fakes/bot'
 
 const ADMIN = { chatId: 100 }
@@ -12,6 +12,13 @@ const recording = (name: string, { adminOnly = false } = {}) => {
   const runs: CommandContext[] = []
   const command: Command = { name, description: `does ${name}`, adminOnly, run: async (ctx) => { runs.push(ctx) } }
   return { runs, command }
+}
+
+/** A command recording each button tap it handles. */
+const withButtons = (name: string, { adminOnly = false } = {}) => {
+  const taps: ButtonContext[] = []
+  const command: Command = { name, description: name, adminOnly, run: async () => {}, onButton: async (ctx) => { taps.push(ctx) } }
+  return { taps, command }
 }
 
 const route = (...commands: Command[]) => {
@@ -104,4 +111,63 @@ test('the public menu lists public commands; the admin chat menu lists them all'
   assert.deepEqual(everyone.commands.map(({ command }) => command), ['help'])
   assert.deepEqual(admin.commands.map(({ command }) => command), ['help', 'attendance'])
   assert.deepEqual(admin.options?.scope, { type: 'chat', chat_id: ADMIN.chatId })
+})
+
+test('a button tap reaches its command with the data after the name, and answers where the button is', async () => {
+  const echo: Command = { name: 'echo', description: 'echo', run: async () => {}, onButton: ({ data, reply }) => reply.plain(data) }
+  const bot = route(echo)
+
+  await bot.tap('echo:a:b', { ...PLAYER, topicId: 9, messageId: 42 })
+
+  const [reply] = bot.sentTo(PLAYER.chatId)
+  assert.equal(reply.text, 'a:b')
+  assert.equal(reply.options.message_thread_id, 9)
+})
+
+test('every button tap is acknowledged, even one nothing handles', async () => {
+  const menu = withButtons('menu', { adminOnly: true })
+  const bot = route(menu.command, recording('help').command)
+
+  await bot.tap('menu:x', { ...ADMIN, messageId: 1 })
+  await bot.tap('menu:x', { ...PLAYER, messageId: 1 })
+  await bot.tap('help:x', { ...PLAYER, messageId: 1 })
+  await bot.tap('unknown:x', { ...PLAYER, messageId: 1 })
+
+  assert.equal(bot.acknowledged.length, 4)
+  assert.equal(new Set(bot.acknowledged).size, 4)
+})
+
+test('a tap on an admin-only button outside the admin chat does nothing', async () => {
+  const menu = withButtons('menu', { adminOnly: true })
+  const bot = route(menu.command)
+
+  await bot.tap('menu:x', { ...PLAYER, messageId: 1 })
+  assert.equal(menu.taps.length, 0)
+  assert.deepEqual(bot.sent, [])
+
+  await bot.tap('menu:x', { ...ADMIN, messageId: 1 })
+  assert.equal(menu.taps.length, 1)
+})
+
+test('a throwing button handler gets one error reply without the exception text, and one error log', async () => {
+  const broken: Command = { name: 'broken', description: 'broken', run: async () => {}, onButton: async () => { throw new Error('season broken') } }
+  const bot = route(broken)
+  const errors = mock.method(console, 'error', () => {})
+
+  await bot.tap('broken:x', { ...PLAYER, messageId: 1 })
+
+  const replies = bot.sentTo(PLAYER.chatId)
+  assert.equal(replies.length, 1)
+  assert.equal(replies[0].text.includes('season broken'), false)
+  assert.equal(errors.mock.calls.filter(({ arguments: [line] }) => String(line).includes('season broken')).length, 1)
+})
+
+test('a button handler replaces the buttons of the tapped message only', async () => {
+  const markup = { inline_keyboard: [[{ text: 'next', callback_data: 'menu:next' }]] }
+  const bot = route({ name: 'menu', description: 'menu', run: async () => {}, onButton: ({ setButtons }) => setButtons(markup) })
+
+  await bot.tap('menu:x', { ...PLAYER, messageId: 42 })
+
+  assert.deepEqual(bot.buttonEdits, [{ chatId: String(PLAYER.chatId), messageId: 42, markup }])
+  assert.deepEqual(bot.sent, [])
 })

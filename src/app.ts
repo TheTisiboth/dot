@@ -66,7 +66,7 @@ export const buildApp = (config: BotConfig, { bot, mtproto: mtprotoClient, ollam
   const trainingAnnouncer = announcer({ config, seasonManager, messages, attendance, bot: bot.api, rulesQuiz })
   const commands = [
     ...publicCommands(seasonManager),
-    ...trainingCommands({ config, api: bot.api, seasonManager, messages, announcer: trainingAnnouncer, attendance }),
+    ...trainingCommands({ config, api: bot.api, seasonManager, messages, announcer: trainingAnnouncer, attendance, llmEnabled: llm.enabled }),
     ...quizCommands(rulesQuiz, publisher)
   ]
   routeCommands(bot, commands, adminChatId)

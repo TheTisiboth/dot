@@ -6,12 +6,13 @@ import { type Command, publishCommandMenus, routeCommands } from '../src/command
 import { publicCommands } from '../src/commands/public'
 import { quizCommands } from '../src/commands/quiz'
 import { trainingCommands } from '../src/commands/training'
-import { llmWriter } from '../src/training/messages/llmWriter'
+import { type LlmClient, llmWriter } from '../src/training/messages/llmWriter'
 import { trainingMessages } from '../src/training/messages/messages'
 import { AttendanceMonitor } from '../src/training/attendance'
 import { announcer } from '../src/training/announcer'
 import { SeasonManager } from '../src/training/season'
 import { EMOJIS } from '../src/shared/emojis'
+import { MARKERS } from '../src/training/markers'
 import { formatDate } from '../src/shared/formatters'
 import { makeFakeBot } from './fakes/bot'
 import { makeFakeTrainingHistory, TRAINING_POST_ID } from './fakes/trainingHistory'
@@ -27,22 +28,25 @@ const TEAM_CHAT = config.telegram.teamChat.chatId
 // A count no other figure of the /attendance reply contains
 const ATTENDING = 6
 const ADMIN_COMMANDS = [
-  '/test_template', '/test_llm', '/test_trainer', '/test_key', '/preview_team', '/preview_all',
-  '/send_to_team', '/send_to_all', '/attendance', '/quiz_post', '/quiz_answer', '/quiz_preview'
+  '/preview', '/send_to_team', '/send_to_all', '/attendance', '/quiz_post', '/quiz_answer', '/quiz_preview'
 ]
+const LLM_TEXT = 'Written by the LLM'
+// The library boundary: the fake implements only the Ollama method the writer calls
+const fakeLlm = { chat: async () => ({ message: { content: LLM_TEXT } }) } as unknown as LlmClient
 
-const build = ({ failingChat, env }: { failingChat?: string; env?: Record<string, string> } = {}) => {
+const build = ({ failingChat, env, llm = null }: { failingChat?: string; env?: Record<string, string>; llm?: LlmClient | null } = {}) => {
   const botConfig = testConfig(env)
   const bot = makeFakeBot({ failingChat })
   const quiz = makeFakeRulesQuiz()
   const publisher = makeFakeQuizPublisher()
   const seasonManager = new SeasonManager(botConfig)
-  const messages = trainingMessages(llmWriter(botConfig.ollama, null))
+  const writer = llmWriter(botConfig.ollama, llm)
+  const messages = trainingMessages(writer)
   const attendance = new AttendanceMonitor(botConfig, seasonManager, messages, makeFakeTrainingHistory({ thumbsUp: ATTENDING }), bot.api)
   const trainingAnnouncer = announcer({ config: botConfig, seasonManager, messages, attendance, bot: bot.api, rulesQuiz: quiz })
   const commands: Command[] = [
     ...publicCommands(seasonManager),
-    ...trainingCommands({ config: botConfig, api: bot.api, seasonManager, messages, announcer: trainingAnnouncer, attendance }),
+    ...trainingCommands({ config: botConfig, api: bot.api, seasonManager, messages, announcer: trainingAnnouncer, attendance, llmEnabled: writer.enabled }),
     ...quizCommands(quiz, publisher)
   ]
   routeCommands(bot, commands, botConfig.telegram.adminChatId)
@@ -257,14 +261,122 @@ test('public replies carry no 👍, so none is taken for the announcement', asyn
   assert.equal(bot.sentTo(PLAYER.chatId).some(({ text }) => text.includes(EMOJIS.THUMBS_UP)), false)
 })
 
-test('the previews stay in the admin chat', async () => {
-  startAt(beforeTraining(24 * HOUR_MS))
+type Keyboard = { inline_keyboard: Array<Array<{ callback_data: string }>> }
+const callbackData = (markup: unknown) => (markup as Keyboard).inline_keyboard.map(row => row.map(({ callback_data }) => callback_data))
+
+/** Sends /preview in the admin chat: the menu message and its buttons' callback data. */
+const openPreview = async (bot: ReturnType<typeof build>['bot']) => {
+  await bot.command('/preview', ADMIN)
+  const menu = bot.sentTo(ADMIN.chatId).at(-1)
+  assert.ok(menu)
+  return { menu, rows: callbackData(menu.options.reply_markup) }
+}
+
+/** What tapping `data` on the menu sends. */
+const tap = async (bot: ReturnType<typeof build>['bot'], menuId: number, data: string) => {
+  const before = bot.sent.length
+  await bot.tap(data, { ...ADMIN, messageId: menuId })
+  return bot.sent.slice(before)
+}
+
+test('/preview answers with one menu: everything, the five messages, no LLM toggle without the LLM', async () => {
   const { bot } = build()
 
-  for (const command of ['/test_template', '/test_llm', '/test_trainer', '/test_key', '/preview_team', '/preview_all']) {
-    await bot.command(command, ADMIN)
-  }
+  const { rows } = await openPreview(bot)
+
+  assert.equal(bot.sent.length, 1)
+  assert.deepEqual(rows.map(row => row.length), [1, 3, 2])
+})
+
+test('with the LLM on, the menu toggles between LLM and template previews', async () => {
+  startAt(beforeTraining(24 * HOUR_MS))
+  const { bot } = build({ llm: fakeLlm })
+  const { menu, rows } = await openPreview(bot)
+  assert.equal(rows.length, 4)
+
+  const llmPreview = await tap(bot, menu.messageId, rows[1][0])
+  assert.ok(llmPreview.some(({ text }) => text.includes(LLM_TEXT)))
+
+  await tap(bot, menu.messageId, rows[3][0])
+  const [edit] = bot.buttonEdits
+  assert.equal(edit.messageId, menu.messageId)
+  const templatePreview = await tap(bot, menu.messageId, callbackData(edit.markup)[1][0])
+  assert.equal(templatePreview.some(({ text }) => text.includes(LLM_TEXT)), false)
+  assert.ok(templatePreview.some(({ text }) => text.includes(EMOJIS.THUMBS_UP)))
+})
+
+test('everything previews what /send_to_all posts, in order, on the template path', async () => {
+  startAt(beforeTraining(24 * HOUR_MS))
+  const { bot } = build()
+  const { menu, rows } = await openPreview(bot)
+
+  const previews = await tap(bot, menu.messageId, rows[0][0])
+  await bot.command('/send_to_all', ADMIN)
+  const posted = [...bot.sentTo(TEAM_CHAT), ...bot.sentTo(config.telegram.trainerChat.chatId)].sort((a, b) => a.messageId - b.messageId)
+
+  assert.equal(posted.length, 3)
+  const positions = posted.map(({ text }) => previews.findIndex(preview => preview.text.includes(text)))
+  assert.equal(positions.includes(-1), false)
+  assert.deepEqual(positions, [...positions].sort((a, b) => a - b))
+})
+
+test('everything leaves out a disabled key request instead of previewing it', async () => {
+  startAt(beforeTraining(24 * HOUR_MS))
+  const { bot } = build({ env: { SUMMER_KEY_MESSAGE_ENABLED: 'false' } })
+  const { menu, rows } = await openPreview(bot)
+
+  const previews = await tap(bot, menu.messageId, rows[0][0])
+
+  assert.equal(previews.some(({ text }) => text.includes(MARKERS.KEY)), false)
+  assert.ok(previews.some(({ text }) => text.includes(EMOJIS.FRISBEE)))
+})
+
+test('the attendance reminder and cancellation notice previews render with sample counts', async () => {
+  startAt(beforeTraining(24 * HOUR_MS))
+  const { bot } = build()
+  const { menu, rows } = await openPreview(bot)
+  const threshold = String(config.seasons.summer.minAttendance)
+
+  const [reminder] = await tap(bot, menu.messageId, rows[2][0])
+  const [cancellation] = await tap(bot, menu.messageId, rows[2][1])
+
+  assert.ok(reminder.text.includes(MARKERS.ATTENDANCE_REMINDER))
+  assert.ok(reminder.text.includes(threshold))
+  assert.ok(cancellation.text.includes(MARKERS.CANCELLATION))
+  assert.ok(cancellation.text.includes(threshold))
+})
+
+test('the previews stay in the admin chat, whatever is tapped', async () => {
+  startAt(beforeTraining(24 * HOUR_MS))
+  const { bot } = build({ llm: fakeLlm })
+  const { menu, rows } = await openPreview(bot)
+
+  for (const data of rows.flat()) await tap(bot, menu.messageId, data)
 
   assert.equal(bot.sentTo(ADMIN.chatId).length, bot.sent.length)
-  assert.ok(bot.sent.length >= 6)
+  assert.ok(bot.sent.length > rows.flat().length)
+})
+
+test('a preview button tapped outside the admin chat does nothing', async () => {
+  startAt(beforeTraining(24 * HOUR_MS))
+  const { bot } = build({ llm: fakeLlm })
+  const { rows } = await openPreview(bot)
+  const before = bot.sent.length
+
+  for (const data of rows.flat()) await bot.tap(data, { ...PLAYER, messageId: 1 })
+
+  assert.equal(bot.sent.length, before)
+  assert.deepEqual(bot.buttonEdits, [])
+})
+
+test('the six old preview commands run nothing and are offered nowhere', async () => {
+  const { bot, commands } = build()
+  const oldNames = ['test_template', 'test_llm', 'test_trainer', 'test_key', 'preview_team', 'preview_all']
+
+  for (const name of oldNames) await bot.command(`/${name}`, ADMIN)
+  await publishCommandMenus(bot.api, commands, config.telegram.adminChatId)
+
+  assert.deepEqual(bot.sent, [])
+  const offered = bot.menus.flatMap(({ commands }) => commands.map(({ command }) => command))
+  for (const name of oldNames) assert.equal(offered.includes(name), false)
 })
