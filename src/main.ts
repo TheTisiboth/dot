@@ -4,7 +4,10 @@ import { readEnv } from './config'
 import { type BotConfig, loadConfig } from './config/env'
 import { SeasonManager } from './training/season'
 import { MessageGenerator } from './training/messages/messageGenerator'
-import { ReactionReader, createMtprotoClient } from './telegram/mtproto/reactionReader'
+import { MtprotoConnection, createMtprotoClient } from './telegram/mtproto/client'
+import { History } from './telegram/mtproto/history'
+import { trainingHistory } from './training/history'
+import { quizHistory } from './quiz/history'
 import { SchedulerService } from './training/scheduler'
 import { RulesQuizService } from './quiz/service'
 import { HEALTH_PORT, PROBE_TIMEOUT_MS, startHealthServer } from './health/server'
@@ -20,7 +23,7 @@ class Dot {
   private readonly bot: Bot
   private readonly seasonManager: SeasonManager
   private readonly messageGenerator: MessageGenerator
-  private readonly reactionReader: ReactionReader
+  private readonly mtproto: MtprotoConnection
   private readonly schedulerService: SchedulerService
   private readonly commands: Command[]
   private readonly adminChatId: string
@@ -35,13 +38,14 @@ class Dot {
     })
     this.seasonManager = new SeasonManager(config)
     this.messageGenerator = new MessageGenerator(config, config.ollama.enabled ? new Ollama({ host: config.ollama.host }) : null)
-    this.reactionReader = new ReactionReader(this.bot.api, createMtprotoClient(config.mtproto))
-    const rulesQuiz = new RulesQuizService(config.rulesQuiz, this.bot.api, this.seasonManager, this.reactionReader)
+    this.mtproto = new MtprotoConnection(createMtprotoClient(config.mtproto))
+    const history = new History(this.bot.api, this.mtproto)
+    const rulesQuiz = new RulesQuizService(config.rulesQuiz, this.bot.api, this.seasonManager, quizHistory(history))
     this.schedulerService = new SchedulerService(
       config,
       this.seasonManager,
       this.messageGenerator,
-      this.reactionReader,
+      trainingHistory(history),
       this.bot.api,
       rulesQuiz
     )
@@ -71,7 +75,7 @@ class Dot {
       shuttingDown = true
 
       log.bot(`Received ${signal}, stopping polling...`)
-      void Promise.all([this.bot.stop(), this.reactionReader.disconnect()]).then(() => {
+      void Promise.all([this.bot.stop(), this.mtproto.disconnect()]).then(() => {
         log.bot('Polling stopped, exiting')
         process.exit(0)
       })
@@ -92,7 +96,7 @@ class Dot {
     log.bot(`${EMOJIS.ROBOT} LLM: ${this.messageGenerator.getLLMProvider()}`)
     log.bot(`${EMOJIS.THUMBS_UP} Min attendance: ${seasonConfig.minAttendance}`)
 
-    startHealthServer({ api: this.bot.api, reader: this.reactionReader, messageGenerator: this.messageGenerator }, HEALTH_PORT, PROBE_TIMEOUT_MS)
+    startHealthServer({ api: this.bot.api, reader: this.mtproto, messageGenerator: this.messageGenerator }, HEALTH_PORT, PROBE_TIMEOUT_MS)
     publishCommandMenus(this.bot.api, this.commands, this.adminChatId).catch((error: unknown) => {
       log.error('Registering bot commands', error)
     })
@@ -101,7 +105,7 @@ class Dot {
     // A failure here must not take the scheduler down with it - training posts still go out,
     // and the attendance checks retry the connection on their next run.
     try {
-      await this.reactionReader.connect()
+      await this.mtproto.connect()
     } catch (error) {
       log.error('Connecting MTProto reader - attendance checks will not run until it recovers', error)
     }

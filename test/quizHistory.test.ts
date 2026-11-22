@@ -2,7 +2,9 @@ import './helpers/testEnv'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { Api } from 'telegram'
-import { type MtprotoClient, ReactionReader } from '../src/telegram/mtproto/reactionReader'
+import { type MtprotoClient, MtprotoConnection } from '../src/telegram/mtproto/client'
+import { History } from '../src/telegram/mtproto/history'
+import { quizHistory } from '../src/quiz/history'
 import { quizTag } from '../src/quiz/tag'
 
 const poll = (text: string): Api.MessageMediaPoll =>
@@ -29,7 +31,7 @@ const readerReturning = (messages: Api.Message[]) => {
   }
   const bot = { getMe: async () => ({ username: 'dot_bot' }) as never }
   // The library boundary: the fake implements only the GramJS methods the reader calls
-  return { reader: new ReactionReader(bot, client as unknown as MtprotoClient), searches }
+  return { reader: quizHistory(new History(bot, new MtprotoConnection(client as unknown as MtprotoClient))), searches }
 }
 
 test('history: ids of the quiz polls among the bot messages, newest first', async () => {

@@ -3,7 +3,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { Api } from 'telegram'
 import type { Api as BotApi } from 'grammy'
-import { type MtprotoClient, ReactionReader } from '../src/telegram/mtproto/reactionReader'
+import { type MtprotoClient, MtprotoConnection } from '../src/telegram/mtproto/client'
+import { History } from '../src/telegram/mtproto/history'
+import { trainingHistory } from '../src/training/history'
 import { CANCELLATION_SIGNATURE, MARKERS } from '../src/training/markers'
 import { EMOJIS } from '../src/shared/emojis'
 import { HOUR_MS } from './helpers/clock'
@@ -43,7 +45,7 @@ const readerOver = (lines: Line[], getMe: BotApi['getMe'] = async () => ({ usern
     }
   }
   // The library boundary: the fake implements only the GramJS methods the reader calls
-  const reader = new ReactionReader({ getMe }, client as unknown as MtprotoClient)
+  const reader = trainingHistory(new History({ getMe }, new MtprotoConnection(client as unknown as MtprotoClient)))
   return { reader, searches }
 }
 
