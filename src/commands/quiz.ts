@@ -8,7 +8,8 @@ import { type Command } from './registry'
 export const quizCommands = (rulesQuiz: RulesQuizService, publisher: QuizPublisher): Command[] => [
   {
     name: 'quiz_preview',
-    description: 'Preview a quiz question and its answer here: /quiz_preview [id]',
+    description: 'Preview a quiz question and its answer here',
+    usage: '[id]',
     adminOnly: true,
     run: async ({ args: id, chat, reply }) => {
       const question = id ? findQuizQuestion(id) : await rulesQuiz.pickNext()

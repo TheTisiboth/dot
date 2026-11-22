@@ -200,6 +200,8 @@ OLLAMA_MODEL=llama3.2:3b
 
 ## Commands
 
+Mirrors `/help`, which is built from the command list: public commands everywhere, admin ones only in the admin chat.
+
 **Everyone:**
 - `/start` - Meet dot
 - `/help` - List the commands
@@ -214,7 +216,7 @@ OLLAMA_MODEL=llama3.2:3b
 - `/send_to_all` - Post the announcement, requests and quiz question now
 
 **Admin only (attendance):**
-- `/attendance` - Show the live 👍 count on the announcement, vs the season threshold
+- `/attendance` - Show how many players are in so far: the live 👍 count on the announcement, vs the season threshold
 
 **Admin only (status):**
 - `/status` - Show what the bot will do next: next training, announcement (posted or due), players in, reminder and cancellation checks (armed, ran or skipped), quiz answer due, Telegram / MTProto / LLM up or down, version and uptime. Changes nothing
