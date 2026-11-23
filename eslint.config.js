@@ -40,7 +40,10 @@ export default tseslint.config(
       'import-x/extensions': ['error', 'never'],
       'import-x/no-useless-path-segments': ['error', { noUselessIndex: true }],
       'import-x/no-restricted-paths': ['error', {
-        zones: [{ target: './src/shared', from: './src', except: ['./shared'], message: 'shared/ knows no feature (DOT-001)' }],
+        zones: [
+          { target: './src/shared', from: './src', except: ['./shared'], message: 'shared/ knows no feature (DOT-001)' },
+          { target: './src/telegram', from: './src', except: ['./telegram', './shared', './config'], message: 'telegram/ knows no feature (DOT-001)' },
+        ],
       }],
       'sonarjs/cognitive-complexity': ['error', 15],
       'sonarjs/no-duplicate-string': ['error', { threshold: 3 }],

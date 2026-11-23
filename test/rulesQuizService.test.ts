@@ -5,7 +5,7 @@ import { type Api, InputFile } from 'grammy'
 import { findQuizQuestion, QUIZ_QUESTIONS } from '../src/quiz/data'
 import { RulesQuizService } from '../src/quiz/service'
 import { answerTimeFor } from '../src/quiz/answer'
-import { type LatestQuiz, type ReactionReader } from '../src/telegram/mtproto/reactionReader'
+import { type LatestQuiz, type QuizHistory } from '../src/quiz/history'
 import { type SeasonManager, type SeasonType } from '../src/training/season'
 import { type QuizQuestion } from '../src/quiz/question'
 import { parseQuizTag } from '../src/quiz/tag'
@@ -56,7 +56,7 @@ const reader = {
     return askedIds
   },
   getLatestQuiz: async () => latestQuiz
-} as unknown as ReactionReader
+} as unknown as QuizHistory
 
 const RULES_QUIZ = testConfig().rulesQuiz
 const DISABLED = { ...RULES_QUIZ, enabled: false }
@@ -162,7 +162,7 @@ test('a hung history read ends in an error, then one retry later posts the quiz'
   const quiz = new RulesQuizService(RULES_QUIZ, bot, seasonOf('winter'), {
     // Like a request on a dead MTProto connection: never settles
     getAskedQuizIds: async () => hang ? await new Promise<string[]>(() => undefined) : []
-  } as unknown as ReactionReader)
+  } as unknown as QuizHistory)
 
   const sent = quiz.sendScheduled()
   await flush()
@@ -181,7 +181,7 @@ test('a hung post does not block the next one', async () => {
   let hang = true
   const quiz = new RulesQuizService(RULES_QUIZ, bot, seasonOf('winter'), {
     getAskedQuizIds: async () => hang ? await new Promise<string[]>(() => undefined) : []
-  } as unknown as ReactionReader)
+  } as unknown as QuizHistory)
 
   const stuck = assert.rejects(quiz.postNext(), /timed out/)
   await flush()
@@ -213,7 +213,7 @@ test('overlapping posts run one after another, so they never read the same histo
       ...calls.filter(c => c.method === 'sendPoll').map(c => parseQuizTag(c.content as string) as string).reverse(),
       ...before
     ]
-  } as unknown as ReactionReader)
+  } as unknown as QuizHistory)
 
   const [first, second] = await Promise.all([quiz.postNext(), quiz.postNext()])
   assert.equal(first.id, indoor[0])

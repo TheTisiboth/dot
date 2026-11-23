@@ -3,13 +3,13 @@ import { test, afterEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import type { Api } from 'grammy'
 import { MessageGenerator } from '../src/training/messages/messageGenerator'
-import { type ReactionReader } from '../src/telegram/mtproto/reactionReader'
+import { type TrainingHistory } from '../src/training/history'
 import { PART_NAMES, SchedulerService } from '../src/training/scheduler'
 import { SeasonManager } from '../src/training/season'
 import { CANCELLATION_SIGNATURE, isKeyRequest } from '../src/training/markers'
 import { EMOJIS } from '../src/shared/emojis'
 import { makeFakeBot } from './fakes/bot'
-import { makeFakeReader, TRAINING_POST_ID, type ChatHistory } from './fakes/reactionReader'
+import { makeFakeTrainingHistory, TRAINING_POST_ID, type ChatHistory } from './fakes/trainingHistory'
 import { makeFakeRulesQuiz } from './fakes/rulesQuiz'
 import { beforeTraining } from './fixtures/dates'
 import { HOUR_MS, MINUTE_MS, advance, startAt } from './helpers/clock'
@@ -23,12 +23,12 @@ const ADMIN_CHAT = config.telegram.adminChatId
 const RETRY_DELAY_MS = 10 * MINUTE_MS
 const THRESHOLD = config.seasons.summer.minAttendance
 
-const schedulerFor = (bot: Api, reader: ReactionReader, quiz = makeFakeRulesQuiz(), botConfig = config) =>
+const schedulerFor = (bot: Api, reader: TrainingHistory, quiz = makeFakeRulesQuiz(), botConfig = config) =>
   new SchedulerService(botConfig, new SeasonManager(botConfig), new MessageGenerator(botConfig, null), reader, bot, quiz)
 
 const build = ({ failingChat, history, env }: { failingChat?: string; history?: Partial<ChatHistory>; env?: Record<string, string> } = {}) => {
   const bot = makeFakeBot({ failingChat })
-  const reader = makeFakeReader(history)
+  const reader = makeFakeTrainingHistory(history)
   const quiz = makeFakeRulesQuiz()
   return { scheduler: schedulerFor(bot.api, reader, quiz, testConfig(env)), bot, reader, quiz }
 }

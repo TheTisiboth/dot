@@ -12,7 +12,7 @@ import { SeasonManager } from '../src/training/season'
 import { EMOJIS } from '../src/shared/emojis'
 import { formatDate } from '../src/shared/formatters'
 import { makeFakeBot } from './fakes/bot'
-import { makeFakeReader, TRAINING_POST_ID } from './fakes/reactionReader'
+import { makeFakeTrainingHistory, TRAINING_POST_ID } from './fakes/trainingHistory'
 import { makeFakeRulesQuiz } from './fakes/rulesQuiz'
 import { SUMMER_TRAINING, beforeTraining } from './fixtures/dates'
 import { HOUR_MS, startAt } from './helpers/clock'
@@ -35,7 +35,7 @@ const build = ({ failingChat, env }: { failingChat?: string; env?: Record<string
   const quiz = makeFakeRulesQuiz()
   const seasonManager = new SeasonManager(botConfig)
   const messageGenerator = new MessageGenerator(botConfig, null)
-  const scheduler = new SchedulerService(botConfig, seasonManager, messageGenerator, makeFakeReader({ thumbsUp: ATTENDING }), bot.api, quiz)
+  const scheduler = new SchedulerService(botConfig, seasonManager, messageGenerator, makeFakeTrainingHistory({ thumbsUp: ATTENDING }), bot.api, quiz)
   const commands: Command[] = [
     ...publicCommands(seasonManager),
     ...trainingCommands({ config: botConfig, api: bot.api, seasonManager, messageGenerator, scheduler }),

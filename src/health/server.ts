@@ -4,7 +4,7 @@ import { withTimeout } from '../shared/async'
 import { EMOJIS } from '../shared/emojis'
 import { errorMessage, log } from '../shared/logger'
 import type { MessageGenerator } from '../training/messages/messageGenerator'
-import type { ReactionReader } from '../telegram/mtproto/reactionReader'
+import type { MtprotoConnection } from '../telegram/mtproto/client'
 
 // Fixed: the compose port mapping and healthcheck use it
 export const HEALTH_PORT = 3004
@@ -21,7 +21,7 @@ interface Check {
 
 export interface HealthDependencies {
   api: Pick<Api, 'getMe'>;
-  reader: Pick<ReactionReader, 'isConnected'>;
+  reader: Pick<MtprotoConnection, 'isConnected'>;
   messageGenerator: Pick<MessageGenerator, 'isLLMAvailable' | 'testOllamaConnection'>;
 }
 

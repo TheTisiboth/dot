@@ -1,7 +1,9 @@
 import './helpers/testEnv'
 import { test, beforeEach, afterEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
-import { type MtprotoClient, ReactionReader } from '../src/telegram/mtproto/reactionReader'
+import { type MtprotoClient, MtprotoConnection } from '../src/telegram/mtproto/client'
+import { History } from '../src/telegram/mtproto/history'
+import { trainingHistory } from '../src/training/history'
 
 const flush = async () => await new Promise(resolve => setImmediate(resolve))
 
@@ -28,8 +30,9 @@ const readerWith = async (read: (attempt: number) => Promise<unknown[]>, state: 
     getMessages: async () => await read(++client.reads)
   }
   // The library boundary: the fake implements only the GramJS methods the reader calls
-  const reader = new ReactionReader(unusedBot, client as unknown as MtprotoClient)
-  await reader.connect()
+  const connection = new MtprotoConnection(client as unknown as MtprotoClient)
+  const reader = trainingHistory(new History(unusedBot, connection))
+  await connection.connect()
   Object.assign(client, { connects: 0, ...state })
   return { reader, client }
 }

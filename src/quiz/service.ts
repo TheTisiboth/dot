@@ -1,6 +1,6 @@
 import { type Api } from 'grammy'
 import { type SeasonManager } from '../training/season'
-import { type LatestQuiz, type ReactionReader } from '../telegram/mtproto/reactionReader'
+import { type LatestQuiz, type QuizHistory } from './history'
 import { buildQuizPost, modeFor, pickQuestion } from './picker'
 import { answerTimeFor, buildAnswer } from './answer'
 import type { BotConfig } from '../config/env'
@@ -25,7 +25,7 @@ export class RulesQuizService {
   private readonly config: BotConfig['rulesQuiz']
   private readonly bot: Api
   private readonly seasonManager: SeasonManager
-  private readonly reactionReader: ReactionReader
+  private readonly history: QuizHistory
   // Posts and answers run one after another: two overlapping ones would read the same history,
   // and could post the same question or answer the same poll twice
   private queue: Promise<unknown> = Promise.resolve()
@@ -36,11 +36,11 @@ export class RulesQuizService {
   private lastPosted?: LatestQuiz
   private readonly answeredIds = new Set<number>()
 
-  constructor(config: BotConfig['rulesQuiz'], bot: Api, seasonManager: SeasonManager, reactionReader: ReactionReader) {
+  constructor(config: BotConfig['rulesQuiz'], bot: Api, seasonManager: SeasonManager, history: QuizHistory) {
     this.config = config
     this.bot = bot
     this.seasonManager = seasonManager
-    this.reactionReader = reactionReader
+    this.history = history
   }
 
   /**
@@ -192,7 +192,7 @@ export class RulesQuizService {
   }
 
   private async findLatestQuiz(chat: ChatTarget): Promise<LatestQuiz | undefined> {
-    return await this.reactionReader.getLatestQuiz(chat.chatId, chat.threadId)
+    return await this.history.getLatestQuiz(chat.chatId, chat.threadId)
   }
 
   private async sendAnswer(chat: ChatTarget, question: QuizQuestion, html: string, quizMessageId: number): Promise<void> {
@@ -207,7 +207,7 @@ export class RulesQuizService {
   /** Picks the way the scheduler does: the next training's season mode, minus what the rules chat already got (hand signals every other one with RULES_SIGNALS_EVERY_OTHER). */
   async pickNext(chat: ChatTarget = this.rulesChat()): Promise<QuizQuestion> {
     const mode = modeFor(this.seasonManager.nextTraining().season)
-    const askedIds = await this.reactionReader.getAskedQuizIds(chat.chatId, chat.threadId)
+    const askedIds = await this.history.getAskedQuizIds(chat.chatId, chat.threadId)
     const isFocus = this.config.signalsEveryOther ? isSignalQuestion : undefined
     return pickQuestion(QUIZ_QUESTIONS, mode, askedIds, Math.random, isFocus)
   }

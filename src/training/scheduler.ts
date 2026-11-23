@@ -1,7 +1,7 @@
 import * as cron from 'node-cron'
 import { type SeasonManager, type Training } from './season'
 import { type MessageGenerator } from './messages/messageGenerator'
-import { type ReactionReader } from '../telegram/mtproto/reactionReader'
+import { type TrainingHistory } from './history'
 import type { BotConfig } from '../config/env'
 import type { Api } from 'grammy'
 import { errorMessage, log } from '../shared/logger'
@@ -40,7 +40,7 @@ export class SchedulerService {
   private readonly config: Pick<BotConfig, 'telegram' | 'attendance'>
   private readonly seasonManager: SeasonManager
   private readonly messageGenerator: MessageGenerator
-  private readonly reactionReader: ReactionReader
+  private readonly history: TrainingHistory
   private readonly rulesQuiz: RulesQuizService
   private readonly teamChat: ChatTarget
   private readonly trainerChat: ChatTarget
@@ -58,14 +58,14 @@ export class SchedulerService {
     config: Pick<BotConfig, 'telegram' | 'attendance'>,
     seasonManager: SeasonManager,
     messageGenerator: MessageGenerator,
-    reactionReader: ReactionReader,
+    history: TrainingHistory,
     bot: Api,
     rulesQuiz: RulesQuizService
   ) {
     this.config = config
     this.seasonManager = seasonManager
     this.messageGenerator = messageGenerator
-    this.reactionReader = reactionReader
+    this.history = history
     this.rulesQuiz = rulesQuiz
     this.teamChat = config.telegram.teamChat
     this.trainerChat = config.telegram.trainerChat
@@ -156,7 +156,7 @@ export class SchedulerService {
     const trainingAt = training.startsAt
 
     if (this.trainingPost?.trainingAt.getTime() !== trainingAt.getTime()) {
-      const messageId = await this.reactionReader.findAnnouncement(this.teamChat.chatId, this.teamChat.threadId, trainingAt)
+      const messageId = await this.history.findAnnouncement(this.teamChat.chatId, this.teamChat.threadId, trainingAt)
       this.trainingPost = messageId ? { trainingAt, messageId } : undefined
     }
 
@@ -166,7 +166,7 @@ export class SchedulerService {
     }
 
     const announcementId = this.trainingPost.messageId
-    const count = await this.reactionReader.getThumbsUpCount(this.teamChat.chatId, announcementId)
+    const count = await this.history.getThumbsUpCount(this.teamChat.chatId, announcementId)
     const threshold = training.minAttendance
 
     log.scheduler(`👍 Attendance: ${count}/${threshold} for training at ${formatDateTimeLocale(trainingAt)}`)
@@ -186,7 +186,7 @@ export class SchedulerService {
         return
       }
 
-      if (await this.reactionReader.hasBotReplyTo(this.teamChat.chatId, this.teamChat.threadId, announcementId)) {
+      if (await this.history.hasBotReplyTo(this.teamChat.chatId, this.teamChat.threadId, announcementId)) {
         log.scheduler('⏭️  Attendance reminder already sent - skipping')
         return
       }
@@ -226,7 +226,7 @@ export class SchedulerService {
       }
 
       const since = hoursBefore(training.startsAt, this.config.attendance.cancelHoursBefore + 1)
-      const alreadyCancelled = await this.reactionReader.hasBotMessageContaining(
+      const alreadyCancelled = await this.history.hasBotMessageContaining(
         this.trainerChat.chatId,
         this.trainerChat.threadId,
         CANCELLATION_SIGNATURE,
