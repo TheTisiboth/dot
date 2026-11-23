@@ -1,6 +1,6 @@
-import { QUIZ_QUESTIONS } from '../../src/data/rules-quiz'
-import { type RulesQuizService } from '../../src/services/RulesQuizService'
-import { type QuizQuestion } from '../../src/types'
+import { QUIZ_QUESTIONS } from '../../src/quiz/data'
+import { type RulesQuizService } from '../../src/quiz/service'
+import { type QuizQuestion } from '../../src/quiz/question'
 
 interface QuizTarget { chatId: string; threadId?: number }
 

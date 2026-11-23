@@ -1,12 +1,14 @@
 import type { Api } from 'grammy'
-import { type SeasonManager } from '../services/SeasonManager'
-import { type MessageGenerator } from '../services/MessageGenerator'
-import { describeReport, hasFailure, type SchedulerService } from '../services/SchedulerService'
+import { type SeasonManager } from '../training/season'
+import { type MessageGenerator } from '../training/messages/messageGenerator'
+import { describeReport, hasFailure, type SchedulerService } from '../training/scheduler'
 import type { BotConfig } from '../config/env'
-import { EMOJIS, MESSAGES } from '../utils/constants'
-import { formatClock, formatDate } from '../utils/formatters'
-import { sendWithFallback, threadOptions } from '../utils/telegram'
+import { EMOJIS } from '../shared/emojis'
+import { formatClock, formatDate } from '../shared/formatters'
+import { sendWithFallback, threadOptions } from '../telegram/botApi'
 import { type Command } from './registry'
+
+const GENERATING_LLM_MESSAGE = 'Generating LLM message...'
 
 interface TrainingCommandsDeps {
   config: Pick<BotConfig, 'telegram' | 'attendance'>;
@@ -39,7 +41,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       description: 'Preview LLM team message',
       adminOnly: true,
       run: async ({ reply }) => {
-        await reply(`${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
+        await reply(`${EMOJIS.ROBOT} ${GENERATING_LLM_MESSAGE}`)
         await reply(`${EMOJIS.ROBOT} LLM Generated Message:\n\n${await announcement(true)}`, HTML)
       }
     },
@@ -48,7 +50,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       description: 'Preview LLM trainer message',
       adminOnly: true,
       run: async ({ reply }) => {
-        await reply(`${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
+        await reply(`${EMOJIS.ROBOT} ${GENERATING_LLM_MESSAGE}`)
         await reply(`${EMOJIS.ROBOT} Trainer LLM Generated Message:\n\n${await trainerRequest(true)}`, HTML)
       }
     },

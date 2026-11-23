@@ -1,6 +1,6 @@
 import { test, mock, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
-import { log } from '../src/utils/logger'
+import { log } from '../src/shared/logger'
 
 afterEach(() => { mock.restoreAll() })
 

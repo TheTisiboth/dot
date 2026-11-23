@@ -316,7 +316,7 @@ Admin commands:
 
 ### Adding questions
 
-The question bank lives in `src/data/rules-quiz/`, one `QuizBatch` file per source document:
+The question bank lives in `src/quiz/data/`, one `QuizBatch` file per source document:
 its `source` (`title`, `url`) and its `questions`. A new file must be added to
 `QUIZ_BATCHES` in `index.ts`.
 
@@ -377,23 +377,19 @@ npm run type-check     # Check types
 
 ```
 src/
-├── app.ts                      # Entry point
-├── config/
-│   ├── index.ts               # Config loader
-│   └── schema.ts              # Validation schemas
-├── commands/
-│   ├── registry.ts            # Routing, admin guard, error reply, menus
-│   ├── public.ts              # /start, /help, /info, /training
-│   ├── training.ts            # Admin previews and sends
-│   └── quiz.ts                # Admin rules quiz commands
-├── services/
-│   ├── SeasonManager.ts       # Season logic
-│   ├── MessageGenerator.ts    # Message creation
-│   ├── SchedulerService.ts    # Cron scheduling
-│   └── RulesQuizService.ts    # Rules quiz post and answer
-├── data/rules-quiz/           # Quiz question bank
-└── utils/                     # Helpers
+├── main.ts                     # Entry point: wiring, start, shutdown
+├── config/                     # One zod schema over env, readEnv
+├── commands/                   # Registry (routing, admin guard, menus), public, training, quiz
+├── training/                   # Seasons and trainings, scheduler, markers
+│   └── messages/               # Message generator (templates, LLM)
+├── quiz/                       # Rules quiz: service, picker, answer, tag, question types
+│   └── data/                   # Question bank
+├── telegram/                   # Bot API helpers, MTProto history reader
+├── health/                     # Health server
+└── shared/                     # Domain-free helpers: time, formatting, logger, async, emojis
 ```
+
+A feature folder owns its types. `shared/` imports no feature (lint). Files are camelCase.
 
 ## Troubleshooting
 
