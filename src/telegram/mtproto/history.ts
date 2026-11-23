@@ -32,7 +32,7 @@ export class History {
     threadId: number | undefined,
     { maxMessages = Infinity, isRecent = () => true }: { maxMessages?: number; isRecent?: (message: Api.Message) => boolean } = {}
   ): Promise<Api.Message[]> {
-    const peer = await this.connection.request('chat lookup', client => client.getInputEntity(Number(chatId)))
+    const peer = await this.lookUpChat(chatId)
     // By username: the account may never have seen the bot's access hash, which the search needs
     const username = await this.getBotUsername()
     const bot = await this.connection.request('bot lookup', client => client.getInputEntity(username))
@@ -45,6 +45,23 @@ export class History {
     } while (page.length > 0 && page.every(isRecent) && messages.length < maxMessages)
 
     return messages
+  }
+
+  /**
+   * The chats, by name, this account cannot resolve: it is not a member, or the chat is not among
+   * the dialogs that warm its entity cache. Every history read in such a chat would fail.
+   */
+  async unresolvedChats(chats: Record<string, string>): Promise<Array<{ name: string; error: unknown }>> {
+    const entries = Object.entries(chats)
+    const lookups = await Promise.allSettled(entries.map(([, chatId]) => this.lookUpChat(chatId)))
+    return entries.flatMap(([name], index) => {
+      const lookup = lookups[index]
+      return lookup.status === 'rejected' ? [{ name, error: lookup.reason }] : []
+    })
+  }
+
+  private async lookUpChat(chatId: string): Promise<Api.TypeInputPeer> {
+    return await this.connection.request('chat lookup', client => client.getInputEntity(Number(chatId)))
   }
 
   async messagesByIds(chatId: string, ids: number[]): Promise<Api.Message[]> {
