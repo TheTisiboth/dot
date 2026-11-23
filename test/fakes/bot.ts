@@ -2,6 +2,7 @@ import { type Bot, GrammyError } from 'grammy'
 import type { BotCommand, BotCommandScope, Message } from 'grammy/types'
 
 interface SentMessage {
+  kind: 'message' | 'photo' | 'poll';
   chatId: string;
   text: string;
   options: Record<string, unknown>;
@@ -18,8 +19,8 @@ type TapHandler = (ctx: { callbackQuery: { id: string; data: string; message: Me
 
 export const BOT_USERNAME = 'dot_bot'
 
-/** Where a command is typed: a chat, optionally a forum topic in it. */
-interface CommandOrigin { chatId: number; topicId?: number }
+/** Where a command is typed: a group, optionally a forum topic in it, or a private chat. */
+interface CommandOrigin { chatId: number; topicId?: number; private?: boolean }
 
 /** The message whose button is tapped. */
 interface TapOrigin extends CommandOrigin { messageId: number }
@@ -37,6 +38,14 @@ export const makeFakeBot = ({ failingChat }: { failingChat?: string } = {}) => {
     if (filter === 'message:text') middlewares.push(handler as Middleware)
     else tapHandlers.push(handler as TapHandler)
   }
+
+  const record = (kind: SentMessage['kind'], chatId: string | number, text: string, options: Record<string, unknown>) => {
+    const messageId = nextMessageId++
+    fake.sent.push({ kind, chatId: String(chatId), text, options, messageId })
+    return { message_id: messageId }
+  }
+  const chatOf = ({ chatId, private: isPrivate }: CommandOrigin) =>
+    isPrivate ? { id: chatId, type: 'private', first_name: 'Player' } as const : { id: chatId, type: 'supergroup', title: 'Team' } as const
 
   const fake = {
     failingChat,
@@ -56,10 +65,12 @@ export const makeFakeBot = ({ failingChat }: { failingChat?: string } = {}) => {
           const description = "Bad Request: can't parse entities: can't find end of the entity"
           throw new GrammyError(description, { ok: false, error_code: 400, description }, 'sendMessage', {})
         }
-        const messageId = nextMessageId++
-        fake.sent.push({ chatId: String(chatId), text, options, messageId })
-        return { message_id: messageId }
+        return record('message', chatId, text, options)
       },
+      sendPhoto: async (chatId: string | number, _photo: unknown, options: Record<string, unknown> = {}) =>
+        record('photo', chatId, String(options.caption ?? ''), options),
+      sendPoll: async (chatId: string | number, question: string, _options: unknown, extra: Record<string, unknown> = {}) =>
+        record('poll', chatId, question, extra),
       setMyCommands: async (commands: readonly BotCommand[], options?: CommandMenu['options']) => {
         fake.menus.push({ commands, options })
         return true
@@ -77,11 +88,12 @@ export const makeFakeBot = ({ failingChat }: { failingChat?: string } = {}) => {
     on,
 
     /** Taps a button carrying `data` on a message the bot sent. */
-    tap: async (data: string, { chatId, topicId, messageId }: TapOrigin) => {
+    tap: async (data: string, origin: TapOrigin) => {
+      const { topicId, messageId } = origin
       const message = {
         message_id: messageId,
         date: 1,
-        chat: { id: chatId, type: 'supergroup', title: 'Team' },
+        chat: chatOf(origin),
         message_thread_id: topicId,
         is_topic_message: topicId !== undefined
       } satisfies Message
@@ -90,12 +102,13 @@ export const makeFakeBot = ({ failingChat }: { failingChat?: string } = {}) => {
     },
 
     /** Types `text` in a chat. Like grammY, each middleware runs only when the previous one calls `next`. */
-    command: async (text: string, { chatId, topicId }: CommandOrigin) => {
+    command: async (text: string, origin: CommandOrigin) => {
+      const { topicId } = origin
       const msg = {
         message_id: nextMessageId++,
         date: 0,
         text,
-        chat: { id: chatId, type: 'supergroup', title: 'Team' },
+        chat: chatOf(origin),
         from: { id: 1, is_bot: false, first_name: 'Player' },
         message_thread_id: topicId,
         is_topic_message: topicId !== undefined

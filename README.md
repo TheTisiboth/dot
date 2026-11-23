@@ -207,6 +207,7 @@ Mirrors `/help`, which is built from the command list: public commands everywher
 - `/help` - List the commands
 - `/info` - Show the season schedules
 - `/training` - Show the next training: weekday, countdown, and once announced how many players are in, with a link to the announcement
+- `/quiz` - Practise with a random rules quiz question, in a private chat with the bot (in a group, it points there). See [Practice](#practice)
 
 **Admin only (preview):**
 - `/preview` - Preview what the next training gets. Buttons pick the message: everything the next run posts, the announcement, key or trainer request, attendance reminder or cancellation notice (sample counts), LLM or template. Previews stay in the admin chat
@@ -309,6 +310,13 @@ Admin commands:
 - `/quiz_stats` - Per mode (indoor, outdoor): round, rounds completed, asked / total in the
   current round, split by source and difficulty, plus the 5 latest questions with date and id.
   Says so when the rules chat history can't be read (MTProto down)
+
+### Practice
+
+In a private chat with the bot, `/quiz` sends a random question of the next training's mode,
+rendered like `/quiz_preview`: poll, then the answer behind a spoiler. Buttons under the answer:
+`Another` (same pool), `Indoor`, `Outdoor`, `Signals`. One question every 5 s per chat. Practice
+never touches the rules chat: nothing posted or read there, so the rotation is unchanged.
 
 ### Adding questions
 

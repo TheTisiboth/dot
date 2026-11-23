@@ -23,7 +23,7 @@ export interface Sender {
   /** Plain text: for content that may hold HTML characters. */
   plain: (text: string, options?: { replyTo?: number }) => Promise<number>;
   /** A local image; the caption is HTML. */
-  photo: (path: string, options?: { caption?: string; spoiler?: boolean; replyTo?: number }) => Promise<number>;
+  photo: (path: string, options?: { caption?: string; spoiler?: boolean; replyTo?: number; buttons?: InlineKeyboardMarkup }) => Promise<number>;
   /** Anonymous quiz-type poll: each voter sees the right option as soon as they vote. */
   poll: (question: string, options: string[], quiz: { correctOptionId: number; replyTo?: number }) => Promise<number>;
 }
@@ -61,11 +61,12 @@ export const senderFor = (api: Api, { chatId, threadId }: ChatTarget): Sender =>
     plain: async (text, { replyTo } = {}) =>
       (await api.sendMessage(chatId, text, target(replyTo))).message_id,
 
-    photo: async (path, { caption, spoiler, replyTo } = {}) =>
+    photo: async (path, { caption, spoiler, replyTo, buttons } = {}) =>
       (await api.sendPhoto(chatId, new InputFile(path), {
         ...target(replyTo),
         ...(caption && { caption, parse_mode: 'HTML' }),
-        ...(spoiler && { has_spoiler: true })
+        ...(spoiler && { has_spoiler: true }),
+        ...(buttons && { reply_markup: buttons })
       })).message_id,
 
     poll: async (question, options, { correctOptionId, replyTo }) =>

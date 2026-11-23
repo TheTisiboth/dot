@@ -18,7 +18,7 @@ import { PROBE_TIMEOUT_MS, checkDependencies, startHealthServer } from './health
 import { publishCommandMenus, routeCommands } from './commands/registry'
 import { publicCommands } from './commands/public'
 import { trainingCommands } from './commands/training'
-import { quizCommands } from './commands/quiz'
+import { practiceCommand, quizCommands } from './commands/quiz'
 import { statusCommand } from './commands/status'
 import { EMOJIS } from './shared/emojis'
 import { withTimeout } from './shared/async'
@@ -68,6 +68,7 @@ export const buildApp = (config: BotConfig, { bot, mtproto: mtprotoClient, ollam
   const dependencies = { api: bot.api, reader: mtproto, llm }
   const commands = [
     ...publicCommands({ teamChat, seasonManager, attendance, mtprotoUp: () => mtproto.isConnected() }),
+    practiceCommand({ publisher, seasonManager }),
     ...trainingCommands({ config, api: bot.api, seasonManager, messages, announcer: trainingAnnouncer, attendance, llmEnabled: llm.enabled }),
     ...quizCommands(rulesQuiz, publisher, () => mtproto.isConnected()),
     statusCommand({ config, seasonManager, attendance, rulesQuiz, dependencies: () => checkDependencies(dependencies, PROBE_TIMEOUT_MS), startedAt: new Date(), version })
