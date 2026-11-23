@@ -12,7 +12,7 @@ export const quizCommands = (rulesQuiz: RulesQuizService): Command[] => [
     run: async ({ args: id, chat, reply }) => {
       const question = id ? findQuizQuestion(id) : await rulesQuiz.pickNext()
       if (!question) {
-        await reply(`${EMOJIS.CROSS_MARK} Unknown question id: ${id}`)
+        await reply.plain(`${EMOJIS.CROSS_MARK} Unknown question id: ${id}`)
         return
       }
       await rulesQuiz.preview(chat, question)
@@ -24,7 +24,7 @@ export const quizCommands = (rulesQuiz: RulesQuizService): Command[] => [
     adminOnly: true,
     run: async ({ reply }) => {
       const question = await rulesQuiz.postNext()
-      await reply(`${EMOJIS.CHECK_MARK} Rules quiz posted: ${question.id} (${question.difficulty})`)
+      await reply.plain(`${EMOJIS.CHECK_MARK} Rules quiz posted: ${question.id} (${question.difficulty})`)
     }
   },
   {
@@ -33,7 +33,7 @@ export const quizCommands = (rulesQuiz: RulesQuizService): Command[] => [
     adminOnly: true,
     run: async ({ reply }) => {
       const question = await rulesQuiz.answerLatest()
-      await reply(question
+      await reply.plain(question
         ? `${EMOJIS.CHECK_MARK} Rules quiz answered: ${question.id}`
         : `${EMOJIS.WARNING} Nothing to answer in the rules chat: no quiz poll there, or the latest one is already answered. (/test_rule previews come with their answer.)`)
     }

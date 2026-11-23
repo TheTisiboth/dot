@@ -2,9 +2,7 @@ import type { Api, Bot } from 'grammy'
 import type { Message } from 'grammy/types'
 import { EMOJIS } from '../shared/emojis'
 import { errorMessage, log } from '../shared/logger'
-import { type ChatTarget, threadOptions } from '../telegram/botApi'
-
-type SendOptions = Parameters<Api['sendMessage']>[2]
+import { type ChatTarget, type Sender, senderFor } from '../telegram/sender'
 
 export interface CommandContext {
   /** The text after the command, trimmed; empty when there is none. */
@@ -12,7 +10,7 @@ export interface CommandContext {
   /** Where the command was typed. */
   chat: ChatTarget;
   /** Answers in the chat and topic the command came from. */
-  reply: (text: string, options?: SendOptions) => Promise<void>;
+  reply: Sender;
 }
 
 /** One declaration per command: routing, admin guard, logging, error reply and menus all come from it. */
@@ -21,7 +19,7 @@ export interface Command {
   description: string;
   /** Exists in the admin chat only: elsewhere it is ignored silently. */
   adminOnly?: boolean;
-  run: (ctx: CommandContext) => Promise<void>;
+  run: (ctx: CommandContext) => Promise<unknown>;
 }
 
 const COMMAND = /^\/(\w+)(?:@(\w+))?(?:\s+(.*))?$/s
@@ -53,16 +51,13 @@ const runCommand = async (api: Api, { name, adminOnly, run }: Command, msg: Mess
 
   log.command(`/${name}`, msg.chat.id, user, msg.message_thread_id)
   const chat = originOf(msg)
-  const reply = async (text: string, options?: SendOptions) => {
-    log.bot(`Sending message to chat ${chat.chatId}${chat.threadId ? ` (thread ${chat.threadId})` : ''}`)
-    await api.sendMessage(chat.chatId, text, { ...options, ...threadOptions(chat.threadId) })
-  }
+  const reply = senderFor(api, chat)
 
   try {
     await run({ args, chat, reply })
   } catch (error) {
     log.error(`/${name}`, error)
-    await reply(`${EMOJIS.CROSS_MARK} Error: ${errorMessage(error)}`)
+    await reply.plain(`${EMOJIS.CROSS_MARK} Error: ${errorMessage(error)}`)
   }
 }
 

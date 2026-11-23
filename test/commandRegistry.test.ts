@@ -73,7 +73,7 @@ test('an admin-only command runs in the admin chat and is ignored silently elsew
 })
 
 test('a handler gets its args and replies in the chat and topic the command came from', async () => {
-  const bot = route({ name: 'echo', description: 'echo', run: ({ args, reply }) => reply(args) })
+  const bot = route({ name: 'echo', description: 'echo', run: ({ args, reply }) => reply.plain(args) })
 
   await bot.command('/echo hi', { ...PLAYER, topicId: 9 })
 
