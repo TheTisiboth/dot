@@ -1,4 +1,4 @@
-import { type PracticeDay, type DateConfig, type TimeOfDay, type TrainingLocation } from '../types'
+import { type DateConfig, type TimeOfDay, type TrainingLocation } from '../types'
 
 const MONTH_NAMES_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec']
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -20,16 +20,13 @@ const twoDigits = (value: number) => String(value).padStart(2, '0')
 /** HH:MM */
 export const formatTime = ({ hour, minute }: TimeOfDay): string => `${twoDigits(hour)}:${twoDigits(minute)}`
 
-export function formatPracticeDays(practices: PracticeDay[]): string {
-  return practices
-    .map(p => `   • ${DAY_NAMES[p.day]}s at ${formatTime(p.time)}`)
-    .join('\n')
-}
+/** HH:MM of a date */
+export const formatClock = (date: Date): string => formatTime({ hour: date.getHours(), minute: date.getMinutes() })
 
-export function formatStartTime(time: TimeOfDay, throwingTime?: TimeOfDay): string {
-  return throwingTime
-    ? `with throwing at ${formatTime(throwingTime)} and training starting at ${formatTime(time)}`
-    : `starting at ${formatTime(time)}`
+export function formatStartTime(startsAt: Date, throwingAt?: Date): string {
+  return throwingAt
+    ? `with throwing at ${formatClock(throwingAt)} and training starting at ${formatClock(startsAt)}`
+    : `starting at ${formatClock(startsAt)}`
 }
 
 export function capitalize(str: string): string {

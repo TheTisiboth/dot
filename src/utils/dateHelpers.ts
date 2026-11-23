@@ -11,12 +11,11 @@ export function atTime(date: Date, { hour, minute }: TimeOfDay): Date {
   return result
 }
 
-const MINUTES_PER_DAY = 24 * 60
-
-export function getThrowingTime({ hour, minute }: TimeOfDay, minutesBefore: number): TimeOfDay | undefined {
-  if (minutesBefore === 0) return undefined
-  const minutes = (((hour * 60 + minute - minutesBefore) % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY
-  return { hour: Math.floor(minutes / 60), minute: minutes % 60 }
+/** Wall-clock minutes, like the configured times. */
+export function minutesBefore(date: Date, minutes: number): Date {
+  const result = new Date(date)
+  result.setMinutes(date.getMinutes() - minutes)
+  return result
 }
 
 export function hoursBefore(date: Date, hours: number): Date {

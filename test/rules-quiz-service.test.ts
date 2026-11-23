@@ -47,7 +47,7 @@ const bot = (() => {
 })() as unknown as Api
 
 const seasonOf = (season: SeasonType) =>
-  ({ getNextTrainingInfo: () => ({ season }) }) as unknown as SeasonManager
+  ({ nextTraining: () => ({ season }) }) as unknown as SeasonManager
 
 const reader = {
   getAskedQuizIds: async (chatId: string, threadId: number | undefined) => {

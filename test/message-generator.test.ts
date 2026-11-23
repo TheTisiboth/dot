@@ -6,8 +6,10 @@ import { type AddressInfo } from 'node:net'
 import { Ollama } from 'ollama'
 import { CANCELLATION_SIGNATURE, EMOJIS, MARKERS, isKeyRequest } from '../src/utils/constants'
 import { parseLocation } from '../src/config/env'
-import { formatTime } from '../src/utils/formatters'
+import { formatClock } from '../src/utils/formatters'
 import { MessageGenerator } from '../src/services/MessageGenerator'
+import { SeasonManager } from '../src/services/SeasonManager'
+import { at } from './fixtures/dates'
 import { testConfig } from './fixtures/config'
 
 // Fake Ollama over HTTP, the real client's boundary
@@ -21,8 +23,8 @@ after(() => { ollama.close() })
 
 const config = testConfig()
 const generator = new MessageGenerator(config, new Ollama({ host: `http://127.0.0.1:${(ollama.address() as AddressInfo).port}` }))
-const practiceDay = config.seasons.winter.practices[0]
-const training = { date: new Date(), location: config.seasons.winter.location, time: practiceDay.time, season: 'winter' as const, practiceDay }
+// Tue 2027-01-05 20:30, a winter practice
+const training = new SeasonManager(config).nextTraining(at(2027, 1, 4))
 const attendance = { count: 3, threshold: 8 }
 
 beforeEach(() => { reply = { status: 200, content: 'Come play!\n\nSo far 3 of 8, react 👍.' } })
@@ -32,11 +34,11 @@ test('the announcement asks for a 👍 and names location and time', async () =>
 
   assert.ok(message.includes(EMOJIS.THUMBS_UP))
   assert.ok(message.includes(training.location.name))
-  assert.ok(message.includes(formatTime(training.time)))
+  assert.ok(message.includes(formatClock(training.startsAt)))
 })
 
 test('the announcement names the throwing time when there is one', async () => {
-  const message = await generator.announcement({ ...training, time: { hour: 20, minute: 30 }, throwingTime: { hour: 20, minute: 0 } })
+  const message = await generator.announcement({ ...training, startsAt: at(2027, 1, 5, 20, 30), throwingAt: at(2027, 1, 5, 20, 0) })
 
   assert.ok(message.includes('20:00'))
   assert.ok(message.includes('20:30'))

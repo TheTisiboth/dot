@@ -1,10 +1,40 @@
 import type { BotConfig } from '../config/env'
-import { type SeasonConfig, type SeasonType, type TimeOfDay, type TrainingInfo } from '../types'
-import { createDateFromMonthDay, atTime, getThrowingTime } from '../utils/dateHelpers'
-import { formatTime, getDayName } from '../utils/formatters'
+import { type DateConfig, type SeasonType, type TimeOfDay, type TrainingLocation } from '../types'
+import { EMOJIS } from '../utils/constants'
+import { createDateFromMonthDay, atTime, getDateBefore, minutesBefore } from '../utils/dateHelpers'
+import { capitalize, formatDateShort, formatTime, getDayName, locationLink } from '../utils/formatters'
+
+type SeasonSettings = BotConfig['seasons'][SeasonType]
+type SeasonConfig = SeasonSettings & { season: SeasonType }
+type PracticeDay = SeasonSettings['practices'][number]
+
+/** One practice as the team sees it: exceptional overrides applied, season rules resolved. */
+export interface Training {
+  startsAt: Date;
+  throwingAt?: Date;
+  location: TrainingLocation;
+  season: SeasonType;
+  minAttendance: number;
+  keyRequestEnabled: boolean;
+  cancelled: boolean;
+}
+
+/** A practice at its configured time, before any exceptional override. */
+interface Practice {
+  at: Date;
+  seasonConfig: SeasonConfig;
+}
+
+const SEARCH_DAYS = 14
+
+const addDays = (date: Date, days: number): Date => {
+  const result = new Date(date)
+  result.setDate(date.getDate() + days)
+  return result
+}
 
 export class SeasonManager {
-  readonly seasons: BotConfig['seasons']
+  private readonly seasons: BotConfig['seasons']
   private readonly exceptionalTraining: BotConfig['exceptionalTraining']
 
   constructor({ seasons, exceptionalTraining }: Pick<BotConfig, 'seasons' | 'exceptionalTraining'>) {
@@ -45,8 +75,7 @@ export class SeasonManager {
 
   /** Whether a training starts tomorrow at `time`: the post goes out exactly 24h before it. */
   isAnnouncementDue(time: TimeOfDay, date: Date = new Date()): boolean {
-    const tomorrow = new Date(date)
-    tomorrow.setDate(date.getDate() + 1)
+    const tomorrow = addDays(date, 1)
 
     const seasonConfig = this.seasonConfigOn(tomorrow)
     const tomorrowDayOfWeek = tomorrow.getDay()
@@ -61,47 +90,43 @@ export class SeasonManager {
   }
 
   /** Walks day by day so each candidate uses its own season's practices (season switches change the weekdays). */
-  getNextTrainingDate(date: Date = new Date()): Date {
-    for (let offset = 0; offset < 14; offset++) {
-      const day = new Date(date)
-      day.setDate(date.getDate() + offset)
-
-      const candidates = this.seasonConfigOn(day).practices
-        .filter(practice => practice.day === day.getDay())
-        .map(practice => atTime(day, practice.time))
-        .filter(candidate => candidate > date)
-        .sort((a, b) => a.getTime() - b.getTime())
-
-      if (candidates.length > 0) {
-        return candidates[0]
-      }
+  private nextPractice(after: Date): Practice {
+    for (let offset = 0; offset < SEARCH_DAYS; offset++) {
+      const day = addDays(after, offset)
+      const seasonConfig = this.seasonConfigOn(day)
+      const practice = seasonConfig.practices.find(({ day: weekday }) => weekday === day.getDay())
+      const at = practice && atTime(day, practice.time)
+      if (at && at > after) return { at, seasonConfig }
     }
-
-    return new Date(date)
+    throw new Error(`No practice within ${SEARCH_DAYS} days after ${after.toISOString()}`)
   }
 
-  getNextTrainingInfo(date: Date = new Date()): TrainingInfo {
-    const nextDate = this.getNextTrainingDate(date)
-    const seasonConfig = this.seasonConfigOn(nextDate)
-
-    const nextPractice = seasonConfig.practices.find(practice => practice.day === nextDate.getDay())
-
-    if (!nextPractice) {
-      throw new Error(`No practice day found for day ${nextDate.getDay()}`)
-    }
-
-    const { exceptionalTraining } = this
-    const time = exceptionalTraining.time ?? nextPractice.time
+  private toTraining({ at, seasonConfig }: Practice): Training {
+    const { time, location, isCancelled } = this.exceptionalTraining
+    const startsAt = time ? atTime(at, time) : at
+    const { throwingMinutesBefore } = seasonConfig
 
     return {
-      date: nextDate,
-      location: exceptionalTraining.location ?? seasonConfig.location,
-      time,
-      throwingTime: getThrowingTime(time, seasonConfig.throwingMinutesBefore),
+      startsAt,
+      throwingAt: throwingMinutesBefore === 0 ? undefined : minutesBefore(startsAt, throwingMinutesBefore),
+      location: location ?? seasonConfig.location,
       season: seasonConfig.season,
-      practiceDay: nextPractice,
-      isCancelled: exceptionalTraining.isCancelled
+      minAttendance: seasonConfig.minAttendance,
+      keyRequestEnabled: seasonConfig.keyRequestEnabled,
+      cancelled: isCancelled ?? false
     }
+  }
+
+  /** The next training after `after`: which one is picked by its configured time, which EXCEPTIONAL_TIME does not move. */
+  nextTraining(after: Date = new Date()): Training {
+    return this.toTraining(this.nextPractice(after))
+  }
+
+  /** The next training whose announcement is still ahead. The cron fires at the practice's configured time, which EXCEPTIONAL_TIME does not move. */
+  nextAnnouncement(now: Date = new Date()): { announcesAt: Date; training: Training } {
+    let practice = this.nextPractice(now)
+    if (addDays(practice.at, -1) <= now) practice = this.nextPractice(addDays(practice.at, 1))
+    return { announcesAt: addDays(practice.at, -1), training: this.toTraining(practice) }
   }
 
   getTrainingDaysString(season?: SeasonType): string {
@@ -113,4 +138,28 @@ export class SeasonManager {
       .map(practice => `${getDayName(practice.day)} at ${formatTime(practice.time)}`)
       .join(', ')
   }
+
+  /** The /info schedule: every season with its dates, practices and location. */
+  scheduleText(): string {
+    const { winter, summer } = this.seasons
+    return `${EMOJIS.CALENDAR} Training Schedule
+
+${seasonText('winter', winter, summer.startDate)}
+
+${seasonText('summer', summer, winter.startDate)}`
+  }
+}
+
+const formatPracticeDays = (practices: PracticeDay[]): string => practices
+  .map(p => `   • ${getDayName(p.day)}s at ${formatTime(p.time)}`)
+  .join('\n')
+
+const seasonText = (season: SeasonType, seasonConfig: SeasonSettings, nextSeasonStart: DateConfig): string => {
+  const emoji = season === 'winter' ? EMOJIS.WINTER : EMOJIS.SUMMER
+  const start = formatDateShort(seasonConfig.startDate)
+  const end = formatDateShort(getDateBefore(nextSeasonStart))
+
+  return `${emoji} ${capitalize(season)} (${start} - ${end}):
+${formatPracticeDays(seasonConfig.practices)}
+   ${EMOJIS.LOCATION} ${locationLink(seasonConfig.location)}`
 }

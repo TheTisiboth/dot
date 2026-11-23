@@ -204,7 +204,7 @@ export class RulesQuizService {
 
   /** Picks the way the scheduler does: the next training's season mode, minus what the rules chat already got (hand signals every other one with RULES_SIGNALS_EVERY_OTHER). */
   async pickNext(chat: ChatTarget = this.rulesChat()): Promise<QuizQuestion> {
-    const mode = modeFor(this.seasonManager.getNextTrainingInfo().season)
+    const mode = modeFor(this.seasonManager.nextTraining().season)
     const askedIds = await this.reactionReader.getAskedQuizIds(chat.chatId, chat.threadId)
     const isFocus = this.config.signalsEveryOther ? isSignalQuestion : undefined
     return pickQuestion(QUIZ_QUESTIONS, mode, askedIds, Math.random, isFocus)
