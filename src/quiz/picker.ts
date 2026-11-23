@@ -3,7 +3,7 @@ import { type SeasonType } from '../training/season'
 
 type Random = () => number
 
-const randomItem = <T>(items: T[], random: Random): T => items[Math.floor(random() * items.length)]
+export const randomItem = <T>(items: T[], random: Random): T => items[Math.floor(random() * items.length)]
 
 export const modeFor = (season: SeasonType): QuizMode => season === 'winter' ? 'indoor' : 'outdoor'
 

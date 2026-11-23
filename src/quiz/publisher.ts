@@ -1,4 +1,5 @@
 import { type Api } from 'grammy'
+import type { InlineKeyboardMarkup } from 'grammy/types'
 import { buildQuizPost } from './post'
 import { buildAnswer } from './answer'
 import { findQuizBatch } from './data'
@@ -8,10 +9,10 @@ import { type ChatTarget, senderFor } from '../telegram/sender'
 export interface QuizPublisher {
   /** Image, then the long question text if any, then the poll: each one replying to the previous. Resolves to the poll's id. */
   post: (chat: ChatTarget, question: QuizQuestion) => Promise<number>;
-  /** The answer behind a spoiler, replying to the poll. The poll stays open: whoever reads the chat later can still vote. */
-  answer: (chat: ChatTarget, question: QuizQuestion, quizMessageId: number) => Promise<void>;
-  /** The question and its answer right away (used by /quiz_preview). */
-  preview: (chat: ChatTarget, question: QuizQuestion) => Promise<void>;
+  /** The answer behind a spoiler, replying to the poll, `buttons` under it. The poll stays open: whoever reads the chat later can still vote. */
+  answer: (chat: ChatTarget, question: QuizQuestion, quizMessageId: number, buttons?: InlineKeyboardMarkup) => Promise<void>;
+  /** The question and its answer right away (used by /quiz_preview and /quiz). */
+  preview: (chat: ChatTarget, question: QuizQuestion, buttons?: InlineKeyboardMarkup) => Promise<void>;
 }
 
 const sourceOf = (question: QuizQuestion): QuizBatch['source'] => {
@@ -31,19 +32,19 @@ export const quizPublisher = (bot: Api): QuizPublisher => {
     return await to.poll(poll, options, { correctOptionId, replyTo })
   }
 
-  const answer: QuizPublisher['answer'] = async (chat, question, quizMessageId) => {
+  const answer: QuizPublisher['answer'] = async (chat, question, quizMessageId, buttons) => {
     const html = buildAnswer(question, sourceOf(question))
     const to = senderFor(bot, chat)
     if (question.answerImage) {
-      await to.photo(question.answerImage, { caption: html, spoiler: true, replyTo: quizMessageId })
+      await to.photo(question.answerImage, { caption: html, spoiler: true, replyTo: quizMessageId, buttons })
     } else {
-      await to.text(html, { replyTo: quizMessageId, linkPreview: false })
+      await to.text(html, { replyTo: quizMessageId, linkPreview: false, buttons })
     }
   }
 
   return {
     post,
     answer,
-    preview: async (chat, question) => { await answer(chat, question, await post(chat, question)) }
+    preview: async (chat, question, buttons) => { await answer(chat, question, await post(chat, question), buttons) }
   }
 }

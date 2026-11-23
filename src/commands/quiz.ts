@@ -1,12 +1,17 @@
+import type { InlineKeyboardMarkup } from 'grammy/types'
 import { type RulesQuizService } from '../quiz/service'
 import { type QuizPublisher } from '../quiz/publisher'
-import { findQuizQuestion } from '../quiz/data'
+import { QUIZ_QUESTIONS, findQuizQuestion, isSignalQuestion } from '../quiz/data'
+import { modeFor, questionsFor, randomItem } from '../quiz/picker'
+import { type QuizMode, type QuizQuestion } from '../quiz/question'
+import { type SeasonManager } from '../training/season'
 import { LEVELS, MODES } from '../quiz/post'
 import { type ModeStats, type QuizStats, type Round } from '../quiz/stats'
 import { EMOJIS } from '../shared/emojis'
 import { withTimeout } from '../shared/async'
 import { formatDate } from '../shared/formatters'
 import { log } from '../shared/logger'
+import { type ChatTarget } from '../telegram/sender'
 import { type Command } from './registry'
 
 // The whole rules chat history is read, page by page: a few seconds, unless MTProto hangs
@@ -94,3 +99,52 @@ export const quizCommands = (rulesQuiz: RulesQuizService, publisher: QuizPublish
     }
   }
 ]
+
+// Keeps a tapping spree from flooding the chat (and the bot's Telegram send quota)
+export const PRACTICE_INTERVAL_MS = 5_000
+
+type PracticePool = QuizMode | 'signals'
+const isPracticePool = (data: string): data is PracticePool => data === 'signals' || Object.hasOwn(MODES, data)
+
+const practiceQuestions = (pool: PracticePool): QuizQuestion[] =>
+  pool === 'signals' ? QUIZ_QUESTIONS.filter(q => isSignalQuestion(q.id)) : questionsFor(QUIZ_QUESTIONS, pool)
+
+// The pool rides in the button data: nothing to remember between taps, nor to lose on restart
+const practiceButtons = (pool: PracticePool): InlineKeyboardMarkup => ({
+  inline_keyboard: [[
+    { text: 'Another', callback_data: `quiz:${pool}` },
+    { text: 'Indoor', callback_data: 'quiz:indoor' },
+    { text: 'Outdoor', callback_data: 'quiz:outdoor' },
+    { text: 'Signals', callback_data: 'quiz:signals' }
+  ]]
+})
+
+interface PracticeDeps {
+  publisher: QuizPublisher;
+  seasonManager: Pick<SeasonManager, 'nextTraining'>;
+  random?: () => number;
+}
+
+/**
+ * /quiz in a private chat: a random question and its answer, never the rules chat's. Its history
+ * is the quiz memory and is read in the rules chat only, so practice changes nothing there.
+ */
+export const practiceCommand = ({ publisher, seasonManager, random = Math.random }: PracticeDeps): Command => {
+  // shortcut: lost on restart, which only lifts the limit for a few seconds
+  const lastSentAt = new Map<string, number>()
+
+  const practise = async (chat: ChatTarget, pool: PracticePool): Promise<void> => {
+    const now = Date.now()
+    if (now - (lastSentAt.get(chat.chatId) ?? -Infinity) < PRACTICE_INTERVAL_MS) return
+    lastSentAt.set(chat.chatId, now)
+    await publisher.preview(chat, randomItem(practiceQuestions(pool), random), practiceButtons(pool))
+  }
+
+  return {
+    name: 'quiz',
+    description: 'Practise with a random rules quiz question (private chat)',
+    privateOnly: true,
+    run: ({ chat }) => practise(chat, modeFor(seasonManager.nextTraining().season)),
+    onButton: async ({ data, chat }) => { if (isPracticePool(data)) await practise(chat, data) }
+  }
+}

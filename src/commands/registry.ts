@@ -30,6 +30,8 @@ export interface Command {
   usage?: string;
   /** Exists in the admin chat only: elsewhere it is ignored silently. */
   adminOnly?: boolean;
+  /** Runs in private chats only: elsewhere it replies pointing there. Offered in the private chats' menu only. */
+  privateOnly?: boolean;
   run: (ctx: CommandContext) => Promise<unknown>;
   /** Taps on buttons whose callback data starts with `<name>:`, guarded like the command itself. */
   onButton?: (ctx: ButtonContext) => Promise<unknown>;
@@ -75,7 +77,7 @@ export const routeCommands = (bot: Bot, commands: readonly Command[], adminChatI
 
 /** The admin guard, logging and error reply every command and button tap goes through. */
 const guarded = async (
-  api: Api, { name, adminOnly }: Command, msg: MaybeInaccessibleMessage, from: User | undefined, adminChatId: string,
+  api: Api, { name, adminOnly, privateOnly }: Command, msg: MaybeInaccessibleMessage, from: User | undefined, adminChatId: string,
   label: string, handle: (chat: ChatTarget, reply: Sender) => Promise<unknown>
 ): Promise<void> => {
   const user = from?.username || from?.id
@@ -87,6 +89,10 @@ const guarded = async (
   log.command(label, msg.chat.id, user, msg.message_thread_id)
   const chat = originOf(msg)
   const reply = senderFor(api, chat)
+  if (privateOnly && msg.chat.type !== 'private') {
+    await reply.plain(`${EMOJIS.QUESTION} /${name} works in a private chat: open one with me and send it there.`)
+    return
+  }
 
   try {
     await handle(chat, reply)
@@ -103,12 +109,13 @@ const originOf = (msg: MaybeInaccessibleMessage): ChatTarget => ({
   threadId: msg.is_topic_message ? msg.message_thread_id : undefined
 })
 
-/** Telegram's command menus: public commands everywhere, all of them in the admin chat. */
+/** Telegram's command menus: public commands everywhere (private-only ones in private chats), all of them in the admin chat. */
 export const publishCommandMenus = async (api: Api, commands: readonly Command[], adminChatId: string): Promise<void> => {
   const menu = (list: readonly Command[]) => list.map(({ name, description }) => ({ command: name, description }))
 
-  await api.setMyCommands(menu(publicOnly(commands)))
+  await api.setMyCommands(menu(publicOnly(commands).filter(({ privateOnly }) => !privateOnly)))
   await api.setMyCommands(menu(commands), { scope: { type: 'chat', chat_id: Number(adminChatId) } })
+  await api.setMyCommands(menu(publicOnly(commands)), { scope: { type: 'all_private_chats' } })
 }
 
 const publicOnly = (commands: readonly Command[]) => commands.filter(({ adminOnly }) => !adminOnly)
