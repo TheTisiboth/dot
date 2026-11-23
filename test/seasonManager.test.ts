@@ -55,18 +55,18 @@ test('the next training across a season switch uses the new season weekdays', ()
   assert.deepEqual(next.location, config.seasons.summer.location)
 })
 
-test('the post is due only the day before a practice, at its time', () => {
-  assert.equal(seasons.isAnnouncementDue(SUMMER_TRAINING.time, at(2027, 6, 8, 19, 30)), true)
-  assert.equal(seasons.isAnnouncementDue({ hour: 19, minute: 0 }, at(2027, 6, 8, 19, 0)), false)
-  assert.equal(seasons.isAnnouncementDue(SUMMER_TRAINING.time, at(2027, 6, 7, 19, 30)), false)
-  assert.equal(seasons.isAnnouncementDue(SUMMER_TRAINING.time, at(2027, 6, 9, 19, 30)), false)
+test('a training starts only on a practice day, at its time', () => {
+  assert.deepEqual(seasons.trainingStartingAt(SUMMER_TRAINING.at)?.startsAt, SUMMER_TRAINING.at)
+  assert.equal(seasons.trainingStartingAt(at(2027, 6, 9, 19, 0)), undefined)
+  assert.equal(seasons.trainingStartingAt(at(2027, 6, 8, 19, 30)), undefined)
+  assert.equal(seasons.trainingStartingAt(at(2027, 6, 10, 19, 30)), undefined)
 })
 
-test('the post follows the season of tomorrow, not of today', () => {
-  // Winter starts Tue 2026-09-15: today is summer, tomorrow a winter Tuesday
-  assert.equal(seasons.isAnnouncementDue({ hour: 20, minute: 30 }, at(2026, 9, 14, 20, 30)), true)
+test('the training follows the season of its own day', () => {
+  // Winter starts Tue 2026-09-15: a winter Tuesday, the day after a summer one
+  assert.equal(seasons.trainingStartingAt(at(2026, 9, 15, 20, 30))?.season, 'winter')
   // Winter starts Wed 2027-09-15: a summer Wednesday, but winter has no Wednesday practice
-  assert.equal(seasons.isAnnouncementDue(SUMMER_TRAINING.time, at(2027, 9, 14, 19, 30)), false)
+  assert.equal(seasons.trainingStartingAt(at(2027, 9, 15, 19, 30)), undefined)
 })
 
 test('every practice time of both seasons gets a check', () => {

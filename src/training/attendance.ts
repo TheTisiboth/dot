@@ -23,9 +23,9 @@ export class AttendanceMonitor {
   private readonly toTeam: Sender
   private readonly toTrainers: Sender
 
-  // Keyed by training: once that training starts, the post no longer counts for the next one
-  private trainingPost?: { trainingAt: Date; messageId: number }
-  private timers: NodeJS.Timeout[] = []
+  // Keyed by training start: consecutive days can have two trainings announced at once
+  private readonly posts = new Map<number, number>()
+  private readonly timers = new Map<number, NodeJS.Timeout[]>()
 
   constructor(config: Pick<BotConfig, 'telegram' | 'attendance'>, seasonManager: SeasonManager, messageGenerator: MessageGenerator, history: TrainingHistory, bot: Api) {
     this.config = config
@@ -37,42 +37,50 @@ export class AttendanceMonitor {
   }
 
   /** The announcement just posted: its 👍 reactions are the attendance count. */
-  track(trainingAt: Date, messageId: number): void {
-    this.trainingPost = { trainingAt, messageId }
-    this.armTimers()
+  track(training: Training, messageId: number): void {
+    const now = Date.now()
+    for (const byTraining of [this.posts, this.timers]) for (const startsAt of byTraining.keys()) if (startsAt < now) byTraining.delete(startsAt)
+
+    this.posts.set(training.startsAt.getTime(), messageId)
+    this.arm(training)
+  }
+
+  /** On startup: the next training's checks, which the restart dropped. */
+  armTimers(): void {
+    this.arm(this.seasonManager.nextTraining())
   }
 
   /**
-   * Arms one-shot timers for the attendance checks.
-   *
-   * Called after posting the training post and again on startup. A boundary that already
-   * passed fires immediately (catch-up); the history check keeps that from double-posting.
+   * Arms one-shot timers for the attendance checks of `training`, replacing any it had.
+   * A boundary that already passed fires immediately (catch-up); the history check keeps that from double-posting.
    */
-  armTimers(): void {
-    this.timers.forEach(clearTimeout)
-    this.timers = []
+  private arm(training: Training): void {
+    const key = training.startsAt.getTime()
+    this.timers.get(key)?.forEach(clearTimeout)
+    this.timers.delete(key)
 
-    const training = this.seasonManager.nextTraining()
     if (training.cancelled) {
       log.scheduler('⏭️  Attendance checks skipped - training cancelled')
       return
     }
 
     const { reminderHoursBefore, cancelHoursBefore } = this.config.attendance
-    this.armTimer('Attendance reminder', hoursBefore(training.startsAt, reminderHoursBefore), training.startsAt, () => this.runReminderCheck(training))
-    this.armTimer('Cancellation notice', hoursBefore(training.startsAt, cancelHoursBefore), training.startsAt, () => this.runCancellationCheck(training))
+    this.timers.set(key, [
+      this.armTimer('Attendance reminder', hoursBefore(training.startsAt, reminderHoursBefore), training.startsAt, () => this.runReminderCheck(training)),
+      this.armTimer('Cancellation notice', hoursBefore(training.startsAt, cancelHoursBefore), training.startsAt, () => this.runCancellationCheck(training))
+    ].filter(timer => timer !== undefined))
   }
 
-  private armTimer(label: string, firesAt: Date, trainingAt: Date, check: () => Promise<void>): void {
+  private armTimer(label: string, firesAt: Date, trainingAt: Date, check: () => Promise<void>): NodeJS.Timeout | undefined {
     const now = new Date()
 
     if (now > trainingAt) {
       log.scheduler(`⏭️  ${label} skipped - training already started`)
-      return
+      return undefined
     }
 
     log.scheduler(`⏰ ${label} armed for ${firesAt <= now ? 'now (catch-up)' : formatDateTimeLocale(firesAt)}`)
-    this.timers.push(armAt(firesAt, () => { void check() }))
+    return armAt(firesAt, () => { void check() })
   }
 
   /** Exposed for the /attendance admin command. */
@@ -88,17 +96,13 @@ export class AttendanceMonitor {
     const trainingAt = training.startsAt
     const { teamChat } = this.config.telegram
 
-    if (this.trainingPost?.trainingAt.getTime() !== trainingAt.getTime()) {
-      const messageId = await this.history.findAnnouncement(teamChat.chatId, teamChat.threadId, trainingAt)
-      this.trainingPost = messageId ? { trainingAt, messageId } : undefined
-    }
-
-    if (!this.trainingPost) {
+    const announcementId = this.posts.get(trainingAt.getTime()) ?? await this.history.findAnnouncement(teamChat.chatId, teamChat.threadId, trainingAt)
+    if (announcementId === undefined) {
       log.warn('Attendance', 'Training post not found - skipping check')
       return null
     }
+    this.posts.set(trainingAt.getTime(), announcementId)
 
-    const announcementId = this.trainingPost.messageId
     const count = await this.history.getThumbsUpCount(teamChat.chatId, announcementId)
     const threshold = training.minAttendance
 

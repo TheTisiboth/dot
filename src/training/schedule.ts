@@ -1,11 +1,12 @@
 import * as cron from 'node-cron'
 import type { Api } from 'grammy'
-import { type SeasonManager } from './season'
+import { type SeasonManager, type Training } from './season'
 import { type AttendanceMonitor } from './attendance'
 import { type AnnounceReport, type Announcer, describeReport, hasFailure } from './announcer'
 import type { BotConfig } from '../config/env'
 import { type RulesQuizService } from '../quiz/service'
 import { log } from '../shared/logger'
+import { atTime } from '../shared/time'
 import { EMOJIS } from '../shared/emojis'
 import { formatClock, formatDateLocale, formatTime, getDayName } from '../shared/formatters'
 import { senderFor } from '../telegram/sender'
@@ -38,9 +39,9 @@ export const startSchedule = ({ config, seasonManager, announcer, attendance, ru
   }
 
   /** The cron job: a failed announcement is retried once, later; whatever still failed is reported to the admin chat. */
-  const runScheduled = async (): Promise<void> => {
+  const runScheduled = async (training: Training): Promise<void> => {
     clearTimeout(retryTimer)
-    const report = await announcer.announceTraining()
+    const report = await announcer.announceTraining(training)
     if (report.announcement.status !== 'failed') {
       await alertFailures(report)
       return
@@ -48,7 +49,7 @@ export const startSchedule = ({ config, seasonManager, announcer, attendance, ru
 
     log.scheduler(`🔁 Announcement retry in ${RETRY_DELAY_MS / 60_000} min`)
     retryTimer = setTimeout(() => {
-      void announcer.announce().then(training => alertFailures({ ...training, quiz: report.quiz }))
+      void announcer.announce(training).then(parts => alertFailures({ ...parts, quiz: report.quiz }))
     }, RETRY_DELAY_MS)
   }
 
@@ -69,9 +70,11 @@ export const startSchedule = ({ config, seasonManager, announcer, attendance, ru
       const tomorrow = new Date()
       tomorrow.setDate(tomorrow.getDate() + 1)
 
-      if (seasonManager.isAnnouncementDue(practiceTime)) {
+      // The tick knows which training it is for: "the next one" can be an earlier one today
+      const training = seasonManager.trainingStartingAt(atTime(tomorrow, practiceTime))
+      if (training) {
         log.scheduler(`✅ Training tomorrow (${formatDateLocale(tomorrow)}) at ${time} - sending announcement`)
-        await runScheduled()
+        await runScheduled(training)
       } else {
         log.scheduler(`⏭️  No training tomorrow (${formatDateLocale(tomorrow)}) at ${time} - skipping`)
       }
