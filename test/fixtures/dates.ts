@@ -1,4 +1,4 @@
-// Seasons are the testEnv ones: winter from Sep 15 (Tue 20:30, Sat 21:00), summer from May 20 (Sun 19:00, Wed 19:30)
+// Seasons are the testConfig ones: winter from Sep 15 (Tue 20:30, Sat 21:00), summer from May 20 (Sun 19:00, Wed 19:30)
 
 /** A local date, months counted from 1. */
 export const at = (year: number, month: number, day: number, hours = 12, minutes = 0) =>

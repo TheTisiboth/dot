@@ -1,8 +1,10 @@
 import { Bot } from 'grammy'
-import { config } from './config'
+import { Ollama } from 'ollama'
+import { readEnv } from './config'
+import { type BotConfig, loadConfig } from './config/env'
 import { SeasonManager } from './services/SeasonManager'
 import { MessageGenerator } from './services/MessageGenerator'
-import { ReactionReader } from './services/ReactionReader'
+import { ReactionReader, createMtprotoClient } from './services/ReactionReader'
 import { SchedulerService } from './services/SchedulerService'
 import { RulesQuizService } from './services/RulesQuizService'
 import { HEALTH_PORT, PROBE_TIMEOUT_MS, startHealthServer } from './services/HealthServer'
@@ -21,19 +23,22 @@ class UltimateFrisbeeBot {
   private readonly reactionReader: ReactionReader
   private readonly schedulerService: SchedulerService
   private readonly commands: Command[]
+  private readonly adminChatId: string
 
-  constructor() {
+  constructor(config: BotConfig) {
+    this.adminChatId = config.telegram.adminChatId
     this.bot = new Bot(config.telegram.token)
     this.bot.api.config.use(pollingOutageLogger())
     // grammY awaits each update before the next: not awaiting keeps a slow command (LLM) from holding up the others
     this.bot.use((_ctx, next) => {
       next().catch((error: unknown) => { log.error('Bot error', error) })
     })
-    this.seasonManager = new SeasonManager()
-    this.messageGenerator = new MessageGenerator()
-    this.reactionReader = new ReactionReader(this.bot.api)
-    const rulesQuiz = new RulesQuizService(this.bot.api, this.seasonManager, this.reactionReader)
+    this.seasonManager = new SeasonManager(config)
+    this.messageGenerator = new MessageGenerator(config, config.ollama.enabled ? new Ollama({ host: config.ollama.host }) : null)
+    this.reactionReader = new ReactionReader(this.bot.api, createMtprotoClient(config.mtproto))
+    const rulesQuiz = new RulesQuizService(config.rulesQuiz, this.bot.api, this.seasonManager, this.reactionReader)
     this.schedulerService = new SchedulerService(
+      config,
       this.seasonManager,
       this.messageGenerator,
       this.reactionReader,
@@ -42,7 +47,7 @@ class UltimateFrisbeeBot {
     )
     this.commands = [
       ...publicCommands(this.seasonManager),
-      ...trainingCommands({ api: this.bot.api, seasonManager: this.seasonManager, messageGenerator: this.messageGenerator, scheduler: this.schedulerService }),
+      ...trainingCommands({ config, api: this.bot.api, seasonManager: this.seasonManager, messageGenerator: this.messageGenerator, scheduler: this.schedulerService }),
       ...quizCommands(rulesQuiz)
     ]
     routeCommands(this.bot, this.commands, config.telegram.adminChatId)
@@ -88,7 +93,7 @@ class UltimateFrisbeeBot {
     log.bot(`${EMOJIS.THUMBS_UP} Min attendance: ${seasonConfig.minAttendance}`)
 
     startHealthServer({ api: this.bot.api, reader: this.reactionReader, messageGenerator: this.messageGenerator }, HEALTH_PORT, PROBE_TIMEOUT_MS)
-    publishCommandMenus(this.bot.api, this.commands, config.telegram.adminChatId).catch((error: unknown) => {
+    publishCommandMenus(this.bot.api, this.commands, this.adminChatId).catch((error: unknown) => {
       log.error('Registering bot commands', error)
     })
 
@@ -111,7 +116,16 @@ class UltimateFrisbeeBot {
   }
 }
 
+const loadConfigOrExit = (): BotConfig => {
+  try {
+    return loadConfig(readEnv())
+  } catch (error) {
+    console.error(`❌ ${error instanceof Error ? error.message : String(error)}\n\nPlease check your .env file.`)
+    process.exit(1)
+  }
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const bot = new UltimateFrisbeeBot()
+  const bot = new UltimateFrisbeeBot(loadConfigOrExit())
   void bot.start()
 }

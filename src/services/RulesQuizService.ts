@@ -3,7 +3,7 @@ import { type SeasonManager } from './SeasonManager'
 import { type LatestQuiz, type ReactionReader } from './ReactionReader'
 import { buildQuizPost, modeFor, pickQuestion } from './quizPicker'
 import { answerTimeFor, buildAnswer } from './quizAnswer'
-import { config } from '../config'
+import type { BotConfig } from '../config/env'
 import { findQuizBatch, findQuizQuestion, isSignalQuestion, QUIZ_QUESTIONS } from '../data/rules-quiz'
 import { type PartResult, type QuizBatch, type QuizQuestion } from '../types'
 import { withTimeout } from '../utils/async'
@@ -21,6 +21,7 @@ const RETRY_DELAY_MS = 10 * 60_000
  * then its answer behind a spoiler, RULES_ANSWER_DELAY_MINUTES later.
  */
 export class RulesQuizService {
+  private readonly config: BotConfig['rulesQuiz']
   private readonly bot: Api
   private readonly seasonManager: SeasonManager
   private readonly reactionReader: ReactionReader
@@ -34,7 +35,8 @@ export class RulesQuizService {
   private lastPosted?: LatestQuiz
   private readonly answeredIds = new Set<number>()
 
-  constructor(bot: Api, seasonManager: SeasonManager, reactionReader: ReactionReader) {
+  constructor(config: BotConfig['rulesQuiz'], bot: Api, seasonManager: SeasonManager, reactionReader: ReactionReader) {
+    this.config = config
     this.bot = bot
     this.seasonManager = seasonManager
     this.reactionReader = reactionReader
@@ -45,7 +47,7 @@ export class RulesQuizService {
    * A failed post is retried once, later: a network blip at send time must not cost the quiz.
    */
   async sendScheduled(): Promise<PartResult> {
-    if (!config.rulesQuiz.enabled) {
+    if (!this.config.enabled) {
       log.scheduler('Rules quiz disabled, skipping')
       return { status: 'skipped', reason: 'disabled' }
     }
@@ -80,7 +82,7 @@ export class RulesQuizService {
     const postedAt = new Date()
     this.lastPosted = { messageId: pollMessageId, questionId: question.id, postedAt, answered: false }
     // Armed from the post itself, not a history lookup that would not see this poll yet
-    if (config.rulesQuiz.enabled) this.armAnswerFor(pollMessageId, postedAt)
+    if (this.config.enabled) this.armAnswerFor(pollMessageId, postedAt)
     return question
   }
 
@@ -94,7 +96,7 @@ export class RulesQuizService {
    * fires at once (catch-up); the history check keeps it from answering twice. Never throws.
    */
   async armAnswer(): Promise<void> {
-    if (!config.rulesQuiz.enabled) return
+    if (!this.config.enabled) return
 
     try {
       const latest = await this.findLatestQuiz(this.rulesChat())
@@ -107,7 +109,7 @@ export class RulesQuizService {
   private armAnswerFor(pollMessageId: number, postedAt: Date): void {
     clearTimeout(this.answerTimer)
 
-    const answerAt = answerTimeFor(postedAt, config.rulesQuiz.answerDelayMinutes)
+    const answerAt = answerTimeFor(postedAt, this.config.answerDelayMinutes)
     const delay = Math.max(0, answerAt.getTime() - Date.now())
     log.scheduler(`⏰ Rules quiz answer armed for ${delay === 0 ? 'now (catch-up)' : formatDateTimeLocale(answerAt)}`)
 
@@ -204,7 +206,7 @@ export class RulesQuizService {
   async pickNext(chat: ChatTarget = this.rulesChat()): Promise<QuizQuestion> {
     const mode = modeFor(this.seasonManager.getNextTrainingInfo().season)
     const askedIds = await this.reactionReader.getAskedQuizIds(chat.chatId, chat.threadId)
-    const isFocus = config.rulesQuiz.signalsEveryOther ? isSignalQuestion : undefined
+    const isFocus = this.config.signalsEveryOther ? isSignalQuestion : undefined
     return pickQuestion(QUIZ_QUESTIONS, mode, askedIds, Math.random, isFocus)
   }
 
@@ -266,7 +268,7 @@ export class RulesQuizService {
   }
 
   private rulesChat(): ChatTarget {
-    const { chat } = config.rulesQuiz
+    const { chat } = this.config
     if (!chat) throw new Error('RULES_CHAT_ID is not set')
     return chat
   }

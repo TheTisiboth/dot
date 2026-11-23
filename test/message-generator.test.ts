@@ -3,11 +3,14 @@ import { test, after, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { type AddressInfo } from 'node:net'
+import { Ollama } from 'ollama'
 import { CANCELLATION_SIGNATURE, EMOJIS, MARKERS, isKeyMessage } from '../src/utils/constants'
 import { parseLocation } from '../src/config/env'
 import { formatTime } from '../src/utils/formatters'
+import { MessageGenerator } from '../src/services/MessageGenerator'
+import { testConfig } from './fixtures/config'
 
-// Fake Ollama over HTTP, the real client's boundary; config is read on import, so it is loaded after
+// Fake Ollama over HTTP, the real client's boundary
 let reply: { status: number; content: string }
 const ollama = createServer((_req, res) => {
   res.writeHead(reply.status, { 'Content-Type': 'application/json' })
@@ -16,12 +19,8 @@ const ollama = createServer((_req, res) => {
 await new Promise<void>(resolve => ollama.listen(0, '127.0.0.1', resolve))
 after(() => { ollama.close() })
 
-process.env.OLLAMA_ENABLED = 'true'
-process.env.OLLAMA_HOST = `http://127.0.0.1:${(ollama.address() as AddressInfo).port}`
-const { config } = await import('../src/config')
-const { MessageGenerator } = await import('../src/services/MessageGenerator')
-
-const generator = new MessageGenerator()
+const config = testConfig()
+const generator = new MessageGenerator(config, new Ollama({ host: `http://127.0.0.1:${(ollama.address() as AddressInfo).port}` }))
 const practiceDay = config.seasons.winter.practices[0]
 const training = { date: new Date(), location: config.seasons.winter.location, time: practiceDay.time, season: 'winter' as const, practiceDay }
 const attendance = { count: 3, threshold: 8 }

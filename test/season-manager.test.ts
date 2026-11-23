@@ -1,16 +1,14 @@
 import './helpers/testEnv'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { config } from '../src/config'
 import { formatTime } from '../src/utils/formatters'
 import { SeasonManager } from '../src/services/SeasonManager'
 import { SEASON_DATES, SUMMER_TRAINING, at } from './fixtures/dates'
 import { HOUR_MS } from './helpers/clock'
-import { restoreConfigAfterEach } from './helpers/config'
+import { testConfig } from './fixtures/config'
 
-const seasons = new SeasonManager()
-
-restoreConfigAfterEach()
+const config = testConfig()
+const seasons = new SeasonManager(config)
 
 test('the season switches exactly on each start date', () => {
   assert.equal(seasons.getCurrentSeason(SEASON_DATES.lastWinterDay), 'winter')
@@ -26,8 +24,9 @@ test('winter spans the new year', () => {
 })
 
 test('the seasons follow their start dates when winter starts in January', () => {
-  config.seasons.winter.startDate = { month: 1, day: 10 }
-  const januaryWinter = new SeasonManager()
+  const januaryWinter = new SeasonManager(testConfig({ WINTER_START_DATE: '1:10' }))
+
+  assert.equal(seasons.getCurrentSeason(at(2027, 1, 9)), 'winter')
 
   assert.equal(januaryWinter.getCurrentSeason(at(2027, 1, 9)), 'summer')
   assert.equal(januaryWinter.getCurrentSeason(at(2027, 1, 10)), 'winter')
@@ -76,8 +75,8 @@ test('every practice time of both seasons gets a check', () => {
 })
 
 test('an exceptional training overrides location and time but keeps the date', () => {
-  config.exceptionalTraining = { location: { name: 'Beach' }, time: { hour: 18, minute: 0 }, isCancelled: true }
-  const next = seasons.getNextTrainingInfo(at(2027, 6, 9, 10))
+  const exceptional = new SeasonManager(testConfig({ EXCEPTIONAL_LOCATION: 'Beach', EXCEPTIONAL_TIME: '18:00', EXCEPTIONAL_CANCELLED: 'true' }))
+  const next = exceptional.getNextTrainingInfo(at(2027, 6, 9, 10))
 
   assert.deepEqual(next.date, SUMMER_TRAINING.at)
   assert.equal(next.location.name, 'Beach')

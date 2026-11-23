@@ -3,7 +3,7 @@ import { TelegramClient, Api, sessions, Logger, helpers } from 'telegram'
 import type { Api as BotApi } from 'grammy'
 // Type-only: the LogLevel enum is not re-exported from the root, and ESM cannot deep-import it without an extension
 import type { LogLevel } from 'telegram/extensions/Logger'
-import { config } from '../config'
+import type { BotConfig } from '../config/env'
 import { EMOJIS, isKeyMessage } from '../utils/constants'
 import { hoursBefore } from '../utils/dateHelpers'
 import { TimeoutError, withTimeout } from '../utils/async'
@@ -27,6 +27,28 @@ export interface LatestQuiz {
   answered: boolean;
 }
 
+export type MtprotoClient = Pick<TelegramClient, 'connected' | 'connect' | 'disconnect' | 'getDialogs' | 'getInputEntity' | 'invoke' | 'getMessages'>
+
+export function createMtprotoClient({ session, apiId, apiHash }: BotConfig['mtproto']): TelegramClient {
+  const client = new TelegramClient(
+    new sessions.StringSession(session),
+    apiId,
+    apiHash,
+    // GramJS prints raw stack traces for routine keep-alive timeouts it recovers from on its own.
+    // Real failures still reach us as rejected calls.
+    // WebSocket on 443: networks that filter MTProto's raw TCP still let HTTPS through.
+    // Retries without limit (GramJS's default): after a capped number of failed reconnects, GramJS
+    // gives up for good and every later request waits forever - a few minutes offline was enough
+    { connectionRetries: Infinity, useWSS: true, baseLogger: new Logger('none' as LogLevel) }
+  )
+  client.onError = async (error) => {
+    // GramJS's idle update loop throws TIMEOUT routinely and reconnects itself
+    if (error.message === 'TIMEOUT') return
+    log.warn('MTProto', `Connection issue, GramJS retries on its own: ${error.message}`)
+  }
+  return client
+}
+
 /**
  * Reads message reactions through a user account (MTProto).
  *
@@ -35,30 +57,15 @@ export interface LatestQuiz {
  * So the bot writes, and this client reads.
  */
 export class ReactionReader {
-  private readonly client: TelegramClient
+  private readonly client: MtprotoClient
   private readonly bot: Pick<BotApi, 'getMe'>
   private botUsername?: Promise<string>
   private connected = false
   private connecting?: Promise<void>
 
-  constructor(bot: Pick<BotApi, 'getMe'>) {
+  constructor(bot: Pick<BotApi, 'getMe'>, client: MtprotoClient) {
     this.bot = bot
-    this.client = new TelegramClient(
-      new sessions.StringSession(config.mtproto.session),
-      config.mtproto.apiId,
-      config.mtproto.apiHash,
-      // GramJS prints raw stack traces for routine keep-alive timeouts it recovers from on its own.
-      // Real failures still reach us as rejected calls.
-      // WebSocket on 443: networks that filter MTProto's raw TCP still let HTTPS through.
-      // Retries without limit (GramJS's default): after a capped number of failed reconnects, GramJS
-      // gives up for good and every later request waits forever - a few minutes offline was enough
-      { connectionRetries: Infinity, useWSS: true, baseLogger: new Logger('none' as LogLevel) }
-    )
-    this.client.onError = async (error) => {
-      // GramJS's idle update loop throws TIMEOUT routinely and reconnects itself
-      if (error.message === 'TIMEOUT') return
-      log.warn('MTProto', `Connection issue, GramJS retries on its own: ${error.message}`)
-    }
+    this.client = client
   }
 
   async connect(): Promise<void> {

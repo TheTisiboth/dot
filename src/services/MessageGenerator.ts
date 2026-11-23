@@ -1,19 +1,20 @@
-import { Ollama } from 'ollama'
-import { config } from '../config'
+import type { Ollama } from 'ollama'
+import type { BotConfig } from '../config/env'
 import { type MessageGenerationOptions, type Attendance, type TrainingInfo, type TrainingLocation } from '../types'
 import { EMOJIS, MARKERS, CANCELLATION_SIGNATURE } from '../utils/constants'
 import { log } from '../utils/logger'
 import { escapeHtml, formatStartTime, formatTime, locationLink } from '../utils/formatters'
 
-export class MessageGenerator {
-  private readonly ollama: Ollama | null
+export type LlmClient = Pick<Ollama, 'chat' | 'list'>
 
-  constructor() {
-    this.ollama = config.ollama.enabled
-      ? new Ollama({
-          host: config.ollama.host
-        })
-      : null
+export class MessageGenerator {
+  private readonly config: Pick<BotConfig, 'ollama' | 'attendance'>
+  private readonly ollama: LlmClient | null
+
+  /** `ollama` is null when the LLM is disabled: every message is then a template. */
+  constructor(config: Pick<BotConfig, 'ollama' | 'attendance'>, ollama: LlmClient | null) {
+    this.config = config
+    this.ollama = ollama
   }
 
   generateTemplateMessage(training: TrainingInfo): string {
@@ -62,7 +63,7 @@ Thanks for helping out! ${EMOJIS.FRISBEE}`
     label: string,
     location: TrainingLocation
   ): Promise<string> {
-    const model = config.ollama.model
+    const model = this.config.ollama.model
 
     try {
       const response = await this.ollama!.chat({
@@ -166,7 +167,7 @@ ${EMOJIS.WARNING} If we don't reach ${threshold}, the training might have to be 
   /** Deliberately template-only: a cancellation must never be garbled by the LLM. */
   generateCancellationMessage(training: TrainingInfo, attendance: Attendance): string {
     const { count, threshold } = attendance
-    const { cancelHoursBefore } = config.attendance
+    const { cancelHoursBefore } = this.config.attendance
 
     log.messageGen(`Cancellation message generated (${count}/${threshold})`)
     return `${MARKERS.CANCELLATION} <b>${CANCELLATION_SIGNATURE} - not enough attendance.</b>
@@ -400,7 +401,7 @@ Generate the message now:`
   }
 
   getLLMProvider(): string {
-    if (this.ollama) return `Ollama (${config.ollama.model})`
+    if (this.ollama) return `Ollama (${this.config.ollama.model})`
     return 'Template-only'
   }
 }

@@ -1,7 +1,6 @@
 import './helpers/testEnv'
 import { test, afterEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
-import { config } from '../src/config'
 import { formatTime } from '../src/utils/formatters'
 import { type Command, publishCommandMenus, routeCommands } from '../src/commands/registry'
 import { publicCommands } from '../src/commands/public'
@@ -17,8 +16,9 @@ import { makeFakeReader, TRAINING_POST_ID } from './fakes/reactionReader'
 import { makeFakeRulesQuiz } from './fakes/rulesQuiz'
 import { SUMMER_TRAINING, beforeTraining } from './fixtures/dates'
 import { HOUR_MS, startAt } from './helpers/clock'
-import { restoreConfigAfterEach } from './helpers/config'
+import { testConfig } from './fixtures/config'
 
+const config = testConfig()
 const ADMIN = { chatId: Number(config.telegram.adminChatId) }
 const PLAYER = { chatId: 555 }
 const TEAM_CHAT = config.telegram.teamChat.chatId
@@ -29,22 +29,22 @@ const ADMIN_COMMANDS = [
   '/send_to_team', '/send_to_all', '/attendance', '/send_rule', '/answer_rule', '/test_rule'
 ]
 
-const build = ({ failingChat }: { failingChat?: string } = {}) => {
+const build = ({ failingChat, env }: { failingChat?: string; env?: Record<string, string> } = {}) => {
+  const botConfig = testConfig(env)
   const bot = makeFakeBot({ failingChat })
   const quiz = makeFakeRulesQuiz()
-  const seasonManager = new SeasonManager()
-  const messageGenerator = new MessageGenerator()
-  const scheduler = new SchedulerService(seasonManager, messageGenerator, makeFakeReader({ thumbsUp: ATTENDING }), bot.api, quiz)
+  const seasonManager = new SeasonManager(botConfig)
+  const messageGenerator = new MessageGenerator(botConfig, null)
+  const scheduler = new SchedulerService(botConfig, seasonManager, messageGenerator, makeFakeReader({ thumbsUp: ATTENDING }), bot.api, quiz)
   const commands: Command[] = [
     ...publicCommands(seasonManager),
-    ...trainingCommands({ api: bot.api, seasonManager, messageGenerator, scheduler }),
+    ...trainingCommands({ config: botConfig, api: bot.api, seasonManager, messageGenerator, scheduler }),
     ...quizCommands(quiz)
   ]
-  routeCommands(bot, commands, config.telegram.adminChatId)
+  routeCommands(bot, commands, botConfig.telegram.adminChatId)
   return { bot, quiz, commands }
 }
 
-restoreConfigAfterEach()
 afterEach(() => { mock.timers.reset() })
 
 test('every admin command from another chat is ignored silently', async () => {
@@ -89,9 +89,8 @@ test('/training shows the next training from the season config', async () => {
 })
 
 test('/training shows the throwing time when the season has one', async () => {
-  config.seasons.summer.throwingMinutesBefore = 15
   startAt(beforeTraining(24 * HOUR_MS))
-  const { bot } = build()
+  const { bot } = build({ env: { SUMMER_THROWING_MINUTES_BEFORE: '15' } })
 
   await bot.command('/training', PLAYER)
 
@@ -99,9 +98,8 @@ test('/training shows the throwing time when the season has one', async () => {
 })
 
 test('/training shows the moved place and time of an exceptional training', async () => {
-  config.exceptionalTraining = { ...config.exceptionalTraining, location: { name: 'Beach' }, time: { hour: 20, minute: 15 } }
   startAt(beforeTraining(24 * HOUR_MS))
-  const { bot } = build()
+  const { bot } = build({ env: { EXCEPTIONAL_LOCATION: 'Beach', EXCEPTIONAL_TIME: '20:15' } })
 
   await bot.command('/training', PLAYER)
 
@@ -112,12 +110,13 @@ test('/training shows the moved place and time of an exceptional training', asyn
 
 test('/training says when the next training is cancelled', async () => {
   startAt(beforeTraining(24 * HOUR_MS))
-  const { bot } = build()
-  await bot.command('/training', PLAYER)
-  config.exceptionalTraining.isCancelled = true
-  await bot.command('/training', PLAYER)
+  const regularBot = build().bot
+  const cancelledBot = build({ env: { EXCEPTIONAL_CANCELLED: 'true' } }).bot
+  await regularBot.command('/training', PLAYER)
+  await cancelledBot.command('/training', PLAYER)
 
-  const [regular, cancelled] = bot.sentTo(PLAYER.chatId)
+  const [regular] = regularBot.sentTo(PLAYER.chatId)
+  const [cancelled] = cancelledBot.sentTo(PLAYER.chatId)
   assert.equal(regular.text.includes(EMOJIS.CROSS_MARK), false)
   assert.ok(cancelled.text.includes(EMOJIS.CROSS_MARK))
 })
