@@ -1,6 +1,7 @@
 import type { Api } from 'grammy'
 import { type SeasonManager } from '../training/season'
-import { type MessageGenerator } from '../training/messages/messageGenerator'
+import { type TrainingMessages } from '../training/messages/messages'
+import * as templates from '../training/messages/templates'
 import { type Announcer, describeReport, hasFailure } from '../training/announcer'
 import { type AttendanceMonitor } from '../training/attendance'
 import type { BotConfig } from '../config/env'
@@ -15,17 +16,15 @@ interface TrainingCommandsDeps {
   config: Pick<BotConfig, 'telegram' | 'attendance'>;
   api: Api;
   seasonManager: SeasonManager;
-  messageGenerator: MessageGenerator;
+  messages: TrainingMessages;
   announcer: Announcer;
   attendance: AttendanceMonitor;
 }
 
 /** Admin commands to preview and send the training messages before the scheduler does. */
-export const trainingCommands = ({ config, api, seasonManager, messageGenerator, announcer, attendance }: TrainingCommandsDeps): Command[] => {
-  const announcement = (useLLM = messageGenerator.isLLMAvailable()) =>
-    messageGenerator.announcement(seasonManager.nextTraining(), { useLLM })
-  const trainerRequest = (useLLM = messageGenerator.isLLMAvailable()) =>
-    messageGenerator.trainerRequest(seasonManager.nextTraining(), { useLLM })
+export const trainingCommands = ({ config, api, seasonManager, messages, announcer, attendance }: TrainingCommandsDeps): Command[] => {
+  const announcement = () => messages.announcement(seasonManager.nextTraining())
+  const trainerRequest = () => messages.trainerRequest(seasonManager.nextTraining())
 
   return [
     {
@@ -33,7 +32,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       description: 'Preview template message',
       adminOnly: true,
       run: async ({ reply }) => {
-        await reply.text(`${EMOJIS.MEMO} Template Message:\n\n${await announcement(false)}`)
+        await reply.text(`${EMOJIS.MEMO} Template Message:\n\n${templates.announcement(seasonManager.nextTraining())}`)
       }
     },
     {
@@ -42,7 +41,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       adminOnly: true,
       run: async ({ reply }) => {
         await reply.plain(`${EMOJIS.ROBOT} ${GENERATING_LLM_MESSAGE}`)
-        await reply.text(`${EMOJIS.ROBOT} LLM Generated Message:\n\n${await announcement(true)}`)
+        await reply.text(`${EMOJIS.ROBOT} LLM Generated Message:\n\n${await announcement()}`)
       }
     },
     {
@@ -51,7 +50,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       adminOnly: true,
       run: async ({ reply }) => {
         await reply.plain(`${EMOJIS.ROBOT} ${GENERATING_LLM_MESSAGE}`)
-        await reply.text(`${EMOJIS.ROBOT} Trainer LLM Generated Message:\n\n${await trainerRequest(true)}`)
+        await reply.text(`${EMOJIS.ROBOT} Trainer LLM Generated Message:\n\n${await trainerRequest()}`)
       }
     },
     {
@@ -61,7 +60,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       run: async ({ reply }) => {
         const { keyRequestEnabled, season } = seasonManager.nextTraining()
         const status = keyRequestEnabled ? '' : `\n\n${EMOJIS.WARNING} Disabled for ${season}: it will not be sent.`
-        await reply.text(`${EMOJIS.KEY} Key Message:\n\n${messageGenerator.keyRequest()}${status}`)
+        await reply.text(`${EMOJIS.KEY} Key Message:\n\n${templates.keyRequest()}${status}`)
       }
     },
     {
@@ -82,7 +81,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
 
         const { keyRequestEnabled, season } = seasonManager.nextTraining()
         if (keyRequestEnabled) {
-          await reply.text(`${EMOJIS.KEY} <b>Key Message Preview:</b>\n\n${messageGenerator.keyRequest()}`)
+          await reply.text(`${EMOJIS.KEY} <b>Key Message Preview:</b>\n\n${templates.keyRequest()}`)
         } else {
           await reply.plain(`${EMOJIS.KEY} Key message disabled for ${season}`)
         }
@@ -97,7 +96,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       adminOnly: true,
       run: async ({ reply }) => {
         await reply.plain(`${EMOJIS.ROBOT} Sending message to team chat...`)
-        const fallback = () => messageGenerator.announcementTemplate(seasonManager.nextTraining())
+        const fallback = () => templates.announcement(seasonManager.nextTraining())
         await senderFor(api, config.telegram.teamChat).text(await announcement(), { fallback })
         await reply.plain(`${EMOJIS.CHECK_MARK} Message sent to team chat!`)
       }

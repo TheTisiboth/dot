@@ -3,7 +3,8 @@ import { Ollama } from 'ollama'
 import { readEnv } from './config'
 import { type BotConfig, loadConfig } from './config/env'
 import { SeasonManager } from './training/season'
-import { MessageGenerator } from './training/messages/messageGenerator'
+import { type LlmWriter, llmWriter } from './training/messages/llmWriter'
+import { trainingMessages } from './training/messages/messages'
 import { MtprotoConnection, createMtprotoClient } from './telegram/mtproto/client'
 import { History } from './telegram/mtproto/history'
 import { trainingHistory } from './training/history'
@@ -24,7 +25,8 @@ import { pollingOutageLogger } from './telegram/botApi'
 class Dot {
   private readonly bot: Bot
   private readonly seasonManager: SeasonManager
-  private readonly messageGenerator: MessageGenerator
+  private readonly llm: LlmWriter
+  private readonly llmProvider: string
   private readonly mtproto: MtprotoConnection
   private readonly history: History
   // The chats the history is read in, so a startup check can flag one the account cannot see
@@ -42,7 +44,9 @@ class Dot {
       next().catch((error: unknown) => { log.error('Bot error', error) })
     })
     this.seasonManager = new SeasonManager(config)
-    this.messageGenerator = new MessageGenerator(config, config.ollama.enabled ? new Ollama({ host: config.ollama.host }) : null)
+    this.llm = llmWriter(config.ollama, config.ollama.enabled ? new Ollama({ host: config.ollama.host }) : null)
+    this.llmProvider = config.ollama.enabled ? `Ollama (${config.ollama.model})` : 'Template-only'
+    const messages = trainingMessages(this.llm)
     this.mtproto = new MtprotoConnection(createMtprotoClient(config.mtproto))
     this.history = new History(this.bot.api, this.mtproto)
     const { teamChat, trainerChat, enableTrainerMessages } = config.telegram
@@ -53,12 +57,12 @@ class Dot {
       ...(rulesChat && { rules: rulesChat.chatId })
     }
     const rulesQuiz = new RulesQuizService(config.rulesQuiz, this.bot.api, this.seasonManager, quizHistory(this.history))
-    const attendance = new AttendanceMonitor(config, this.seasonManager, this.messageGenerator, trainingHistory(this.history), this.bot.api)
-    const trainingAnnouncer = announcer({ config, seasonManager: this.seasonManager, messageGenerator: this.messageGenerator, attendance, bot: this.bot.api, rulesQuiz })
+    const attendance = new AttendanceMonitor(config, this.seasonManager, messages, trainingHistory(this.history), this.bot.api)
+    const trainingAnnouncer = announcer({ config, seasonManager: this.seasonManager, messages, attendance, bot: this.bot.api, rulesQuiz })
     this.startSchedule = () => { startSchedule({ config, seasonManager: this.seasonManager, announcer: trainingAnnouncer, attendance, rulesQuiz, bot: this.bot.api }) }
     this.commands = [
       ...publicCommands(this.seasonManager),
-      ...trainingCommands({ config, api: this.bot.api, seasonManager: this.seasonManager, messageGenerator: this.messageGenerator, announcer: trainingAnnouncer, attendance }),
+      ...trainingCommands({ config, api: this.bot.api, seasonManager: this.seasonManager, messages, announcer: trainingAnnouncer, attendance }),
       ...quizCommands(rulesQuiz)
     ]
     routeCommands(this.bot, this.commands, config.telegram.adminChatId)
@@ -106,10 +110,10 @@ class Dot {
     log.bot(`${EMOJIS.FRISBEE} Dot started!`)
     log.bot(`${EMOJIS.CALENDAR} Season: ${currentSeason} | ${EMOJIS.LOCATION} Location: ${seasonConfig.location.name}`)
     log.bot(`${EMOJIS.RUNNER} Training days: ${trainingDays}`)
-    log.bot(`${EMOJIS.ROBOT} LLM: ${this.messageGenerator.getLLMProvider()}`)
+    log.bot(`${EMOJIS.ROBOT} LLM: ${this.llmProvider}`)
     log.bot(`${EMOJIS.THUMBS_UP} Min attendance: ${seasonConfig.minAttendance}`)
 
-    startHealthServer({ api: this.bot.api, reader: this.mtproto, messageGenerator: this.messageGenerator }, HEALTH_PORT, PROBE_TIMEOUT_MS)
+    startHealthServer({ api: this.bot.api, reader: this.mtproto, llm: this.llm }, HEALTH_PORT, PROBE_TIMEOUT_MS)
     publishCommandMenus(this.bot.api, this.commands, this.adminChatId).catch((error: unknown) => {
       log.error('Registering bot commands', error)
     })

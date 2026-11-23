@@ -1,6 +1,7 @@
 import type { Api } from 'grammy'
 import { type SeasonManager, type Training } from './season'
-import { type MessageGenerator } from './messages/messageGenerator'
+import { type TrainingMessages } from './messages/messages'
+import * as templates from './messages/templates'
 import { type AttendanceMonitor } from './attendance'
 import type { BotConfig } from '../config/env'
 import { type RulesQuizService } from '../quiz/service'
@@ -27,7 +28,7 @@ export type AnnounceReport = Record<keyof typeof PART_NAMES, PartResult>
 interface AnnouncerDeps {
   config: Pick<BotConfig, 'telegram'>;
   seasonManager: SeasonManager;
-  messageGenerator: MessageGenerator;
+  messages: TrainingMessages;
   attendance: AttendanceMonitor;
   bot: Api;
   rulesQuiz: RulesQuizService;
@@ -36,7 +37,7 @@ interface AnnouncerDeps {
 export type Announcer = ReturnType<typeof announcer>
 
 /** The day-before posts: announcement, key and trainer requests, then the quiz. */
-export const announcer = ({ config, seasonManager, messageGenerator, attendance, bot, rulesQuiz }: AnnouncerDeps) => {
+export const announcer = ({ config, seasonManager, messages, attendance, bot, rulesQuiz }: AnnouncerDeps) => {
   const toTeam = senderFor(bot, config.telegram.teamChat)
   const toTrainers = senderFor(bot, config.telegram.trainerChat)
   const { enableTrainerMessages } = config.telegram
@@ -48,22 +49,22 @@ export const announcer = ({ config, seasonManager, messageGenerator, attendance,
     }
 
     return await attempt('Sending key request', async () => {
-      await toTeam.text(messageGenerator.keyRequest())
+      await toTeam.text(templates.keyRequest())
       log.scheduler('Key request sent to team')
     })
   }
 
-  const sendTrainerRequest = async (training: Training, useLLM: boolean): Promise<PartResult> => {
+  const sendTrainerRequest = async (training: Training): Promise<PartResult> => {
     if (!enableTrainerMessages) {
       log.scheduler('Trainer messages disabled, skipping trainer request')
       return { status: 'skipped', reason: 'trainer messages disabled' }
     }
 
     return await attempt('Sending trainer request', async () => {
-      const trainerRequest = await messageGenerator.trainerRequest(training, { useLLM })
-      await toTrainers.text(trainerRequest, { fallback: () => messageGenerator.trainerRequestTemplate(training) })
+      const trainerRequest = await messages.trainerRequest(training)
+      await toTrainers.text(trainerRequest, { fallback: () => templates.trainerRequest(training) })
 
-      log.scheduler(`Trainer request sent - ${training.season} at ${training.location.name} (${formatClock(training.startsAt)}) using ${useLLM ? 'LLM' : 'template'}`)
+      log.scheduler(`Trainer request sent - ${training.season} at ${training.location.name} (${formatClock(training.startsAt)})`)
     })
   }
 
@@ -75,14 +76,12 @@ export const announcer = ({ config, seasonManager, messageGenerator, attendance,
       return { announcement: cancelled, keyRequest: cancelled, trainerRequest: cancelled }
     }
 
-    const useLLM = messageGenerator.isLLMAvailable()
-
     const announcement = await attempt('Sending announcement', async () => {
-      const message = await messageGenerator.announcement(training, { useLLM })
-      const messageId = await toTeam.text(message, { fallback: () => messageGenerator.announcementTemplate(training) })
+      const message = await messages.announcement(training)
+      const messageId = await toTeam.text(message, { fallback: () => templates.announcement(training) })
       attendance.track(training, messageId)
 
-      log.scheduler(`Announcement sent to team - ${training.season} at ${training.location.name} (${formatClock(training.startsAt)}) using ${useLLM ? 'LLM' : 'template'}`)
+      log.scheduler(`Announcement sent to team - ${training.season} at ${training.location.name} (${formatClock(training.startsAt)})`)
     })
 
     if (announcement.status === 'failed') {
@@ -93,7 +92,7 @@ export const announcer = ({ config, seasonManager, messageGenerator, attendance,
     return {
       announcement,
       keyRequest: await sendKeyRequest(training),
-      trainerRequest: await sendTrainerRequest(training, useLLM)
+      trainerRequest: await sendTrainerRequest(training)
     }
   }
 

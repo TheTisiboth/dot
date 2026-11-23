@@ -19,9 +19,9 @@ interface Scenario { telegram?: () => Promise<unknown>; mtproto?: boolean; ollam
 const dependencies = ({ telegram = async () => ({}), mtproto = true, ollama = async () => {} }: Scenario = {}): HealthDependencies => ({
   api: { getMe: telegram } as HealthDependencies['api'],
   reader: { isConnected: () => mtproto },
-  messageGenerator: {
-    isLLMAvailable: () => ollama !== 'disabled',
-    testOllamaConnection: ollama === 'disabled' ? down : ollama
+  llm: {
+    enabled: ollama !== 'disabled',
+    ping: ollama === 'disabled' ? down : ollama
   }
 })
 

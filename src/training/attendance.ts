@@ -1,6 +1,8 @@
 import type { Api } from 'grammy'
 import { type SeasonManager, type Training } from './season'
-import { type Attendance, type MessageGenerator } from './messages/messageGenerator'
+import { type TrainingMessages } from './messages/messages'
+import * as templates from './messages/templates'
+import { type Attendance } from './messages/templates'
 import { type TrainingHistory } from './history'
 import { CANCELLATION_SIGNATURE } from './markers'
 import type { BotConfig } from '../config/env'
@@ -18,7 +20,7 @@ interface AttendanceCheck extends Attendance {
 export class AttendanceMonitor {
   private readonly config: Pick<BotConfig, 'telegram' | 'attendance'>
   private readonly seasonManager: SeasonManager
-  private readonly messageGenerator: MessageGenerator
+  private readonly messages: TrainingMessages
   private readonly history: TrainingHistory
   private readonly toTeam: Sender
   private readonly toTrainers: Sender
@@ -27,10 +29,10 @@ export class AttendanceMonitor {
   private readonly posts = new Map<number, number>()
   private readonly timers = new Map<number, NodeJS.Timeout[]>()
 
-  constructor(config: Pick<BotConfig, 'telegram' | 'attendance'>, seasonManager: SeasonManager, messageGenerator: MessageGenerator, history: TrainingHistory, bot: Api) {
+  constructor(config: Pick<BotConfig, 'telegram' | 'attendance'>, seasonManager: SeasonManager, messages: TrainingMessages, history: TrainingHistory, bot: Api) {
     this.config = config
     this.seasonManager = seasonManager
-    this.messageGenerator = messageGenerator
+    this.messages = messages
     this.history = history
     this.toTeam = senderFor(bot, config.telegram.teamChat)
     this.toTrainers = senderFor(bot, config.telegram.trainerChat)
@@ -129,10 +131,10 @@ export class AttendanceMonitor {
         return
       }
 
-      const message = await this.messageGenerator.attendanceReminder(training, { useLLM: this.messageGenerator.isLLMAvailable() }, { count, threshold })
+      const message = await this.messages.attendanceReminder(training, { count, threshold })
       await this.toTeam.text(message, {
         replyTo: announcementId,
-        fallback: () => this.messageGenerator.attendanceReminderTemplate({ count, threshold }, training)
+        fallback: () => templates.attendanceReminder(training, { count, threshold })
       })
 
       log.scheduler(`📣 Attendance reminder sent to team (${count}/${threshold})`)
@@ -165,7 +167,7 @@ export class AttendanceMonitor {
         return
       }
 
-      await this.toTrainers.text(this.messageGenerator.cancellationNotice(training, { count, threshold }))
+      await this.toTrainers.text(templates.cancellationNotice(training, { count, threshold }, this.config.attendance.cancelHoursBefore))
 
       log.scheduler(`❌ Cancellation notice sent to trainers (${count}/${threshold})`)
     } catch (error) {
