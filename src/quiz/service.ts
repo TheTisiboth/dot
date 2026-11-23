@@ -1,17 +1,17 @@
-import { type Api } from 'grammy'
 import { type SeasonManager } from '../training/season'
 import { type LatestQuiz, type QuizHistory } from './history'
-import { buildQuizPost, modeFor, pickQuestion } from './picker'
-import { answerTimeFor, buildAnswer } from './answer'
+import { modeFor, pickQuestion } from './picker'
+import { answerTimeFor } from './answer'
+import { type QuizPublisher } from './publisher'
 import type { BotConfig } from '../config/env'
-import { findQuizBatch, findQuizQuestion, isSignalQuestion, QUIZ_QUESTIONS } from './data'
+import { findQuizQuestion, isSignalQuestion, QUIZ_QUESTIONS } from './data'
 import { type PartResult } from '../training/announcer'
-import { type QuizBatch, type QuizQuestion } from './question'
+import { type QuizQuestion } from './question'
 import { withTimeout } from '../shared/async'
 import { armAt } from '../shared/time'
 import { formatDateTimeLocale } from '../shared/formatters'
 import { errorMessage, log } from '../shared/logger'
-import { type ChatTarget, senderFor } from '../telegram/sender'
+import { type ChatTarget } from '../telegram/sender'
 
 // Above the history read's own bound (each MTProto request times out and retries once), so a stuck
 // post always ends in a logged error rather than silence. It also frees the queue for the next post.
@@ -24,7 +24,7 @@ const RETRY_DELAY_MS = 10 * 60_000
  */
 export class RulesQuizService {
   private readonly config: BotConfig['rulesQuiz']
-  private readonly bot: Api
+  private readonly publisher: QuizPublisher
   private readonly seasonManager: SeasonManager
   private readonly history: QuizHistory
   // Posts and answers run one after another: two overlapping ones would read the same history,
@@ -37,9 +37,9 @@ export class RulesQuizService {
   private lastPosted?: LatestQuiz
   private readonly answeredIds = new Set<number>()
 
-  constructor(config: BotConfig['rulesQuiz'], bot: Api, seasonManager: SeasonManager, history: QuizHistory) {
+  constructor(config: BotConfig['rulesQuiz'], publisher: QuizPublisher, seasonManager: SeasonManager, history: QuizHistory) {
     this.config = config
-    this.bot = bot
+    this.publisher = publisher
     this.seasonManager = seasonManager
     this.history = history
   }
@@ -139,7 +139,7 @@ export class RulesQuizService {
   private async pickAndPost(): Promise<{ question: QuizQuestion; quizMessageId: number }> {
     const chat = this.rulesChat()
     const question = await this.pickNext(chat)
-    const quizMessageId = await this.post(chat, question)
+    const quizMessageId = await this.publisher.post(chat, question)
     log.scheduler(`❓ Rules quiz posted: ${question.id} (${question.difficulty})`)
     return { question, quizMessageId }
   }
@@ -160,17 +160,10 @@ export class RulesQuizService {
       return undefined
     }
 
-    // The poll stays open: whoever reads the chat later can still vote
-    await this.sendAnswer(chat, question, buildAnswer(question, this.sourceOf(question)), latest.messageId)
+    await this.publisher.answer(chat, question, latest.messageId)
     this.answeredIds.add(latest.messageId)
     log.scheduler(`✅ Rules quiz answered: ${question.id}`)
     return question
-  }
-
-  private sourceOf(question: QuizQuestion): QuizBatch['source'] {
-    const batch = findQuizBatch(question.id)
-    if (!batch) throw new Error(`Question ${question.id} has no batch`)
-    return batch.source
   }
 
   private answerSkipReason(latest: LatestQuiz | undefined, onlyQuizMessageId?: number): string | undefined {
@@ -195,37 +188,12 @@ export class RulesQuizService {
     return await this.history.getLatestQuiz(chat.chatId, chat.threadId)
   }
 
-  private async sendAnswer(chat: ChatTarget, question: QuizQuestion, html: string, quizMessageId: number): Promise<void> {
-    const to = senderFor(this.bot, chat)
-    if (question.answerImage) {
-      await to.photo(question.answerImage, { caption: html, spoiler: true, replyTo: quizMessageId })
-    } else {
-      await to.text(html, { replyTo: quizMessageId, linkPreview: false })
-    }
-  }
-
   /** Picks the way the scheduler does: the next training's season mode, minus what the rules chat already got (hand signals every other one with RULES_SIGNALS_EVERY_OTHER). */
   async pickNext(chat: ChatTarget = this.rulesChat()): Promise<QuizQuestion> {
     const mode = modeFor(this.seasonManager.nextTraining().season)
     const askedIds = await this.history.getAskedQuizIds(chat.chatId, chat.threadId)
     const isFocus = this.config.signalsEveryOther ? isSignalQuestion : undefined
     return pickQuestion(QUIZ_QUESTIONS, mode, askedIds, Math.random, isFocus)
-  }
-
-  /** Image, then the long question text if any, then the poll: each one replying to the previous. */
-  async post(chat: ChatTarget, question: QuizQuestion): Promise<number> {
-    const { intro, poll, options, correctOptionId } = buildQuizPost(question)
-    const to = senderFor(this.bot, chat)
-
-    let replyTo = question.image ? await to.photo(question.image) : undefined
-    if (intro) replyTo = await to.plain(intro, { replyTo })
-    return await to.poll(poll, options, { correctOptionId, replyTo })
-  }
-
-  /** The question and its answer right away (used by /test_rule). */
-  async preview(chat: ChatTarget, question: QuizQuestion): Promise<void> {
-    const quizMessageId = await this.post(chat, question)
-    await this.sendAnswer(chat, question, buildAnswer(question, this.sourceOf(question)), quizMessageId)
   }
 
   private rulesChat(): ChatTarget {

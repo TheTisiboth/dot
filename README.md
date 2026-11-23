@@ -382,7 +382,7 @@ src/
 ├── commands/                   # Registry (routing, admin guard, menus), public, training, quiz
 ├── training/                   # Seasons and trainings, scheduler, markers
 │   └── messages/               # Message generator (templates, LLM)
-├── quiz/                       # Rules quiz: service, picker, answer, tag, question types
+├── quiz/                       # Rules quiz: service (when), publisher (sends), picker, post, answer, tag, question types
 │   └── data/                   # Question bank
 ├── telegram/                   # Bot API helpers, MTProto history reader
 ├── health/                     # Health server

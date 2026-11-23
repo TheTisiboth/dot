@@ -1,10 +1,11 @@
 import { type RulesQuizService } from '../quiz/service'
+import { type QuizPublisher } from '../quiz/publisher'
 import { findQuizQuestion } from '../quiz/data'
 import { EMOJIS } from '../shared/emojis'
 import { type Command } from './registry'
 
 /** Admin commands to drive the rules quiz by hand. */
-export const quizCommands = (rulesQuiz: RulesQuizService): Command[] => [
+export const quizCommands = (rulesQuiz: RulesQuizService, publisher: QuizPublisher): Command[] => [
   {
     name: 'test_rule',
     description: 'Preview a rules quiz question and its answer here: /test_rule [id]',
@@ -15,7 +16,7 @@ export const quizCommands = (rulesQuiz: RulesQuizService): Command[] => [
         await reply.plain(`${EMOJIS.CROSS_MARK} Unknown question id: ${id}`)
         return
       }
-      await rulesQuiz.preview(chat, question)
+      await publisher.preview(chat, question)
     }
   },
   {
