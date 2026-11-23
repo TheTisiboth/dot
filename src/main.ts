@@ -2,143 +2,9 @@ import { Bot } from 'grammy'
 import { Ollama } from 'ollama'
 import { readEnv } from './config'
 import { type BotConfig, loadConfig } from './config/env'
-import { SeasonManager } from './training/season'
-import { type LlmWriter, llmWriter } from './training/messages/llmWriter'
-import { trainingMessages } from './training/messages/messages'
-import { MtprotoConnection, createMtprotoClient } from './telegram/mtproto/client'
-import { History } from './telegram/mtproto/history'
-import { trainingHistory } from './training/history'
-import { quizHistory } from './quiz/history'
-import { AttendanceMonitor } from './training/attendance'
-import { announcer } from './training/announcer'
-import { startSchedule } from './training/schedule'
-import { RulesQuizService } from './quiz/service'
-import { quizPublisher } from './quiz/publisher'
-import { HEALTH_PORT, PROBE_TIMEOUT_MS, startHealthServer } from './health/server'
-import { type Command, publishCommandMenus, routeCommands } from './commands/registry'
-import { publicCommands } from './commands/public'
-import { trainingCommands } from './commands/training'
-import { quizCommands } from './commands/quiz'
-import { EMOJIS } from './shared/emojis'
+import { createMtprotoClient } from './telegram/mtproto/client'
+import { buildApp } from './app'
 import { log } from './shared/logger'
-import { pollingOutageLogger } from './telegram/botApi'
-
-class Dot {
-  private readonly bot: Bot
-  private readonly seasonManager: SeasonManager
-  private readonly llm: LlmWriter
-  private readonly llmProvider: string
-  private readonly mtproto: MtprotoConnection
-  private readonly history: History
-  // The chats the history is read in, so a startup check can flag one the account cannot see
-  private readonly readChats: Record<string, string>
-  private readonly startSchedule: () => void
-  private readonly commands: Command[]
-  private readonly adminChatId: string
-
-  constructor(config: BotConfig) {
-    this.adminChatId = config.telegram.adminChatId
-    this.bot = new Bot(config.telegram.token)
-    this.bot.api.config.use(pollingOutageLogger())
-    // grammY awaits each update before the next: not awaiting keeps a slow command (LLM) from holding up the others
-    this.bot.use((_ctx, next) => {
-      next().catch((error: unknown) => { log.error('Bot error', error) })
-    })
-    this.seasonManager = new SeasonManager(config)
-    this.llm = llmWriter(config.ollama, config.ollama.enabled ? new Ollama({ host: config.ollama.host }) : null)
-    this.llmProvider = config.ollama.enabled ? `Ollama (${config.ollama.model})` : 'Template-only'
-    const messages = trainingMessages(this.llm)
-    this.mtproto = new MtprotoConnection(createMtprotoClient(config.mtproto))
-    this.history = new History(this.bot.api, this.mtproto)
-    const { teamChat, trainerChat, enableTrainerMessages } = config.telegram
-    const rulesChat = config.rulesQuiz.enabled ? config.rulesQuiz.chat : undefined
-    this.readChats = {
-      team: teamChat.chatId,
-      ...(enableTrainerMessages && { trainer: trainerChat.chatId }),
-      ...(rulesChat && { rules: rulesChat.chatId })
-    }
-    const publisher = quizPublisher(this.bot.api)
-    const rulesQuiz = new RulesQuizService(config.rulesQuiz, publisher, this.seasonManager, quizHistory(this.history))
-    const attendance = new AttendanceMonitor(config, this.seasonManager, messages, trainingHistory(this.history), this.bot.api)
-    const trainingAnnouncer = announcer({ config, seasonManager: this.seasonManager, messages, attendance, bot: this.bot.api, rulesQuiz })
-    this.startSchedule = () => { startSchedule({ config, seasonManager: this.seasonManager, announcer: trainingAnnouncer, attendance, rulesQuiz, bot: this.bot.api }) }
-    this.commands = [
-      ...publicCommands(this.seasonManager),
-      ...trainingCommands({ config, api: this.bot.api, seasonManager: this.seasonManager, messages, announcer: trainingAnnouncer, attendance }),
-      ...quizCommands(rulesQuiz, publisher)
-    ]
-    routeCommands(this.bot, this.commands, config.telegram.adminChatId)
-
-    this.setupErrorHandlers()
-  }
-
-  private setupErrorHandlers(): void {
-    process.on('unhandledRejection', (reason) => {
-      log.error('Unhandled Rejection', reason)
-    })
-
-    process.on('uncaughtException', (error) => {
-      log.error('Uncaught Exception', error)
-      process.exit(1)
-    })
-
-    let shuttingDown = false
-    const shutdown = (signal: string): void => {
-      if (shuttingDown) return
-      shuttingDown = true
-
-      log.bot(`Received ${signal}, stopping polling...`)
-      void Promise.all([this.bot.stop(), this.mtproto.disconnect()]).then(() => {
-        log.bot('Polling stopped, exiting')
-        process.exit(0)
-      })
-    }
-
-    process.on('SIGTERM', () => { shutdown('SIGTERM') })
-    process.on('SIGINT', () => { shutdown('SIGINT') })
-  }
-
-  private async reportUnresolvedChats(): Promise<void> {
-    for (const { name, error } of await this.history.unresolvedChats(this.readChats)) {
-      log.error(`MTProto account cannot resolve the ${name} chat ${this.readChats[name]} - history reads there will fail (is the account a member, the chat among its 100 latest dialogs?)`, error)
-    }
-  }
-
-  async start(): Promise<void> {
-    const currentSeason = this.seasonManager.seasonOn()
-    const trainingDays = this.seasonManager.getTrainingDaysString()
-    const seasonConfig = this.seasonManager.seasonConfigOn()
-
-    log.bot(`${EMOJIS.FRISBEE} Dot started!`)
-    log.bot(`${EMOJIS.CALENDAR} Season: ${currentSeason} | ${EMOJIS.LOCATION} Location: ${seasonConfig.location.name}`)
-    log.bot(`${EMOJIS.RUNNER} Training days: ${trainingDays}`)
-    log.bot(`${EMOJIS.ROBOT} LLM: ${this.llmProvider}`)
-    log.bot(`${EMOJIS.THUMBS_UP} Min attendance: ${seasonConfig.minAttendance}`)
-
-    startHealthServer({ api: this.bot.api, reader: this.mtproto, llm: this.llm }, HEALTH_PORT, PROBE_TIMEOUT_MS)
-    publishCommandMenus(this.bot.api, this.commands, this.adminChatId).catch((error: unknown) => {
-      log.error('Registering bot commands', error)
-    })
-
-    // Connect first: a catch-up attendance check can fire as soon as the timers are armed.
-    // A failure here must not take the scheduler down with it - training posts still go out,
-    // and the attendance checks retry the connection on their next run.
-    try {
-      await this.mtproto.connect()
-      void this.reportUnresolvedChats()
-    } catch (error) {
-      log.error('Connecting MTProto reader - attendance checks will not run until it recovers', error)
-    }
-
-    this.startSchedule()
-
-    // Polling only gives up on a rejected token or a second poller (409, e.g. a deploy overlap): exit so Docker restarts it
-    this.bot.start().catch((error: unknown) => {
-      log.error('Telegram polling stopped', error)
-      process.exit(1)
-    })
-  }
-}
 
 const loadConfigOrExit = (): BotConfig => {
   try {
@@ -149,7 +15,39 @@ const loadConfigOrExit = (): BotConfig => {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const bot = new Dot(loadConfigOrExit())
-  void bot.start()
+const config = loadConfigOrExit()
+const app = buildApp(config, {
+  bot: new Bot(config.telegram.token),
+  mtproto: createMtprotoClient(config.mtproto),
+  ollama: config.ollama.enabled ? new Ollama({ host: config.ollama.host }) : null
+})
+
+process.on('unhandledRejection', (reason) => {
+  log.error('Unhandled Rejection', reason)
+})
+
+process.on('uncaughtException', (error) => {
+  log.error('Uncaught Exception', error)
+  process.exit(1)
+})
+
+let shuttingDown = false
+const shutdown = (signal: string): void => {
+  if (shuttingDown) return
+  shuttingDown = true
+
+  log.bot(`Received ${signal}, stopping polling...`)
+  void app.stop().then(() => {
+    log.bot('Polling stopped, exiting')
+    process.exit(0)
+  })
 }
+
+process.on('SIGTERM', () => { shutdown('SIGTERM') })
+process.on('SIGINT', () => { shutdown('SIGINT') })
+
+// Polling only gives up on a rejected token or a second poller (409, e.g. a deploy overlap): exit so Docker restarts it
+void app.start((error) => {
+  log.error('Telegram polling stopped', error)
+  process.exit(1)
+})
