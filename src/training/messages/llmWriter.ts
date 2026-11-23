@@ -4,7 +4,7 @@ import { withTimeout } from '../../shared/async'
 import { log } from '../../shared/logger'
 
 // Generous: a cold model on the Pi's CPU takes over a minute; past this the template goes out instead
-export const LLM_TIMEOUT_MS = 3 * 60_000
+export const LLM_TIMEOUT_MS = 5 * 60_000
 
 export type LlmClient = Pick<Ollama, 'chat' | 'list'>
 
