@@ -70,7 +70,7 @@ is.
 
 **Consequence:** the environment is read once, by the config module the entry point loads.
 
-**Enforced by:** lint (environment access restricted to the config module), review.
+**Enforced by:** test (environment access restricted to the config module), review.
 
 ---
 

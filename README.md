@@ -4,78 +4,68 @@
 
 [Monitoring status page](https://status.leojan.fr/status/bot)
 
-A TypeScript Telegram bot that automatically sends training reminders based on seasonal schedules.
+A TypeScript Telegram bot for Ultimate Frisbee trainings: it announces each training the day
+before, counts who is coming from 👍 reactions, reminds the team and warns the trainers when
+too few players are in, and posts a rules quiz.
 
-## Features
+## What it does
 
-- 🗓️ Seasonal scheduling (winter/summer)
-- 🤖 AI-generated messages (optional)
-- 👥 Separate messages for team and trainers
-- 👍 Attendance tracking from 👍 reactions, with automatic reminder and cancellation
-- 🔑 Key-holder message asking who brings the sports hall key
-- ⚙️ Fully configurable via environment variables
+One training, at time T (the practice start of the season, or `EXCEPTIONAL_TIME`):
 
-## Attendance tracking
-
-The training post is the poll: people react 👍 to confirm. The bot then counts those
-reactions and acts twice before each training:
-
-| When | If 👍 count is below the threshold | Sent to |
+| When | What | Where |
 |---|---|---|
-| `REMINDER_HOURS_BEFORE` (default 3h) | Posts a reminder to react | Team chat, as a reply to the post |
-| `CANCEL_HOURS_BEFORE` (default 1h) | Posts "training should be cancelled" | Trainer chat |
+| T-24h | **Announcement**: location, start (and throwing) time; react 👍 or 👎 | Team chat |
+| T-24h | **Key request**: key holders react 👍 if bringing the hall key, 😢 if they have it but can't come (per-season toggle) | Team chat |
+| T-24h | **Trainer request**: who coaches (`ENABLE_TRAINER_MESSAGES`) | Trainer chat |
+| T-24h | **Quiz question** (`RULES_QUIZ_ENABLED`) | Rules chat |
+| T-24h + `RULES_ANSWER_DELAY_MINUTES` | **Quiz answer**, behind a spoiler | Rules chat |
+| T-`REMINDER_HOURS_BEFORE` (3h) | **Attendance reminder**, only if 👍 < threshold | Team chat, reply to the announcement |
+| T-`CANCEL_HOURS_BEFORE` (1h) | **Cancellation notice**, only if still 👍 < threshold | Trainer chat |
 
-Each is skipped if the count is at or above `WINTER_MIN_ATTENDANCE` / `SUMMER_MIN_ATTENDANCE`.
-Only 👍 counts — 👎 is ignored. Admins can check the live count anytime with `/attendance`.
+- The T-24h run is a daily cron at each practice time: it posts if a training starts at that
+  time tomorrow. The announcement goes out 24h before the **regular** time, even when
+  `EXCEPTIONAL_TIME` moves the training; the checks count from the new start.
+- Only 👍 counts. The threshold is `WINTER_MIN_ATTENDANCE` / `SUMMER_MIN_ATTENDANCE`.
+- The announcement, trainer request and attendance reminder are written by the LLM when Ollama is
+  enabled, else from templates (also the fallback when the LLM fails or takes over 3 min). The key
+  request and cancellation notice are always templates.
+- A failed announcement is retried once 10 min later, a failed quiz question too; what still
+  failed is reported to the admin chat. One failed message never stops the others.
+- A cancelled training (`EXCEPTIONAL_CANCELLED=true`) gets nothing in the team or trainer chat;
+  the quiz still goes out.
+- Restart-safe: on startup the bot re-arms the next training's checks and the pending quiz answer,
+  reading the chat history to skip what was already sent. A check whose time passed runs at once.
 
 > **Why a user account is required.** The Telegram **Bot API cannot read reactions**. Both
 > reaction-read methods (`messages.getMessagesReactions`, `messages.getMessageReactionsList`)
 > are documented *"Only users can use this method"*. So the bot writes the messages, and a
-> separate MTProto client, logged in as **your own Telegram account**, reads the counts.
-> Setup is in [MTProto setup](#mtproto-setup-required-for-attendance) below.
+> separate MTProto client, logged in as **your own Telegram account**, reads the counts and
+> the chat history. Setup: [MTProto setup](#mtproto-setup).
 
-## Quick Start
+## Setup
 
-### 1. Prerequisites
+### Prerequisites
 
-- Node.js at the `NODE_VERSION` in `Dockerfile` (for local setup)
-- Docker & Docker Compose (for deployment)
-- Telegram bot token from [@BotFather](https://t.me/BotFather)
+- Node.js at the `NODE_VERSION` of `Dockerfile` (local runs)
+- Docker with Compose (deployment)
+- A bot token from [@BotFather](https://t.me/BotFather)
 
-### 2. Get Your Chat IDs
+### Chat ids
 
-1. Start a chat with your bot and send a message
-2. Visit: `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
-3. Find `"chat":{"id":123456789}` (negative for groups)
+1. Add the bot to the chat and send a message
+2. Open `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
+3. Find `"chat":{"id":-100…}` (negative for groups); a topic's id is its `message_thread_id`
 
-### 3. Configuration
+### `.env`
 
 ```bash
-cp .env.example .env
-# Edit .env with your settings
+cp .env.example .env    # then fill it in, see Configuration
 ```
 
-Required settings in `.env`:
-```env
-TELEGRAM_BOT_TOKEN=your_token
-TEAM_CHAT_ID=team_chat_id
-ADMIN_CHAT_ID=your_admin_id
-TRAINER_CHAT_ID=trainer_chat_id
+### MTProto setup
 
-WINTER_PRACTICE_DAYS=2:20:30,6:21:00     # Tuesday 20:30, Saturday 21:00
-SUMMER_PRACTICE_DAYS=0:19:00,3:19:30     # Sunday 19:00, Wednesday 19:30
-```
-
-Optional thread support:
-```env
-TEAM_CHAT_THREAD_ID=123                   # Team chat thread
-TRAINER_CHAT_THREAD_ID=456                # Trainer chat thread
-```
-
-### 4. MTProto setup (required for attendance)
-
-Reading reactions is impossible with a bot token, so the bot also logs in as **your own
-Telegram account** to read them. Three values are needed.
+The bot also logs in as **your own Telegram account** to read reactions and history. Three
+values are needed.
 
 **Get `api_id` / `api_hash`:**
 
@@ -108,208 +98,119 @@ TELEGRAM_SESSION=1BQANOTEuMTA4LjU2...
 >
 > To revoke: Telegram → **Settings → Devices** → terminate the session.
 
-Your account must be a **member of both** `TEAM_CHAT_ID` and `TRAINER_CHAT_ID`: it reads reactions
-in the first, and checks for already-sent cancellations in the second. Reactions must be
-enabled in the team group with 👍 available.
-
-### 5. Run
-
-**Production:** Dokploy redeploys on every push to `main`.
-
-**Docker, locally** (bot + Ollama, pulls the model):
-```bash
-npm run docker:up
-```
-
-**Local development:**
-```bash
-npm install
-npm run dev
-```
+The account must be a **member** of the team chat (reactions, announcement), the trainer chat
+(already-sent cancellation notices) and the rules chat (asked questions). At startup the bot
+logs an error for each of these chats the account cannot see. Reactions must be enabled in the
+team chat with 👍 available.
 
 ## Configuration
 
-### Season Settings
+All from environment variables (`.env`, read by `docker-compose.yml`). The bot refuses to start
+with a message naming every invalid one. Booleans: `true`, anything else is false; empty = default.
 
-```env
-# Winter (default: Sept 15 - May 19)
-WINTER_START_DATE=9:15
-WINTER_LOCATION=Park Arena
-WINTER_PRACTICE_DAYS=2:20:30,6:21:00
-WINTER_THROWING_MINUTES_BEFORE=15       # Optional: throwing session shown in the team post, 0 = none
+| Variable | Default | Meaning |
+|---|---|---|
+| **Telegram** | | |
+| `TELEGRAM_BOT_TOKEN` | required | Bot token |
+| `TEAM_CHAT_ID` | required | Team chat |
+| `TEAM_CHAT_THREAD_ID` | | Team chat topic |
+| `TRAINER_CHAT_ID` | required | Trainer chat |
+| `TRAINER_CHAT_THREAD_ID` | | Trainer chat topic |
+| `ADMIN_CHAT_ID` | required | Admin chat: admin commands, failure alerts |
+| `ENABLE_TRAINER_MESSAGES` | `true` | Trainer request and cancellation notice |
+| **MTProto** ([setup](#mtproto-setup)) | | |
+| `TELEGRAM_API_ID` | required | From my.telegram.org |
+| `TELEGRAM_API_HASH` | required | From my.telegram.org |
+| `TELEGRAM_SESSION` | required | Secret, from `npm run mtproto:login` |
+| **Seasons** (`WINTER_*`, `SUMMER_*`) | | |
+| `WINTER_START_DATE`, `SUMMER_START_DATE` | required | `month:day`, e.g. `9:15`; a season ends the day before the other starts |
+| `WINTER_LOCATION`, `SUMMER_LOCATION` | required | Name, or `[Name](url)` to link it |
+| `WINTER_PRACTICE_DAYS`, `SUMMER_PRACTICE_DAYS` | required | `day:HH:MM,…`, one per weekday, 0 = Sunday … 6 = Saturday; e.g. `2:20:30,6:21:00` |
+| `WINTER_THROWING_MINUTES_BEFORE`, `SUMMER_THROWING_MINUTES_BEFORE` | `0` | Throwing session shown this long before the start, 0 = none |
+| `WINTER_KEY_MESSAGE_ENABLED`, `SUMMER_KEY_MESSAGE_ENABLED` | `true` | Key request |
+| **Attendance** | | |
+| `WINTER_MIN_ATTENDANCE`, `SUMMER_MIN_ATTENDANCE` | `8` | 👍 needed, else reminder then cancellation notice |
+| `REMINDER_HOURS_BEFORE` | `3` | Attendance reminder, hours before the start |
+| `CANCEL_HOURS_BEFORE` | `1` | Cancellation notice, hours before the start; must be below `REMINDER_HOURS_BEFORE` |
+| **Exceptional training** | | Applies to **every** training until removed and redeployed |
+| `EXCEPTIONAL_LOCATION` | | Replaces the season location |
+| `EXCEPTIONAL_TIME` | | `HH:MM`, replaces the start time |
+| `EXCEPTIONAL_CANCELLED` | `false` | Nothing sent to team or trainers; `/training` says cancelled |
+| **Rules quiz** ([details](#rules-quiz)) | | |
+| `RULES_QUIZ_ENABLED` | `false` | Quiz question with each announcement |
+| `RULES_CHAT_ID` | required if enabled | Group or channel (starts with `-`), not a private chat |
+| `RULES_CHAT_THREAD_ID` | | Rules chat topic |
+| `RULES_ANSWER_DELAY_MINUTES` | `60` | Between the question and its answer |
+| `RULES_SIGNALS_EVERY_OTHER` | `false` | Every other question is a hand signal |
+| **LLM** | | |
+| `OLLAMA_ENABLED` | `false` (Docker: `true`) | LLM-written posts |
+| `OLLAMA_HOST` | `http://localhost:11434` | Local runs only; Docker uses the `ollama` service |
+| `OLLAMA_MODEL` | `llama3.2:3b` | Model, pulled by `ollama-setup` in Docker |
+| **Docker only** | | |
+| `TZ` | `Europe/Brussels` | Zone of the schedule and every date (locally: the machine's) |
+| `APP_PORT` | `3004` | Host port of the health server (container: 3004) |
+| `OLLAMA_VERSION` | `0.40.17` | `ollama/ollama` image tag |
+| `OLLAMA_MEMORY_LIMIT` | `5G` | Ollama container memory limit |
+| `OLLAMA_MEMORY_RESERVATION` | `4G` | Ollama container memory reservation |
 
-# Summer (default: May 20 - Sept 14)
-SUMMER_START_DATE=5:20
-SUMMER_LOCATION=Beach Courts
-SUMMER_PRACTICE_DAYS=0:19:00,3:19:30
-SUMMER_THROWING_MINUTES_BEFORE=0
-```
-
-Days: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
-
-### Attendance Settings
-
-```env
-WINTER_MIN_ATTENDANCE=8      # 👍 needed on the training post, else remind then cancel
-SUMMER_MIN_ATTENDANCE=8
-REMINDER_HOURS_BEFORE=3      # Remind the team this many hours before training
-CANCEL_HOURS_BEFORE=1        # Notify trainers to cancel this many hours before training
-```
-
-`CANCEL_HOURS_BEFORE` must be smaller than `REMINDER_HOURS_BEFORE` (the cancellation comes
-after the reminder); the bot refuses to start otherwise.
-
-### Key-holder Message
-
-Right after the training post, the bot sends a separate message to the team chat asking key
-holders to react: 👍 = I have the key and I'm coming, 😢 = I have the key but can't come.
-
-```env
-WINTER_KEY_MESSAGE_ENABLED=true   # default: true
-SUMMER_KEY_MESSAGE_ENABLED=true   # default: true
-```
-
-With Ollama enabled the text is LLM-generated, but it falls back to the template if the output
-drifts (wrong, missing or swapped emojis, no mention of the key). The bot adds a 🔑 marker itself,
-which keeps this message from being mistaken for the training post after a restart.
-
-### Exceptional Training
-
-Moves or cancels training without touching the season settings:
-
-```env
-EXCEPTIONAL_LOCATION=Beach     # replaces the season location
-EXCEPTIONAL_TIME=18:30         # replaces the practice start time
-EXCEPTIONAL_CANCELLED=true     # sends nothing to team or trainers
-```
-
-The announcement still goes out 24h before the regular time, quoting the new place and time;
-reminder and cancellation checks count from the new start. A cancelled training gets no
-announcement, key or trainer request, no checks and no notice; `/training` says it is cancelled.
-The rules quiz still goes out. An override applies to **every** training until it is removed from
-`.env` and the service redeployed.
-
-### AI Messages (Optional)
-
-Enable Ollama for AI-generated messages:
-```env
-OLLAMA_ENABLED=true
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=llama3.2:3b
-```
+A new variable goes in `src/config/env.ts`, the `environment:` list of `docker-compose.yml`,
+`.env.example` and this table (tests check all four).
 
 ## Commands
 
-Mirrors `/help`, which is built from the command list: public commands everywhere, admin ones only in the admin chat.
+Same list as `/help` in the admin chat (a test keeps them equal). Elsewhere, `/help` shows the
+public ones only; admin commands only run in the admin chat and are ignored silently elsewhere.
 
-**Everyone:**
-- `/start` - Meet dot
-- `/help` - List the commands
-- `/info` - Show the season schedules
-- `/training` - Show the next training: weekday, countdown, and once announced how many players are in, with a link to the announcement
-- `/quiz` - Practise with a random rules quiz question, in a private chat with the bot (in a group, it points there). See [Practice](#practice)
+```
+/start - Meet dot
+/help - List the commands
+/info - Show the season schedules
+/training - Show the next training
+/quiz - Practise with a random rules quiz question (private chat)
 
-**Admin only (preview):**
-- `/preview` - Preview what the next training gets. Buttons pick the message: everything the next run posts, the announcement, key or trainer request, attendance reminder or cancellation notice (sample counts), LLM or template. Previews stay in the admin chat
-
-**Admin only (send commands):**
-- `/send_to_team` - Post the announcement to the team chat
-- `/send_to_all` - Post the announcement, requests and quiz question now
-
-**Admin only (attendance):**
-- `/attendance` - Show how many players are in so far: the live 👍 count on the announcement, vs the season threshold
-
-**Admin only (status):**
-- `/status` - Show what the bot will do next: next training, announcement (posted or due), players in, reminder and cancellation checks (armed, ran or skipped), quiz answer due, Telegram / MTProto / LLM up or down, version and uptime. Changes nothing
-
-**Admin only (rules quiz):**
-- `/quiz_preview [id]` - Preview a quiz question and its answer here
-- `/quiz_post` - Post the next quiz question to the rules chat
-- `/quiz_answer` - Post the answer to the latest quiz question now
-- `/quiz_stats` - Show where the quiz rounds stand and the last questions asked
-
-See [Rules quiz](#rules-quiz).
-
-## Health Monitoring
-
-Bot exposes health endpoints on port 3004. Each dependency is `ok`, `disabled` or `down`; probes time out after 5s.
-
-- **`GET /health`** - "the bot works": 503 only when Telegram is down (MTProto and Ollama are optional, templates are the LLM fallback)
-  ```json
-  {
-    "status": "ok",
-    "checks": {
-      "telegram": { "status": "ok", "responseTimeMs": 112 },
-      "mtproto": { "status": "down" },
-      "ollama": { "status": "disabled" }
-    },
-    "timestamp": "2026-11-15T23:50:01.000Z"
-  }
-  ```
-- **`GET /health/telegram`**, **`/health/mtproto`**, **`/health/ollama`** - one dependency, 503 when it is not `ok` (Ollama disabled included)
-  ```json
-  { "name": "ollama", "status": "down", "responseTimeMs": 5001, "error": "Ollama did not answer within 5000ms", "timestamp": "..." }
-  ```
-
-MTProto status is the reader's connection state (no request); it reconnects on the next attendance check.
-
-**Uptime-kuma setup:**
-```yaml
-Bot monitor:
-  Type: HTTP(s)
-  URL: http://frisbee-bot:3004/health
-  Interval: 60s
-
-Ollama monitor:
-  Type: HTTP(s)
-  URL: http://frisbee-bot:3004/health/ollama
-  Interval: 60s
+Admin only:
+/preview - Preview what the next training gets
+/send_to_team - Post the announcement to the team chat
+/send_to_all - Post the announcement, requests and quiz question now
+/attendance - Show how many players are in so far
+/quiz_preview [id] - Preview a quiz question and its answer here
+/quiz_post - Post the next quiz question to the rules chat
+/quiz_answer - Post the answer to the latest quiz question now
+/quiz_stats - Show where the quiz rounds stand and the last questions asked
+/status - Show what the bot will do next
 ```
 
-## Message Flow
-
-The bot sends **three separate messages** 24h before each training:
-1. **Team message** → `TEAM_CHAT_ID` (optional thread: `TEAM_CHAT_THREAD_ID`)
-2. **Key-holder message** → `TEAM_CHAT_ID`, right after the team message (per-season toggle)
-3. **Trainer message** → `TRAINER_CHAT_ID` (optional thread: `TRAINER_CHAT_THREAD_ID`)
-
-All messages can be:
-- **Template**: Simple, consistent format
-- **AI-generated**: Varied, engaging (requires Ollama)
+- `/training`: weekday, date, countdown, time, location; once announced, "N of M players in" with
+  a link to the announcement (count cached 1 min, left out when it can't be read within 5 s).
+- `/quiz`: see [Practice](#practice). In a group, it points to the private chat.
+- `/preview`: buttons pick the message, as the next training would get it: everything the
+  T-24h run posts, or one of announcement, key request, trainer request, attendance reminder,
+  cancellation notice (sample counts), and LLM or template when Ollama is enabled. Previews stay
+  in the admin chat; it says when a message would not be sent (disabled, cancelled).
+- `/send_to_all`: the T-24h run now, with a sent / skipped / failed line per message.
+- `/attendance`: live 👍 count on the announcement vs the threshold.
+- `/status`: next training, announcement (posted or due), players in, reminder and cancellation
+  checks (armed, ran or skipped), quiz answer due, Telegram / MTProto / LLM up or down, version
+  and uptime. Changes nothing.
+- `/quiz_stats`: per mode (indoor, outdoor): round, rounds completed, asked / total in the
+  current round, by source and difficulty, plus the 5 latest questions with date and id. Says so
+  when the rules chat history can't be read (MTProto down).
 
 ## Rules quiz
 
-With each training post (the day before training), the bot posts a quiz poll on the rules of
-Ultimate to the rules chat. Voters see the right option as soon as they vote. After
-`RULES_ANSWER_DELAY_MINUTES`, the bot replies with the answer, explanation and rule link,
-hidden behind a spoiler. The quiz goes out even if training is cancelled.
+With each announcement, the bot posts a quiz poll on the rules of Ultimate to the rules chat.
+Voters see the right option as soon as they vote. `RULES_ANSWER_DELAY_MINUTES` later, it replies
+with the answer, explanation and rule link, behind a spoiler.
 
-Questions match the season. In winter, only questions that hold indoors (EUF) are picked;
-in summer, only those that hold outdoors. The least-asked questions come first, counted from
-the rules chat history. The difficulty changes from one quiz to the next when possible.
-
-### Configuration
-
-```env
-RULES_QUIZ_ENABLED=false
-RULES_CHAT_ID=                    # Group/channel ID (starts with -100), not a private chat
-RULES_CHAT_THREAD_ID=             # Optional: topic ID
-RULES_ANSWER_DELAY_MINUTES=60     # Minutes between the poll and its answer
-RULES_SIGNALS_EVERY_OTHER=false   # Every other quiz is a hand signal (50%), else full random
-```
-
-The bot must be able to post in `RULES_CHAT_ID`. The MTProto account
-([setup](#4-mtproto-setup-required-for-attendance)) must be a member, because it reads the
-history to know which questions were already asked.
-
-Admin commands:
-- `/quiz_preview [id]` - Preview a question and its answer in the current chat. Without an id, it
+- Questions match the season: indoor (EUF) ones in winter, outdoor ones in summer.
+- Rounds: the least-asked questions of the mode come first, counted from the rules chat history.
+  The difficulty changes from one question to the next when possible.
+- `RULES_SIGNALS_EVERY_OTHER=true`: hand signals and the other questions alternate, each with its
+  own round.
+- The bot must be able to post in `RULES_CHAT_ID`; the MTProto account must be a member (it reads
+  the history).
+- `/quiz_preview [id]` shows a question and its answer in the current chat; without an id, it
   picks the way the scheduler would. Nothing is posted to the rules chat.
-- `/quiz_post` - Post the next question to the rules chat now
-- `/quiz_answer` - Answer the latest unanswered poll in the rules chat now
-- `/quiz_stats` - Per mode (indoor, outdoor): round, rounds completed, asked / total in the
-  current round, split by source and difficulty, plus the 5 latest questions with date and id.
-  Says so when the rules chat history can't be read (MTProto down)
 
 ### Practice
 
@@ -351,6 +252,99 @@ documents, © World Flying Disc Federation, licensed under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Indoor questions are adapted
 from the [EUF Indoor Rules Appendix](https://www.ultimatefederation.eu/rules-of-ultimate).
 
+## Health
+
+The bot serves health endpoints on port 3004. Each dependency is `ok`, `disabled` or `down`;
+probes time out after 5 s.
+
+- **`GET /health`**: "the bot works": 503 only when Telegram is down (MTProto and Ollama are
+  optional, templates are the LLM fallback). Used by the compose healthcheck.
+  ```json
+  {
+    "status": "ok",
+    "checks": {
+      "telegram": { "status": "ok", "responseTimeMs": 112 },
+      "mtproto": { "status": "down" },
+      "ollama": { "status": "disabled" }
+    },
+    "timestamp": "2026-11-15T23:50:01.000Z"
+  }
+  ```
+- **`GET /health/telegram`**, **`/health/mtproto`**, **`/health/ollama`**: one dependency, 503
+  when it is not `ok` (Ollama disabled included).
+  ```json
+  { "name": "ollama", "status": "down", "responseTimeMs": 5001, "error": "Ollama did not answer within 5000ms", "timestamp": "..." }
+  ```
+
+MTProto status is the reader's connection state (no request); a request that finds the
+connection dead reconnects and retries once.
+
+Uptime Kuma: HTTP monitors on `http://frisbee-bot:3004/health` (bot) and
+`http://frisbee-bot:3004/health/ollama` (LLM), 60 s interval.
+
+## Deployment
+
+**Production**: Dokploy redeploys on every push to `main`, with `docker-compose.yml` plus
+`docker-compose.prod.yml` (only the bot joins `dokploy-network`, Ollama stays private). Secrets
+live in `.env` on the host, never committed.
+
+`docker-compose.yml` runs three services:
+- `frisbee-bot`: the bot (`node dist/main.js`, multi-stage image, `node` user), health port on
+  `APP_PORT`, healthcheck on `/health`. It starts without waiting for Ollama: templates cover a
+  missing LLM.
+- `ollama`: the LLM, port 11434 on `127.0.0.1` only (for `npm run dev`).
+- `ollama-setup`: pulls `OLLAMA_MODEL` once, then exits.
+
+On SIGTERM the bot stops polling, timers, cron, health server and MTProto, within 5 s.
+
+**Docker, locally** (bot + Ollama, pulls the model): `npm run docker:up`.
+
+**Release**: on `main`, after a user-visible change ships,
+`npm run release -- patch|minor|major` (bumps `version`, commits, tags `vX.Y.Z`), then
+`git push --follow-tags`. `/status` shows the version.
+
+## Development
+
+```bash
+npm install
+npm run dev             # Run the bot from src/, restarts on change
+npm run verify          # Type-check, lint, knip, tests: run before every push
+npm test                # Tests
+npm run test:coverage   # Tests with coverage thresholds
+npm run lint            # Lint + formatting check
+npm run format          # Fix lint + formatting
+npm run type-check      # Types (src, scripts)
+npm run check           # Type-check, lint, knip
+npm run build           # Compile to dist/
+npm start               # Run dist/main.js (build first)
+npm run smoke           # Import the built app (ESM check)
+npm run mtproto:login   # Mint TELEGRAM_SESSION
+```
+
+CI runs `verify`, `test:coverage`, `build`, `smoke` and `docker build`. Engineering rules:
+[`ADR.md`](ADR.md), summed up in [`CLAUDE.md`](CLAUDE.md).
+
+### Project structure
+
+```
+src/
+├── main.ts          # Entry point: config, clients, process signals
+├── app.ts           # Wiring, start, stop
+├── config/          # One zod schema over env, readEnv
+├── commands/        # Registry (routing, admin guard, menus, /help), public, training, quiz, status
+├── training/        # Seasons, schedule, announcer, attendance, markers, history lookups
+│   └── messages/    # Templates, LLM prompts and writer
+├── quiz/            # Rules quiz: service, publisher, picker, post, answer, stats, history lookups
+│   └── data/        # Question bank
+├── telegram/        # Sender, Bot API helpers, MTProto client and history
+├── health/          # Health server
+└── shared/          # Domain-free helpers: time, formatting, logger, async, emojis
+scripts/             # mtproto:login, smoke
+assets/signals/      # Hand-signal images
+```
+
+A feature folder owns its types. `shared/` imports no feature (lint). Files are camelCase.
+
 ## Glossary
 
 One word per concept, one concept per word, in code, logs and docs.
@@ -375,54 +369,22 @@ Every text the bot sends, LLM prompts included:
 - Friendly, like a teammate: plain English, never corporate, pushy or guilt-tripping.
 - Glossary words, so a post, a command reply and an error say the same thing the same way.
 
-## Development
-
-```bash
-npm run dev             # Watch mode
-npm run verify          # Type-check, lint + format, knip, tests (run before every push; CI also builds + docker build)
-npm test                # Run tests
-npm run test:coverage   # Tests with coverage thresholds
-npm run lint            # Check code quality and formatting
-npm run format          # Fix lint + formatting
-npm run type-check      # Check types
-npm run build           # Compile to dist/
-npm start               # Run dist/main.js (build first)
-npm run smoke           # Import the built app (ESM check)
-```
-
-Release: on `main`, after a user-visible change ships, `npm run release -- patch|minor|major` (bumps `version`, commits, tags `vX.Y.Z`), then `git push --follow-tags`.
-
-## Project Structure
-
-```
-src/
-├── main.ts                     # Entry point: config, clients, process signals
-├── app.ts                      # Wiring, start, stop
-├── config/                     # One zod schema over env, readEnv
-├── commands/                   # Registry (routing, admin guard, menus), public, training, quiz
-├── training/                   # Seasons and trainings, scheduler, markers
-│   └── messages/               # Message generator (templates, LLM)
-├── quiz/                       # Rules quiz: service (when), publisher (sends), picker, post, answer, tag, question types
-│   └── data/                   # Question bank
-├── telegram/                   # Bot API helpers, MTProto history reader
-├── health/                     # Health server
-└── shared/                     # Domain-free helpers: time, formatting, logger, async, emojis
-```
-
-A feature folder owns its types. `shared/` imports no feature (lint). Files are camelCase.
-
 ## Troubleshooting
 
-**Bot not responding:**
-- Check bot token is correct
-- Verify bot isn't already running
+**Bot exits right after starting:**
+- The log names every invalid variable: fix `.env`
+- "Telegram polling stopped": wrong token, or another instance polls with the same token
 
-**Messages not sending:**
-- Confirm chat IDs are correct (negative for groups)
-- Ensure bot is in the group/channel
-- For channels, bot must be admin
+**Messages not sent:**
+- Chat ids correct (negative for groups), bot a member; in a channel, the bot must be admin
+- Admin chat: failed scheduled posts are reported there
 
-**AI messages failing:**
-- Check `OLLAMA_ENABLED=true`
-- Verify Ollama is running: `docker logs frisbee-ollama`
-- Bot falls back to templates if AI fails
+**No attendance reminder / cancellation notice:**
+- `/status`: MTProto up? checks armed?
+- Startup log: an error per chat the MTProto account cannot see; the account must be a member
+- `/attendance`: is the announcement found, what is the count?
+
+**LLM posts look like templates:**
+- `OLLAMA_ENABLED=true`, `/health/ollama` ok
+- Ollama running: `docker logs frisbee-ollama`
+- Templates are the fallback when the LLM fails or is too slow
