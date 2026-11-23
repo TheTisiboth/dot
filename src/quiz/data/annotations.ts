@@ -9,6 +9,7 @@ const POINT_REPLAYED = 'The point is replayed'
 
 // Each ref is the rule the annotation explains; its urules.org page shows the annotation inline
 export const annotations: QuizBatch = {
+  name: 'Annotations',
   source: {
     title: 'WFDF Rules of Ultimate 2025-2028 - Official Annotations (CC BY 4.0)',
     url: 'https://rules.wfdf.sport/wp-content/uploads/2026/07/WFDF-Rules-of-Ultimate-2025-2028-Official-Annotations.pdf'

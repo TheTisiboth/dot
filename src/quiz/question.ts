@@ -21,6 +21,8 @@ export interface QuizQuestion {
 }
 
 export interface QuizBatch {
+  /** Short, as /quiz_stats shows it */
+  name: string;
   source: { title: string; url: string };
   questions: QuizQuestion[];
 }

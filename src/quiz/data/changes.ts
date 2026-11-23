@@ -3,6 +3,7 @@ import { ALL_MODES } from './modes'
 
 // Most 2025 changes are already asked in the chapter batches; these are the remaining ones
 export const changes: QuizBatch = {
+  name: 'Rule changes',
   source: {
     title: 'WFDF Rules of Ultimate 2025-2028 - Summary of Changes (CC BY 4.0)',
     url: 'https://rules.wfdf.sport/wp-content/uploads/2025/03/WFDF-Rules-of-Ultimate-2025-2028-Summary-of-Changes.pdf'

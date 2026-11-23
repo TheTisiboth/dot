@@ -2,8 +2,8 @@ import { type QuizDifficulty, type QuizMode, type QuizQuestion } from './questio
 import { quizTag } from './tag'
 import { POLL_LIMITS } from '../telegram/botApi'
 
-const LEVELS: Record<QuizDifficulty, string> = { easy: '🟢 Easy', medium: '🟡 Medium', hard: '🔴 Hard' }
-const MODES: Record<QuizMode, string> = { outdoor: '🌳 Outdoor', indoor: '🏢 Indoor' }
+export const LEVELS: Record<QuizDifficulty, string> = { easy: '🟢 Easy', medium: '🟡 Medium', hard: '🔴 Hard' }
+export const MODES: Record<QuizMode, string> = { outdoor: '🌳 Outdoor', indoor: '🏢 Indoor' }
 
 export interface QuizPost {
   /** Sent as a text message before the poll when the question is too long for it */

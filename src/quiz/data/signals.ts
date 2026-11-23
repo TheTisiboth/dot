@@ -82,6 +82,7 @@ const toQuestions = (s: Signal): QuizQuestion[] => {
 }
 
 export const signals: QuizBatch = {
+  name: 'Hand signals',
   source: {
     title: 'WFDF Rules of Ultimate 2025-2028 - Hand Signals (CC BY 4.0)',
     url: 'https://rules.wfdf.sport/wp-content/uploads/2025/03/WFDF-Rules-of-Ultimate-2025-2028-Hand-Signals.pdf'

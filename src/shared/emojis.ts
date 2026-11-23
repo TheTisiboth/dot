@@ -19,5 +19,6 @@ export const EMOJIS = {
   COACH: '👨‍🏫',
   MEGAPHONE: '📣',
   KEY: '🔑',
-  CRYING: '😢'
+  CRYING: '😢',
+  QUESTION: '❓'
 } as const

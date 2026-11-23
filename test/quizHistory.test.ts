@@ -34,7 +34,7 @@ const readerReturning = (messages: Api.Message[]) => {
   return { reader: quizHistory(new History(bot, new MtprotoConnection(client as unknown as MtprotoClient))), searches }
 }
 
-test('history: ids of the quiz polls among the bot messages, newest first', async () => {
+test('history: the quiz polls among the bot messages with when they were posted, newest first', async () => {
   const { reader, searches } = readerReturning([
     message(5, { media: poll(`🟢 Easy${quizTag('r1_01')}\n\nQ?`) }),
     message(4, { message: `🟢 Easy${quizTag('long_text')}\n\nlong question` }),
@@ -43,7 +43,8 @@ test('history: ids of the quiz polls among the bot messages, newest first', asyn
     message(1, { media: poll(`🟡 Medium${quizTag('sig_01')}\n\nQ?`) })
   ])
 
-  assert.deepEqual(await reader.getAskedQuizIds('-400', 7), ['r1_01', 'sig_01'])
+  const postedAt = new Date(1_800_000_000_000)
+  assert.deepEqual(await reader.getAskedQuizzes('-400', 7), [{ questionId: 'r1_01', askedAt: postedAt }, { questionId: 'sig_01', askedAt: postedAt }])
   assert.deepEqual(searches[0], { peer: -400, topMsgId: 7 })
 })
 

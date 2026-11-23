@@ -36,7 +36,7 @@ const build = ({ env = {}, history: chat = {} }: { env?: Record<string, string>;
   let historyReads = 0
   const countedHistory = { ...history, getThumbsUpCount: async () => { historyReads++; return await history.getThumbsUpCount() } }
   const attendance = new AttendanceMonitor(config, seasonManager, trainingMessages(llmWriter(config.ollama, null)), countedHistory, bot.api)
-  const rulesQuiz = new RulesQuizService(config.rulesQuiz, makeFakeQuizPublisher(), seasonManager, { getAskedQuizIds: async () => [], getLatestQuiz: async () => undefined })
+  const rulesQuiz = new RulesQuizService(config.rulesQuiz, makeFakeQuizPublisher(), seasonManager, { getAskedQuizzes: async () => [], getLatestQuiz: async () => undefined })
   const dependencies: Record<string, Check> = { telegram: { status: 'ok' }, mtproto: { status: 'ok' }, ollama: { status: 'disabled' } }
   routeCommands(bot, [statusCommand({ config, seasonManager, attendance, rulesQuiz, dependencies: async () => dependencies, startedAt: new Date(), version: '9.9.9' })], config.telegram.adminChatId)
 

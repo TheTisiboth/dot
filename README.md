@@ -225,6 +225,7 @@ Mirrors `/help`, which is built from the command list: public commands everywher
 - `/quiz_preview [id]` - Preview a quiz question and its answer here
 - `/quiz_post` - Post the next quiz question to the rules chat
 - `/quiz_answer` - Post the answer to the latest quiz question now
+- `/quiz_stats` - Show where the quiz rounds stand and the last questions asked
 
 See [Rules quiz](#rules-quiz).
 
@@ -305,6 +306,9 @@ Admin commands:
   picks the way the scheduler would. Nothing is posted to the rules chat.
 - `/quiz_post` - Post the next question to the rules chat now
 - `/quiz_answer` - Answer the latest unanswered poll in the rules chat now
+- `/quiz_stats` - Per mode (indoor, outdoor): round, rounds completed, asked / total in the
+  current round, split by source and difficulty, plus the 5 latest questions with date and id.
+  Says so when the rules chat history can't be read (MTProto down)
 
 ### Adding questions
 
