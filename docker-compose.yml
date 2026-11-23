@@ -7,8 +7,9 @@ services:
     image: ollama/ollama:${OLLAMA_VERSION:-0.40.17}
     container_name: frisbee-ollama
     restart: unless-stopped
+    # Loopback only, for `npm run dev`: an unauthenticated model API, the bot uses the compose network
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     environment:
@@ -36,11 +37,12 @@ services:
     build: .
     container_name: frisbee-bot
     restart: unless-stopped
+    init: true
     ports:
       - "${APP_PORT:-3004}:3004"
+    # No health condition: the LLM is optional, the bot posts templates without it
     depends_on:
-      ollama:
-        condition: service_healthy
+      - ollama
     environment:
       # Telegram Configuration
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}

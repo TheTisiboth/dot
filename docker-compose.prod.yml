@@ -1,13 +1,9 @@
-# Production override for Dokploy deployment
-# Ensures all containers use dokploy-network for inter-service communication
+# Production override for Dokploy: only the public service joins the shared network, Ollama stays private
 
 services:
-  ollama:
-    networks:
-      - dokploy-network
-
   frisbee-bot:
     networks:
+      - default
       - dokploy-network
 
 networks:
