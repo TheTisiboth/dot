@@ -22,12 +22,12 @@ const HTML = { parse_mode: 'HTML' } as const
 export const trainingCommands = ({ config, api, seasonManager, messageGenerator, scheduler }: TrainingCommandsDeps): Command[] => {
   const nextTraining = () => {
     const training = seasonManager.getNextTrainingInfo()
-    return { training, season: seasonManager.getCurrentSeasonConfig(training.date) }
+    return { training, season: seasonManager.seasonConfigOn(training.date) }
   }
-  const teamMessage = (useLLM = messageGenerator.isLLMAvailable()) =>
-    messageGenerator.generateMessage(seasonManager.getNextTrainingInfo(), { useLLM })
-  const trainerMessage = (useLLM = messageGenerator.isLLMAvailable()) =>
-    messageGenerator.generateTrainerMessage(seasonManager.getNextTrainingInfo(), { useLLM })
+  const announcement = (useLLM = messageGenerator.isLLMAvailable()) =>
+    messageGenerator.announcement(seasonManager.getNextTrainingInfo(), { useLLM })
+  const trainerRequest = (useLLM = messageGenerator.isLLMAvailable()) =>
+    messageGenerator.trainerRequest(seasonManager.getNextTrainingInfo(), { useLLM })
 
   return [
     {
@@ -35,7 +35,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       description: 'Preview template message',
       adminOnly: true,
       run: async ({ reply }) => {
-        await reply(`${EMOJIS.MEMO} Template Message:\n\n${await teamMessage(false)}`, HTML)
+        await reply(`${EMOJIS.MEMO} Template Message:\n\n${await announcement(false)}`, HTML)
       }
     },
     {
@@ -44,7 +44,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       adminOnly: true,
       run: async ({ reply }) => {
         await reply(`${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
-        await reply(`${EMOJIS.ROBOT} LLM Generated Message:\n\n${await teamMessage(true)}`, HTML)
+        await reply(`${EMOJIS.ROBOT} LLM Generated Message:\n\n${await announcement(true)}`, HTML)
       }
     },
     {
@@ -53,7 +53,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       adminOnly: true,
       run: async ({ reply }) => {
         await reply(`${EMOJIS.ROBOT} ${MESSAGES.GENERATING_LLM_MESSAGE}`)
-        await reply(`${EMOJIS.ROBOT} Trainer LLM Generated Message:\n\n${await trainerMessage(true)}`, HTML)
+        await reply(`${EMOJIS.ROBOT} Trainer LLM Generated Message:\n\n${await trainerRequest(true)}`, HTML)
       }
     },
     {
@@ -62,8 +62,8 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       adminOnly: true,
       run: async ({ reply }) => {
         const { season } = nextTraining()
-        const status = season.keyMessageEnabled ? '' : `\n\n${EMOJIS.WARNING} Disabled for ${season.season}: it will not be sent.`
-        await reply(`${EMOJIS.KEY} Key Message:\n\n${messageGenerator.generateKeyMessage()}${status}`, HTML)
+        const status = season.keyRequestEnabled ? '' : `\n\n${EMOJIS.WARNING} Disabled for ${season.season}: it will not be sent.`
+        await reply(`${EMOJIS.KEY} Key Message:\n\n${messageGenerator.keyRequest()}${status}`, HTML)
       }
     },
     {
@@ -71,7 +71,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       description: 'Preview team message (template or LLM)',
       adminOnly: true,
       run: async ({ reply }) => {
-        await reply(`${EMOJIS.FRISBEE} <b>Team Message Preview:</b>\n\n${await teamMessage()}`, HTML)
+        await reply(`${EMOJIS.FRISBEE} <b>Team Message Preview:</b>\n\n${await announcement()}`, HTML)
       }
     },
     {
@@ -80,16 +80,16 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       adminOnly: true,
       run: async ({ reply }) => {
         await reply(`${EMOJIS.ROBOT} Generating preview messages...`)
-        await reply(`${EMOJIS.FRISBEE} <b>Team Message Preview:</b>\n\n${await teamMessage()}`, HTML)
+        await reply(`${EMOJIS.FRISBEE} <b>Team Message Preview:</b>\n\n${await announcement()}`, HTML)
 
         const { season } = nextTraining()
-        if (season.keyMessageEnabled) {
-          await reply(`${EMOJIS.KEY} <b>Key Message Preview:</b>\n\n${messageGenerator.generateKeyMessage()}`, HTML)
+        if (season.keyRequestEnabled) {
+          await reply(`${EMOJIS.KEY} <b>Key Message Preview:</b>\n\n${messageGenerator.keyRequest()}`, HTML)
         } else {
           await reply(`${EMOJIS.KEY} Key message disabled for ${season.season}`)
         }
 
-        await reply(`${EMOJIS.RUNNER} <b>Trainer Message Preview:</b>\n\n${await trainerMessage()}`, HTML)
+        await reply(`${EMOJIS.RUNNER} <b>Trainer Message Preview:</b>\n\n${await trainerRequest()}`, HTML)
         await reply(`${EMOJIS.CHECK_MARK} Preview complete! Use <code>/send_to_all</code> to send to actual chats.`, HTML)
       }
     },
@@ -99,8 +99,8 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       adminOnly: true,
       run: async ({ reply }) => {
         await reply(`${EMOJIS.ROBOT} Sending message to team chat...`)
-        const fallback = () => messageGenerator.generateTemplateMessage(seasonManager.getNextTrainingInfo())
-        await sendWithFallback(api, config.telegram.teamChat.chatId, await teamMessage(), fallback, threadOptions(config.telegram.teamChat.threadId))
+        const fallback = () => messageGenerator.announcementTemplate(seasonManager.getNextTrainingInfo())
+        await sendWithFallback(api, config.telegram.teamChat.chatId, await announcement(), fallback, threadOptions(config.telegram.teamChat.threadId))
         await reply(`${EMOJIS.CHECK_MARK} Message sent to team chat!`)
       }
     },
@@ -110,7 +110,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       adminOnly: true,
       run: async ({ reply }) => {
         await reply(`${EMOJIS.ROBOT} Sending messages to team and trainer chats...`)
-        const report = await scheduler.sendScheduledMessage()
+        const report = await scheduler.announceTraining()
         const header = hasFailure(report) ? `${EMOJIS.WARNING} Some messages failed:` : `${EMOJIS.CHECK_MARK} Messages sent:`
         await reply(`${header}\n\n${describeReport(report)}`)
       }
@@ -126,7 +126,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
           return
         }
 
-        const { count, threshold, pollMessageId, training } = attendance
+        const { count, threshold, announcementId, training } = attendance
         const status = count >= threshold ? `${EMOJIS.CHECK_MARK} Enough players` : `${EMOJIS.WARNING} Below threshold`
         const { reminderHoursBefore, cancelHoursBefore } = config.attendance
 
@@ -135,7 +135,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
 ${status}: <b>${count}</b> / <b>${threshold}</b>
 
 ${EMOJIS.CALENDAR} Training: ${formatDate(training.date)} at ${formatTime(training.time)}
-${EMOJIS.MEMO} Poll message id: <code>${pollMessageId}</code>
+${EMOJIS.MEMO} Poll message id: <code>${announcementId}</code>
 ${EMOJIS.CLOCK} Reminder ${reminderHoursBefore}h before, cancellation ${cancelHoursBefore}h before`, HTML)
       }
     }

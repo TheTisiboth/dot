@@ -12,7 +12,7 @@ export class SeasonManager {
     this.exceptionalTraining = exceptionalTraining
   }
 
-  getCurrentSeason(date: Date = new Date()): SeasonType {
+  seasonOn(date: Date = new Date()): SeasonType {
     const winterStart = this.seasons.winter.startDate
     const summerStart = this.seasons.summer.startDate
 
@@ -35,8 +35,8 @@ export class SeasonManager {
     return winterStarted ? 'winter' : 'summer'
   }
 
-  getCurrentSeasonConfig(date: Date = new Date()): SeasonConfig {
-    const season = this.getCurrentSeason(date)
+  seasonConfigOn(date: Date = new Date()): SeasonConfig {
+    const season = this.seasonOn(date)
     return {
       season,
       ...this.seasons[season]
@@ -44,11 +44,11 @@ export class SeasonManager {
   }
 
   /** Whether a training starts tomorrow at `time`: the post goes out exactly 24h before it. */
-  shouldSendMessage(time: TimeOfDay, date: Date = new Date()): boolean {
+  isAnnouncementDue(time: TimeOfDay, date: Date = new Date()): boolean {
     const tomorrow = new Date(date)
     tomorrow.setDate(date.getDate() + 1)
 
-    const seasonConfig = this.getCurrentSeasonConfig(tomorrow)
+    const seasonConfig = this.seasonConfigOn(tomorrow)
     const tomorrowDayOfWeek = tomorrow.getDay()
 
     return seasonConfig.practices.some(practice => practice.day === tomorrowDayOfWeek && formatTime(practice.time) === formatTime(time))
@@ -66,7 +66,7 @@ export class SeasonManager {
       const day = new Date(date)
       day.setDate(date.getDate() + offset)
 
-      const candidates = this.getCurrentSeasonConfig(day).practices
+      const candidates = this.seasonConfigOn(day).practices
         .filter(practice => practice.day === day.getDay())
         .map(practice => atTime(day, practice.time))
         .filter(candidate => candidate > date)
@@ -82,7 +82,7 @@ export class SeasonManager {
 
   getNextTrainingInfo(date: Date = new Date()): TrainingInfo {
     const nextDate = this.getNextTrainingDate(date)
-    const seasonConfig = this.getCurrentSeasonConfig(nextDate)
+    const seasonConfig = this.seasonConfigOn(nextDate)
 
     const nextPractice = seasonConfig.practices.find(practice => practice.day === nextDate.getDay())
 
@@ -107,7 +107,7 @@ export class SeasonManager {
   getTrainingDaysString(season?: SeasonType): string {
     const seasonConfig = season
       ? { season, ...this.seasons[season] }
-      : this.getCurrentSeasonConfig()
+      : this.seasonConfigOn()
 
     return seasonConfig.practices
       .map(practice => `${getDayName(practice.day)} at ${formatTime(practice.time)}`)

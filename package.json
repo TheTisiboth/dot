@@ -1,5 +1,5 @@
 {
-  "name": "ultimate-frisbee-bot",
+  "name": "dot",
   "version": "1.3.0",
   "description": "Telegram bot for Ultimate Frisbee training notifications with seasonal scheduling",
   "main": "dist/app.js",

@@ -4,7 +4,7 @@ import type { Api as BotApi } from 'grammy'
 // Type-only: the LogLevel enum is not re-exported from the root, and ESM cannot deep-import it without an extension
 import type { LogLevel } from 'telegram/extensions/Logger'
 import type { BotConfig } from '../config/env'
-import { EMOJIS, isKeyMessage } from '../utils/constants'
+import { EMOJIS, isKeyRequest } from '../utils/constants'
 import { hoursBefore } from '../utils/dateHelpers'
 import { TimeoutError, withTimeout } from '../utils/async'
 import { errorMessage, log } from '../utils/logger'
@@ -13,7 +13,7 @@ import { parseQuizTag } from '../utils/quizTag'
 // How far back to look for the training post. The cron posts it ~24h before training, but a
 // manually triggered one can land earlier, so leave room. Messages come back newest-first, so
 // an older training post caught by a wide window never wins over the current one.
-const POLL_LOOKBACK_HOURS = 48
+const ANNOUNCEMENT_LOOKBACK_HOURS = 48
 const DIALOGS_LIMIT = 100
 const CONNECT_TIMEOUT_MS = 20_000
 // A request on a connection that died silently never settles: GramJS has no request timeout
@@ -165,29 +165,29 @@ export class ReactionReader {
   /**
    * Recovers the training post after a restart, when its id is no longer in memory.
    * It is the bot's most recent standalone message carrying a 👍 in the run-up to the training -
-   * command replies never contain one, so they cannot be mistaken for it. The key message, posted
+   * command replies never contain one, so they cannot be mistaken for it. The key request, posted
    * right after it, also carries a 👍 and is skipped explicitly.
    */
-  async findPollMessage(chatId: string, threadId: number | undefined, trainingAt: Date): Promise<number | undefined> {
-    const windowStart = hoursBefore(trainingAt, POLL_LOOKBACK_HOURS)
+  async findAnnouncement(chatId: string, threadId: number | undefined, trainingAt: Date): Promise<number | undefined> {
+    const windowStart = hoursBefore(trainingAt, ANNOUNCEMENT_LOOKBACK_HOURS)
     const messages = await this.searchBotMessages(chatId, threadId, { isRecent: message => this.sentAt(message) >= windowStart })
 
-    const poll = messages.find(message =>
+    const announcement = messages.find(message =>
       !this.isReplyToMessage(message, threadId)
       && message.message?.includes(EMOJIS.THUMBS_UP)
-      && !isKeyMessage(message.message)
+      && !isKeyRequest(message.message)
       && this.sentAt(message) <= trainingAt
     )
 
-    return poll?.id
+    return announcement?.id
   }
 
   /**
-   * Whether the bot already replied to the training post, so a restart cannot send a second reminder.
+   * Whether the bot already replied to the training post, so a restart cannot send a second attendance reminder.
    *
    * Matched structurally rather than on a text marker: the training post is LLM-generated and the
    * model does not reliably respect the prompt's emoji allowlist, so it can open with the very emoji
-   * we use as a marker - which would make the post look like a reminder that had already been sent.
+   * we use as a marker - which would make the post look like an attendance reminder that had already been sent.
    */
   async hasBotReplyTo(chatId: string, threadId: number | undefined, replyToId: number): Promise<boolean> {
     // A reply is newer than the message it replies to, and message ids grow with time

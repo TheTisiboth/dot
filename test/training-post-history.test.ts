@@ -55,28 +55,28 @@ const chatter = (fromId: number, at: Date): Line[] =>
 test('the training post is found behind 150 messages from other people', async () => {
   const { reader } = readerOver([trainingPost, ...chatter(2, beforeTraining(20 * HOUR_MS))])
 
-  assert.equal(await reader.findPollMessage('-100', undefined, SUMMER_TRAINING.at), POST_ID)
+  assert.equal(await reader.findAnnouncement('-100', undefined, SUMMER_TRAINING.at), POST_ID)
 })
 
 test('the key request posted after the training post is not taken for it', async () => {
   const keyRequest = { id: 2, at: beforeTraining(24 * HOUR_MS), text: `${MARKERS.KEY} Who has the key? ${EMOJIS.CRYING} ${EMOJIS.THUMBS_UP}`, fromBot: true }
   const { reader } = readerOver([trainingPost, keyRequest])
 
-  assert.equal(await reader.findPollMessage('-100', undefined, SUMMER_TRAINING.at), POST_ID)
+  assert.equal(await reader.findAnnouncement('-100', undefined, SUMMER_TRAINING.at), POST_ID)
 })
 
 test('a bot reply carrying a 👍 is not taken for the training post', async () => {
   const reply = { id: 3, at: beforeTraining(3 * HOUR_MS), text: `Only 2 ${EMOJIS.THUMBS_UP}`, fromBot: true, replyTo: POST_ID }
   const { reader } = readerOver([trainingPost, reply])
 
-  assert.equal(await reader.findPollMessage('-100', undefined, SUMMER_TRAINING.at), POST_ID)
+  assert.equal(await reader.findAnnouncement('-100', undefined, SUMMER_TRAINING.at), POST_ID)
 })
 
 test('a training post from before the lookback window is not taken, and older pages are not read', async () => {
   const older = Array.from({ length: 250 }, (_, i) => ({ id: i + 1, at: beforeTraining(7 * 24 * HOUR_MS), text: EMOJIS.THUMBS_UP, fromBot: true }))
   const { reader, searches } = readerOver(older)
 
-  assert.equal(await reader.findPollMessage('-100', undefined, SUMMER_TRAINING.at), undefined)
+  assert.equal(await reader.findAnnouncement('-100', undefined, SUMMER_TRAINING.at), undefined)
   assert.equal(searches.length, 1)
 })
 
@@ -108,7 +108,7 @@ test('a failed bot username lookup is retried on the next search', async () => {
     return { username: 'dot_bot' } as never
   })
 
-  await assert.rejects(reader.findPollMessage('-100', undefined, SUMMER_TRAINING.at), /Bot API down/)
-  assert.equal(await reader.findPollMessage('-100', undefined, SUMMER_TRAINING.at), POST_ID)
+  await assert.rejects(reader.findAnnouncement('-100', undefined, SUMMER_TRAINING.at), /Bot API down/)
+  assert.equal(await reader.findAnnouncement('-100', undefined, SUMMER_TRAINING.at), POST_ID)
   assert.equal(attempts, 2)
 })

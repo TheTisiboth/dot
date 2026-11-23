@@ -76,19 +76,19 @@ export class RulesQuizService {
 
   /** Posts the next question to the rules chat, even when the quiz is disabled (used by /send_rule). */
   async postNext(): Promise<QuizQuestion> {
-    const { question, pollMessageId } = await this.enqueue(() =>
+    const { question, quizMessageId } = await this.enqueue(() =>
       withTimeout(this.pickAndPost(), POST_TIMEOUT_MS, `Rules quiz post timed out after ${POST_TIMEOUT_MS / 60_000} min`)
     )
     const postedAt = new Date()
-    this.lastPosted = { messageId: pollMessageId, questionId: question.id, postedAt, answered: false }
+    this.lastPosted = { messageId: quizMessageId, questionId: question.id, postedAt, answered: false }
     // Armed from the post itself, not a history lookup that would not see this poll yet
-    if (this.config.enabled) this.armAnswerFor(pollMessageId, postedAt)
+    if (this.config.enabled) this.armAnswerFor(quizMessageId, postedAt)
     return question
   }
 
   /** Answers the newest poll now, unless it already was (used by /answer_rule and the answer timer). */
   async answerLatest(): Promise<QuizQuestion | undefined> {
-    return await this.enqueue(() => this.answerLatestPoll())
+    return await this.enqueue(() => this.answerLatestQuiz())
   }
 
   /**
@@ -106,23 +106,23 @@ export class RulesQuizService {
     }
   }
 
-  private armAnswerFor(pollMessageId: number, postedAt: Date): void {
+  private armAnswerFor(quizMessageId: number, postedAt: Date): void {
     clearTimeout(this.answerTimer)
 
     const answerAt = answerTimeFor(postedAt, this.config.answerDelayMinutes)
     const delay = Math.max(0, answerAt.getTime() - Date.now())
     log.scheduler(`⏰ Rules quiz answer armed for ${delay === 0 ? 'now (catch-up)' : formatDateTimeLocale(answerAt)}`)
 
-    this.answerTimer = setTimeout(() => { void this.answerOnTimer(pollMessageId) }, delay)
+    this.answerTimer = setTimeout(() => { void this.answerOnTimer(quizMessageId) }, delay)
   }
 
   /**
    * Answers only the poll the timer was armed for: a post queued just before it fires makes a
    * newer poll the latest, and that one's answer is not due yet.
    */
-  private async answerOnTimer(pollMessageId: number): Promise<void> {
+  private async answerOnTimer(quizMessageId: number): Promise<void> {
     try {
-      await this.enqueue(() => this.answerLatestPoll(pollMessageId))
+      await this.enqueue(() => this.answerLatestQuiz(quizMessageId))
     } catch (error) {
       log.error('Answering rules quiz', error)
     }
@@ -135,18 +135,18 @@ export class RulesQuizService {
     return await run
   }
 
-  private async pickAndPost(): Promise<{ question: QuizQuestion; pollMessageId: number }> {
+  private async pickAndPost(): Promise<{ question: QuizQuestion; quizMessageId: number }> {
     const chat = this.rulesChat()
     const question = await this.pickNext(chat)
-    const pollMessageId = await this.post(chat, question)
+    const quizMessageId = await this.post(chat, question)
     log.scheduler(`❓ Rules quiz posted: ${question.id} (${question.difficulty})`)
-    return { question, pollMessageId }
+    return { question, quizMessageId }
   }
 
-  private async answerLatestPoll(onlyPollMessageId?: number): Promise<QuizQuestion | undefined> {
+  private async answerLatestQuiz(onlyQuizMessageId?: number): Promise<QuizQuestion | undefined> {
     const chat = this.rulesChat()
-    const latest = this.unansweredPost(onlyPollMessageId) ?? await this.findLatestQuiz(chat)
-    const skipReason = this.answerSkipReason(latest, onlyPollMessageId)
+    const latest = this.unansweredPost(onlyQuizMessageId) ?? await this.findLatestQuiz(chat)
+    const skipReason = this.answerSkipReason(latest, onlyQuizMessageId)
 
     if (!latest || skipReason) {
       log.scheduler(`⏭️  Rules quiz answer skipped - ${skipReason}`)
@@ -172,9 +172,9 @@ export class RulesQuizService {
     return batch.source
   }
 
-  private answerSkipReason(latest: LatestQuiz | undefined, onlyPollMessageId?: number): string | undefined {
+  private answerSkipReason(latest: LatestQuiz | undefined, onlyQuizMessageId?: number): string | undefined {
     if (!latest) return 'no quiz posted'
-    if (onlyPollMessageId !== undefined && latest.messageId !== onlyPollMessageId) return 'a newer quiz was posted'
+    if (onlyQuizMessageId !== undefined && latest.messageId !== onlyQuizMessageId) return 'a newer quiz was posted'
     if (latest.answered || this.answeredIds.has(latest.messageId)) return 'already answered'
     return undefined
   }
@@ -183,10 +183,10 @@ export class RulesQuizService {
    * The poll this process posted, while it is unanswered: it is the quiz to answer even when
    * search does not see it yet, or sees a newer /test_rule preview (answered with it) first.
    */
-  private unansweredPost(onlyPollMessageId?: number): LatestQuiz | undefined {
+  private unansweredPost(onlyQuizMessageId?: number): LatestQuiz | undefined {
     const post = this.lastPosted
     if (!post || this.answeredIds.has(post.messageId)) return undefined
-    if (onlyPollMessageId !== undefined && post.messageId !== onlyPollMessageId) return undefined
+    if (onlyQuizMessageId !== undefined && post.messageId !== onlyQuizMessageId) return undefined
     return post
   }
 
@@ -194,11 +194,11 @@ export class RulesQuizService {
     return await this.reactionReader.getLatestQuiz(chat.chatId, chat.threadId)
   }
 
-  private async sendAnswer(chat: ChatTarget, question: QuizQuestion, text: string, pollMessageId: number): Promise<void> {
+  private async sendAnswer(chat: ChatTarget, question: QuizQuestion, text: string, quizMessageId: number): Promise<void> {
     if (question.answerImage) {
-      await this.sendImage(chat, question.answerImage, pollMessageId, { htmlCaption: text, spoiler: true })
+      await this.sendImage(chat, question.answerImage, quizMessageId, { htmlCaption: text, spoiler: true })
     } else {
-      await this.sendText(chat, text, pollMessageId, { parse_mode: 'HTML', ...noLinkPreview() })
+      await this.sendText(chat, text, quizMessageId, { parse_mode: 'HTML', ...noLinkPreview() })
     }
   }
 
@@ -221,8 +221,8 @@ export class RulesQuizService {
 
   /** The question and its answer right away (used by /test_rule). */
   async preview(chat: ChatTarget, question: QuizQuestion): Promise<void> {
-    const pollMessageId = await this.post(chat, question)
-    await this.sendAnswer(chat, question, buildAnswer(question, this.sourceOf(question)), pollMessageId)
+    const quizMessageId = await this.post(chat, question)
+    await this.sendAnswer(chat, question, buildAnswer(question, this.sourceOf(question)), quizMessageId)
   }
 
   private async sendImage(

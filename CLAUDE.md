@@ -1,6 +1,6 @@
 # dot — Telegram bot for Ultimate Frisbee trainings
 
-Rules only; the why lives in [`ADR.md`](ADR.md). Glossary and target layout: https://github.com/TheTisiboth/dot/issues/48
+Rules only; the why lives in [`ADR.md`](ADR.md). Glossary: [`README.md#glossary`](README.md#glossary). Target layout: https://github.com/TheTisiboth/dot/issues/48
 
 ## Commands
 

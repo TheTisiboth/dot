@@ -16,7 +16,7 @@ import { MESSAGES, EMOJIS } from './utils/constants'
 import { log } from './utils/logger'
 import { pollingOutageLogger } from './utils/telegram'
 
-class UltimateFrisbeeBot {
+class Dot {
   private readonly bot: Bot
   private readonly seasonManager: SeasonManager
   private readonly messageGenerator: MessageGenerator
@@ -82,9 +82,9 @@ class UltimateFrisbeeBot {
   }
 
   async start(): Promise<void> {
-    const currentSeason = this.seasonManager.getCurrentSeason()
+    const currentSeason = this.seasonManager.seasonOn()
     const trainingDays = this.seasonManager.getTrainingDaysString()
-    const seasonConfig = this.seasonManager.getCurrentSeasonConfig()
+    const seasonConfig = this.seasonManager.seasonConfigOn()
 
     log.bot(`${EMOJIS.FRISBEE} ${MESSAGES.BOT_STARTED}`)
     log.bot(`${EMOJIS.CALENDAR} Season: ${currentSeason} | ${EMOJIS.LOCATION} Location: ${seasonConfig.location.name}`)
@@ -126,6 +126,6 @@ const loadConfigOrExit = (): BotConfig => {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const bot = new UltimateFrisbeeBot(loadConfigOrExit())
+  const bot = new Dot(loadConfigOrExit())
   void bot.start()
 }
