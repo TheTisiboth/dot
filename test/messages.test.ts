@@ -1,5 +1,5 @@
 import './helpers/testEnv'
-import { test, after, beforeEach } from 'node:test'
+import { test, after, beforeEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { type AddressInfo } from 'node:net'
@@ -8,7 +8,7 @@ import { CANCELLATION_SIGNATURE, MARKERS, isKeyRequest } from '../src/training/m
 import { EMOJIS } from '../src/shared/emojis'
 import { parseLocation } from '../src/config/env'
 import { formatClock } from '../src/shared/formatters'
-import { llmWriter } from '../src/training/messages/llmWriter'
+import { LLM_TIMEOUT_MS, llmWriter } from '../src/training/messages/llmWriter'
 import { trainingMessages } from '../src/training/messages/messages'
 import * as prompts from '../src/training/messages/prompts'
 import * as templates from '../src/training/messages/templates'
@@ -134,6 +134,21 @@ test('an LLM-less writer always falls back to the template', async () => {
   assert.equal(await templateOnly.announcement(training), templates.announcement(training))
   assert.equal(await templateOnly.trainerRequest(training), templates.trainerRequest(training))
   assert.equal(await templateOnly.attendanceReminder(training, attendance), templates.attendanceReminder(training, attendance))
+})
+
+test('a hanging LLM falls back to the template once the timeout passes', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] })
+  try {
+    const never = () => new Promise<never>(() => {})
+    const hanging = trainingMessages(llmWriter(config.ollama, { chat: never, list: never }))
+
+    const message = hanging.announcement(training)
+    mock.timers.tick(LLM_TIMEOUT_MS)
+
+    assert.equal(await message, templates.announcement(training))
+  } finally {
+    mock.timers.reset()
+  }
 })
 
 const stPauli = { ...training, location: parseLocation('[St. Pauli (Halle 2)](https://maps.example/st-pauli?a=1&b=2)') }

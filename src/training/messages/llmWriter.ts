@@ -1,6 +1,10 @@
 import type { Ollama } from 'ollama'
 import { type BotConfig } from '../../config/env'
+import { withTimeout } from '../../shared/async'
 import { log } from '../../shared/logger'
+
+// Generous: a cold model on the Pi's CPU takes over a minute; past this the template goes out instead
+export const LLM_TIMEOUT_MS = 5 * 60_000
 
 export type LlmClient = Pick<Ollama, 'chat' | 'list'>
 
@@ -29,7 +33,7 @@ export const llmWriter = ({ model }: Pick<BotConfig['ollama'], 'model'>, client:
     if (!client) return null
 
     try {
-      const response = await client.chat({
+      const response = await withTimeout(client.chat({
         model,
         messages: [{ role: 'user', content: prompt }],
         options: {
@@ -39,7 +43,7 @@ export const llmWriter = ({ model }: Pick<BotConfig['ollama'], 'model'>, client:
           frequency_penalty: 0.8, // Reduce repetition based on token frequency
           presence_penalty: 0.2 // Encourage topic diversity
         }
-      })
+      }), LLM_TIMEOUT_MS, `Ollama did not answer within ${LLM_TIMEOUT_MS / 60_000} min`)
 
       const text = response.message.content?.replace(/^\s+|\s+$/g, '')
       if (!text) throw new Error('Empty response from Ollama')
