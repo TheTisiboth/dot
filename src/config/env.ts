@@ -44,8 +44,8 @@ const MTPROTO_HELP = 'Get api_id/api_hash from https://my.telegram.org (API deve
 // Keyed by env var name, so every error names its variable
 export const envVars = z.object({
   TELEGRAM_BOT_TOKEN: required,
-  CHAT_ID: required,
-  CHAT_THREAD_ID: threadId,
+  TEAM_CHAT_ID: required,
+  TEAM_CHAT_THREAD_ID: threadId,
   ADMIN_CHAT_ID: required,
   TRAINER_CHAT_ID: required,
   TRAINER_CHAT_THREAD_ID: threadId,
@@ -106,7 +106,7 @@ const configSchema = envVars
   .transform(env => ({
     telegram: {
       token: env.TELEGRAM_BOT_TOKEN,
-      teamChat: { chatId: env.CHAT_ID, threadId: env.CHAT_THREAD_ID },
+      teamChat: { chatId: env.TEAM_CHAT_ID, threadId: env.TEAM_CHAT_THREAD_ID },
       trainerChat: { chatId: env.TRAINER_CHAT_ID, threadId: env.TRAINER_CHAT_THREAD_ID },
       adminChatId: env.ADMIN_CHAT_ID,
       enableTrainerMessages: env.ENABLE_TRAINER_MESSAGES
