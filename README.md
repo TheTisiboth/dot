@@ -114,9 +114,11 @@ enabled in the team group with 👍 available.
 
 ### 5. Run
 
-**Docker (recommended):**
+**Production:** Dokploy redeploys on every push to `main`.
+
+**Docker, locally** (bot + Ollama, pulls the model):
 ```bash
-npm run deploy
+npm run docker:up
 ```
 
 **Local development:**
@@ -262,16 +264,6 @@ Ollama monitor:
   Interval: 60s
 ```
 
-## Docker Commands
-
-```bash
-npm run deploy              # Build and deploy everything
-npm run bot:logs            # View bot logs
-npm run bot:restart         # Restart bot only
-npm run ollama:logs         # View Ollama logs
-npm run docker:dev          # Run with live logs
-```
-
 ## Message Flow
 
 The bot sends **three separate messages** 24h before each training:
@@ -368,10 +360,17 @@ One word per concept, one concept per word, in code, logs and docs.
 ```bash
 npm run dev             # Watch mode
 npm run verify          # Type-check, lint + format, knip, tests (run before every push; CI also builds + docker build)
-npm test               # Run tests
-npm run lint           # Check code quality and formatting (lint:fix formats)
-npm run type-check     # Check types
+npm test                # Run tests
+npm run test:coverage   # Tests with coverage thresholds
+npm run lint            # Check code quality and formatting
+npm run format          # Fix lint + formatting
+npm run type-check      # Check types
+npm run build           # Compile to dist/
+npm start               # Run dist/main.js (build first)
+npm run smoke           # Import the built app (ESM check)
 ```
+
+Release: on `main`, after a user-visible change ships, `npm run release -- patch|minor|major` (bumps `version`, commits, tags `vX.Y.Z`), then `git push --follow-tags`.
 
 ## Project Structure
 

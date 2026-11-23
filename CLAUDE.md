@@ -24,7 +24,7 @@ Breaking a guideline means changing `ADR.md` in the same PR, with the reason.
 
 ## Rules
 
-- Env var: change the zod schema in `src/config/schema.ts`, the `environment:` list of `docker-compose.yml` and `.env.example` in the same change. Otherwise it never reaches the container (ADR-005)
+- Env var: change the zod schema in `src/config/env.ts`, the `environment:` list of `docker-compose.yml` and `.env.example` in the same change. Otherwise it never reaches the container (ADR-005)
 - Secrets stay in `.env`, never committed
 - Tests assert invariants and flows (👍 present, markers, numbers, who gets what when), not exact wording
 - One PR per issue, branched off `main`
