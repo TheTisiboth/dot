@@ -8,7 +8,9 @@ import { MtprotoConnection, createMtprotoClient } from './telegram/mtproto/clien
 import { History } from './telegram/mtproto/history'
 import { trainingHistory } from './training/history'
 import { quizHistory } from './quiz/history'
-import { SchedulerService } from './training/scheduler'
+import { AttendanceMonitor } from './training/attendance'
+import { announcer } from './training/announcer'
+import { startSchedule } from './training/schedule'
 import { RulesQuizService } from './quiz/service'
 import { HEALTH_PORT, PROBE_TIMEOUT_MS, startHealthServer } from './health/server'
 import { type Command, publishCommandMenus, routeCommands } from './commands/registry'
@@ -27,7 +29,7 @@ class Dot {
   private readonly history: History
   // The chats the history is read in, so a startup check can flag one the account cannot see
   private readonly readChats: Record<string, string>
-  private readonly schedulerService: SchedulerService
+  private readonly startSchedule: () => void
   private readonly commands: Command[]
   private readonly adminChatId: string
 
@@ -51,17 +53,12 @@ class Dot {
       ...(rulesChat && { rules: rulesChat.chatId })
     }
     const rulesQuiz = new RulesQuizService(config.rulesQuiz, this.bot.api, this.seasonManager, quizHistory(this.history))
-    this.schedulerService = new SchedulerService(
-      config,
-      this.seasonManager,
-      this.messageGenerator,
-      trainingHistory(this.history),
-      this.bot.api,
-      rulesQuiz
-    )
+    const attendance = new AttendanceMonitor(config, this.seasonManager, this.messageGenerator, trainingHistory(this.history), this.bot.api)
+    const trainingAnnouncer = announcer({ config, seasonManager: this.seasonManager, messageGenerator: this.messageGenerator, attendance, bot: this.bot.api, rulesQuiz })
+    this.startSchedule = () => { startSchedule({ config, seasonManager: this.seasonManager, announcer: trainingAnnouncer, attendance, rulesQuiz, bot: this.bot.api }) }
     this.commands = [
       ...publicCommands(this.seasonManager),
-      ...trainingCommands({ config, api: this.bot.api, seasonManager: this.seasonManager, messageGenerator: this.messageGenerator, scheduler: this.schedulerService }),
+      ...trainingCommands({ config, api: this.bot.api, seasonManager: this.seasonManager, messageGenerator: this.messageGenerator, announcer: trainingAnnouncer, attendance }),
       ...quizCommands(rulesQuiz)
     ]
     routeCommands(this.bot, this.commands, config.telegram.adminChatId)
@@ -127,7 +124,7 @@ class Dot {
       log.error('Connecting MTProto reader - attendance checks will not run until it recovers', error)
     }
 
-    this.schedulerService.setupScheduler()
+    this.startSchedule()
 
     // Polling only gives up on a rejected token or a second poller (409, e.g. a deploy overlap): exit so Docker restarts it
     this.bot.start().catch((error: unknown) => {

@@ -1,7 +1,8 @@
 import type { Api } from 'grammy'
 import { type SeasonManager } from '../training/season'
 import { type MessageGenerator } from '../training/messages/messageGenerator'
-import { describeReport, hasFailure, type SchedulerService } from '../training/scheduler'
+import { type Announcer, describeReport, hasFailure } from '../training/announcer'
+import { type AttendanceMonitor } from '../training/attendance'
 import type { BotConfig } from '../config/env'
 import { EMOJIS } from '../shared/emojis'
 import { formatClock, formatDate } from '../shared/formatters'
@@ -15,11 +16,12 @@ interface TrainingCommandsDeps {
   api: Api;
   seasonManager: SeasonManager;
   messageGenerator: MessageGenerator;
-  scheduler: SchedulerService;
+  announcer: Announcer;
+  attendance: AttendanceMonitor;
 }
 
 /** Admin commands to preview and send the training messages before the scheduler does. */
-export const trainingCommands = ({ config, api, seasonManager, messageGenerator, scheduler }: TrainingCommandsDeps): Command[] => {
+export const trainingCommands = ({ config, api, seasonManager, messageGenerator, announcer, attendance }: TrainingCommandsDeps): Command[] => {
   const announcement = (useLLM = messageGenerator.isLLMAvailable()) =>
     messageGenerator.announcement(seasonManager.nextTraining(), { useLLM })
   const trainerRequest = (useLLM = messageGenerator.isLLMAvailable()) =>
@@ -106,7 +108,7 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       adminOnly: true,
       run: async ({ reply }) => {
         await reply.plain(`${EMOJIS.ROBOT} Sending messages to team and trainer chats...`)
-        const report = await scheduler.announceTraining()
+        const report = await announcer.announceTraining()
         const header = hasFailure(report) ? `${EMOJIS.WARNING} Some messages failed:` : `${EMOJIS.CHECK_MARK} Messages sent:`
         await reply.plain(`${header}\n\n${describeReport(report)}`)
       }
@@ -116,13 +118,13 @@ export const trainingCommands = ({ config, api, seasonManager, messageGenerator,
       description: 'Show live 👍 count on the training post',
       adminOnly: true,
       run: async ({ reply }) => {
-        const attendance = await scheduler.inspectAttendance()
-        if (!attendance) {
+        const check = await attendance.inspect()
+        if (!check) {
           await reply.plain(`${EMOJIS.WARNING} No training post found for the next training - nothing to count yet.`)
           return
         }
 
-        const { count, threshold, announcementId, training } = attendance
+        const { count, threshold, announcementId, training } = check
         const status = count >= threshold ? `${EMOJIS.CHECK_MARK} Enough players` : `${EMOJIS.WARNING} Below threshold`
         const { reminderHoursBefore, cancelHoursBefore } = config.attendance
 

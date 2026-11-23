@@ -7,7 +7,8 @@ import { publicCommands } from '../src/commands/public'
 import { quizCommands } from '../src/commands/quiz'
 import { trainingCommands } from '../src/commands/training'
 import { MessageGenerator } from '../src/training/messages/messageGenerator'
-import { SchedulerService } from '../src/training/scheduler'
+import { AttendanceMonitor } from '../src/training/attendance'
+import { announcer } from '../src/training/announcer'
 import { SeasonManager } from '../src/training/season'
 import { EMOJIS } from '../src/shared/emojis'
 import { formatDate } from '../src/shared/formatters'
@@ -35,10 +36,11 @@ const build = ({ failingChat, env }: { failingChat?: string; env?: Record<string
   const quiz = makeFakeRulesQuiz()
   const seasonManager = new SeasonManager(botConfig)
   const messageGenerator = new MessageGenerator(botConfig, null)
-  const scheduler = new SchedulerService(botConfig, seasonManager, messageGenerator, makeFakeTrainingHistory({ thumbsUp: ATTENDING }), bot.api, quiz)
+  const attendance = new AttendanceMonitor(botConfig, seasonManager, messageGenerator, makeFakeTrainingHistory({ thumbsUp: ATTENDING }), bot.api)
+  const trainingAnnouncer = announcer({ config: botConfig, seasonManager, messageGenerator, attendance, bot: bot.api, rulesQuiz: quiz })
   const commands: Command[] = [
     ...publicCommands(seasonManager),
-    ...trainingCommands({ config: botConfig, api: bot.api, seasonManager, messageGenerator, scheduler }),
+    ...trainingCommands({ config: botConfig, api: bot.api, seasonManager, messageGenerator, announcer: trainingAnnouncer, attendance }),
     ...quizCommands(quiz)
   ]
   routeCommands(bot, commands, botConfig.telegram.adminChatId)

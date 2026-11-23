@@ -35,3 +35,6 @@ export function getDateBefore(dateConfig: DateConfig): DateConfig {
   date.setDate(date.getDate() - 1)
   return { month: date.getMonth() + 1, day: date.getDate() }
 }
+
+/** Runs `fn` at `at`, or at once when `at` already passed (catch-up after a restart). */
+export const armAt = (at: Date, fn: () => void): NodeJS.Timeout => setTimeout(fn, Math.max(0, at.getTime() - Date.now()))
