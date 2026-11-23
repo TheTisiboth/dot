@@ -23,8 +23,8 @@ interface ScheduleDeps {
   bot: Api;
 }
 
-/** Registers a daily cron per practice time, and re-arms on startup what a restart would drop. */
-export const startSchedule = ({ config, seasonManager, announcer, attendance, rulesQuiz, bot }: ScheduleDeps): void => {
+/** Registers a daily cron per practice time, and re-arms on startup what a restart would drop. Returns its stop. */
+export const startSchedule = ({ config, seasonManager, announcer, attendance, rulesQuiz, bot }: ScheduleDeps): () => Promise<void> => {
   const toAdmin = senderFor(bot, { chatId: config.telegram.adminChatId })
   let retryTimer: NodeJS.Timeout | undefined
 
@@ -62,11 +62,11 @@ export const startSchedule = ({ config, seasonManager, announcer, attendance, ru
     log.scheduler(`📅 For training: ${getDayName(training.startsAt.getDay())}, ${formatDateLocale(training.startsAt)} at ${formatClock(training.startsAt)}`)
   }
 
-  seasonManager.getAllPracticeTimes().forEach(practiceTime => {
+  const tasks = seasonManager.getAllPracticeTimes().map(practiceTime => {
     const time = formatTime(practiceTime)
     log.scheduler(`⏰ Registered daily announcement check at ${time}`)
 
-    cron.schedule(`${practiceTime.minute} ${practiceTime.hour} * * *`, async () => {
+    return cron.schedule(`${practiceTime.minute} ${practiceTime.hour} * * *`, async () => {
       const tomorrow = new Date()
       tomorrow.setDate(tomorrow.getDate() + 1)
 
@@ -86,4 +86,9 @@ export const startSchedule = ({ config, seasonManager, announcer, attendance, ru
   attendance.armTimers()
   void rulesQuiz.armAnswer()
   logNextAnnouncement()
+
+  return async () => {
+    clearTimeout(retryTimer)
+    await Promise.all(tasks.map(task => task.destroy()))
+  }
 }

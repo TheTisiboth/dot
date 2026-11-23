@@ -85,6 +85,12 @@ export class AttendanceMonitor {
     return armAt(firesAt, () => { void check() })
   }
 
+  /** Disarms every pending check. */
+  stop(): void {
+    this.timers.forEach(timers => { timers.forEach(clearTimeout) })
+    this.timers.clear()
+  }
+
   /** Exposed for the /attendance admin command. */
   async inspect(): Promise<AttendanceCheck | null> {
     return await this.getAttendance(this.seasonManager.nextTraining())

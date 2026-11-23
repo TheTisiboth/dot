@@ -1,3 +1,4 @@
+import type { Server } from 'node:http'
 import type { Bot } from 'grammy'
 import type { Ollama } from 'ollama'
 import type { BotConfig } from './config/env'
@@ -13,14 +14,18 @@ import { announcer } from './training/announcer'
 import { startSchedule } from './training/schedule'
 import { RulesQuizService } from './quiz/service'
 import { quizPublisher } from './quiz/publisher'
-import { HEALTH_PORT, PROBE_TIMEOUT_MS, startHealthServer } from './health/server'
+import { PROBE_TIMEOUT_MS, startHealthServer } from './health/server'
 import { publishCommandMenus, routeCommands } from './commands/registry'
 import { publicCommands } from './commands/public'
 import { trainingCommands } from './commands/training'
 import { quizCommands } from './commands/quiz'
 import { EMOJIS } from './shared/emojis'
+import { withTimeout } from './shared/async'
 import { log } from './shared/logger'
 import { pollingOutageLogger } from './telegram/botApi'
+
+// Below Docker's 10s stop grace period, so the bot exits on its own before being killed
+export const SHUTDOWN_DEADLINE_MS = 5_000
 
 /** The outside world the app talks to, built by the entry point. */
 export interface Clients {
@@ -30,13 +35,13 @@ export interface Clients {
 }
 
 export interface App {
-  /** Starts every service; `onPollingStopped` is called when polling gives up. */
+  /** Starts every service; resolves once polling runs. `onPollingStopped` is called when polling gives up. */
   start: (onPollingStopped: (error: unknown) => void) => Promise<void>;
   stop: () => Promise<void>;
 }
 
 /** Builds and wires every service; nothing talks to the outside until `start`. */
-export const buildApp = (config: BotConfig, { bot, mtproto: mtprotoClient, ollama }: Clients): App => {
+export const buildApp = (config: BotConfig, { bot, mtproto: mtprotoClient, ollama }: Clients, healthPort: number): App => {
   bot.api.config.use(pollingOutageLogger())
   // grammY awaits each update before the next: not awaiting keeps a slow command (LLM) from holding up the others
   bot.use((_ctx, next) => {
@@ -72,16 +77,11 @@ export const buildApp = (config: BotConfig, { bot, mtproto: mtprotoClient, ollam
     }
   }
 
+  let health: Server | undefined
+  let stopSchedule: (() => Promise<void>) | undefined
+
   const start = async (onPollingStopped: (error: unknown) => void): Promise<void> => {
-    const seasonConfig = seasonManager.seasonConfigOn()
-
-    log.bot(`${EMOJIS.FRISBEE} Dot started!`)
-    log.bot(`${EMOJIS.CALENDAR} Season: ${seasonManager.seasonOn()} | ${EMOJIS.LOCATION} Location: ${seasonConfig.location.name}`)
-    log.bot(`${EMOJIS.RUNNER} Training days: ${seasonManager.getTrainingDaysString()}`)
-    log.bot(`${EMOJIS.ROBOT} LLM: ${config.ollama.enabled ? `Ollama (${config.ollama.model})` : 'Template-only'}`)
-    log.bot(`${EMOJIS.THUMBS_UP} Min attendance: ${seasonConfig.minAttendance}`)
-
-    startHealthServer({ api: bot.api, reader: mtproto, llm }, HEALTH_PORT, PROBE_TIMEOUT_MS)
+    health = startHealthServer({ api: bot.api, reader: mtproto, llm }, healthPort, PROBE_TIMEOUT_MS)
     publishCommandMenus(bot.api, commands, adminChatId).catch((error: unknown) => {
       log.error('Registering bot commands', error)
     })
@@ -96,13 +96,35 @@ export const buildApp = (config: BotConfig, { bot, mtproto: mtprotoClient, ollam
       log.error('Connecting MTProto reader - attendance checks will not run until it recovers', error)
     }
 
-    startSchedule({ config, seasonManager, announcer: trainingAnnouncer, attendance, rulesQuiz, bot: bot.api })
+    stopSchedule = startSchedule({ config, seasonManager, announcer: trainingAnnouncer, attendance, rulesQuiz, bot: bot.api })
 
-    bot.start().catch(onPollingStopped)
+    await new Promise<void>(resolve => {
+      bot.start({ onStart: () => { resolve() } }).catch((error: unknown) => {
+        onPollingStopped(error)
+        resolve()
+      })
+    })
+
+    const seasonConfig = seasonManager.seasonConfigOn()
+    const llmName = config.ollama.enabled ? `Ollama (${config.ollama.model})` : 'Template-only'
+    log.bot(`${EMOJIS.FRISBEE} Dot started | ${EMOJIS.CALENDAR} ${seasonManager.seasonOn()} at ${seasonConfig.location.name} | ${EMOJIS.RUNNER} ${seasonManager.getTrainingDaysString()} | ${EMOJIS.ROBOT} LLM: ${llmName} | ${EMOJIS.THUMBS_UP} min ${seasonConfig.minAttendance}`)
   }
 
+  /** Stops every service, giving up after SHUTDOWN_DEADLINE_MS: a hanging one must not hold the exit. */
   const stop = async (): Promise<void> => {
-    await Promise.all([bot.stop(), mtproto.disconnect()])
+    attendance.stop()
+    rulesQuiz.stop()
+    const stopped = Promise.all([
+      bot.stop(),
+      stopSchedule?.(),
+      new Promise(resolve => { if (health) health.close(resolve); else resolve(undefined) }),
+      mtproto.disconnect()
+    ])
+    try {
+      await withTimeout(stopped, SHUTDOWN_DEADLINE_MS, `Shutdown did not finish within ${SHUTDOWN_DEADLINE_MS / 1000}s`)
+    } catch (error) {
+      log.error('Stopping', error)
+    }
   }
 
   return { start, stop }
