@@ -14,6 +14,7 @@ export const EMOJIS = {
   SUMMER: '🏖️',
   RUNNER: '🏃',
   THUMBS_UP: '👍',
+  THUMBS_DOWN: '👎',
   CHECK_MARK: '✅',
   COACH: '👨‍🏫',
   MEGAPHONE: '📣',
